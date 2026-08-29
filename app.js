@@ -1,5 +1,38 @@
 const $=id=>document.getElementById(id);let CATALOG=[];
-async function api(path,opt={}){let r=await fetch(path,{headers:{'Content-Type':'application/json'},...opt});if(r.status===401){location.reload();return null}let j=await r.json();if(!r.ok)throw Error(j.error||'خطأ');return j}
+// GitHub Pages mode: the site is static, so field data is stored locally on the device.
+const STATIC_MODE = location.hostname.endsWith('github.io');
+const LS_KEY='asaslab_field_v32';
+function localDB(){let d=JSON.parse(localStorage.getItem(LS_KEY)||'null');if(!d)d={visits:[],catalog:[],projects:[],samples:[],tests:[],reports:[],clients:[],equipment:[],audit:[]};if(!d.catalog.length)d.catalog=[
+ {id:1,code:'D1883',name_ar:'نسبة تحمل كاليفورنيا CBR',name_en:'California Bearing Ratio',category:'تربة',standard:'ASTM D1883',version:'2024'},
+ {id:2,code:'D2216',name_ar:'محتوى الرطوبة',name_en:'Water Content',category:'تربة',standard:'ASTM D2216',version:'2019'},
+ {id:3,code:'D4318',name_ar:'حدود أتربرج',name_en:'Atterberg Limits',category:'تربة',standard:'ASTM D4318',version:'2018'},
+ {id:4,code:'C136',name_ar:'التحليل المنخلي',name_en:'Sieve Analysis',category:'ركام',standard:'ASTM C136',version:'2019'},
+ {id:5,code:'D1557',name_ar:'بروكتور المعدل',name_en:'Modified Proctor',category:'تربة',standard:'ASTM D1557',version:'2021'},
+ {id:6,code:'D698',name_ar:'بروكتور القياسي',name_en:'Standard Proctor',category:'تربة',standard:'ASTM D698',version:'2021'},
+ {id:7,code:'C39',name_ar:'مقاومة الضغط للخرسانة',name_en:'Compressive Strength',category:'خرسانة',standard:'ASTM C39',version:'2024'},
+ {id:8,code:'C143',name_ar:'اختبار الهطول',name_en:'Slump',category:'خرسانة',standard:'ASTM C143',version:'2020'},
+ {id:9,code:'D2041',name_ar:'الوزن النوعي الأقصى للخلطة الإسفلتية Gmm',name_en:'Maximum Specific Gravity',category:'أسفلت',standard:'ASTM D2041',version:'2022'},
+ {id:10,code:'D6132',name_ar:'سماكة الطلاء الجاف DFT',name_en:'Dry Film Thickness',category:'طلاءات',standard:'ASTM D6132',version:'2022'},
+ {id:11,code:'D7091',name_ar:'قياس السماكة الجافة للطلاءات',name_en:'Dry Film Thickness',category:'طلاءات',standard:'ASTM D7091',version:'2022'},
+ {id:12,code:'ROAD-PROFILER',name_ar:'بروفايل الطريق',name_en:'Road Profiler',category:'طرق',standard:'Road Profiler',version:'1.0'},
+ {id:13,code:'GRB-ROUGHNESS',name_ar:'وعورة الأسفلت',name_en:'Asphalt Roughness',category:'طرق',standard:'GRB',version:'1.0'}];localStorage.setItem(LS_KEY,JSON.stringify(d));return d}
+function saveDB(d){localStorage.setItem(LS_KEY,JSON.stringify(d));return d}
+function now(){return new Date().toLocaleString('ar-SA')}
+function staticApi(path,opt={}){let d=localDB(), body={};try{body=opt.body?JSON.parse(opt.body):{}}catch{};
+ if(path==='/api/login')return body.username==='admin'&&body.password==='1234'?{user:{full_name:'مدير النظام',role:'admin',username:'admin'}}:{error:'اسم المستخدم أو كلمة المرور غير صحيحة'};
+ if(path==='/api/logout'){localStorage.removeItem('asaslab_session');return {ok:true}};
+ if(path==='/api/catalog')return d.catalog;
+ if(path.startsWith('/api/field/search')){let no=decodeURIComponent((path.split('license=')[1]||''));return d.visits.filter(x=>x.license_no===no).slice(-1)}
+ if(path==='/api/field/visits'){let id=(d.visits.length?Math.max(...d.visits.map(x=>x.id)):0)+1;let x={...body,id,created_at:now(),full_name:'مدير النظام'};d.visits.push(x);d.audit.push({created_at:now(),full_name:'مدير النظام',action:'حفظ زيارة ميدانية',entity:'field_visit',details:`رقم ${id}`});saveDB(d);return {id}}
+ if(path==='/api/field/recent')return d.visits.slice().reverse().slice(0,20);
+ if(path==='/api/field/status'){let x=d.visits.find(v=>v.id===+body.id);if(!x)return {error:'الزيارة غير موجودة'};x.status=body.status;x.updated_at=now();d.audit.push({created_at:now(),full_name:'مدير النظام',action:'تغيير حالة الزيارة',entity:'field_visit',details:`${x.id}: ${body.status}`});saveDB(d);return {ok:true}}
+ if(path==='/api/dashboard'){return {counts:{projects:d.projects.length,samples:d.samples.length,tests:d.tests.length,reports:d.reports.length,equipment:d.equipment.length,field_visits:d.visits.length},activity:d.audit.slice(-10).reverse(),clients:d.clients,projects:d.projects,samples:d.samples,tests:d.tests,reports:d.reports,equipment:d.equipment,audit:d.audit.slice().reverse()}}
+ if(path.startsWith('/api/report/')){let id=+path.split('/').pop(),r=d.reports.find(x=>x.test_id===id)||{};return {...r,data:{inputs:r.inputs||{},results:r.results||{}} ,lab_name:'مختبر أساس'}}
+ if(path==='/api/clients'||path==='/api/projects'||path==='/api/samples'||path==='/api/equipment'){let map={'/api/clients':'clients','/api/projects':'projects','/api/samples':'samples','/api/equipment':'equipment'},k=map[path];let id=d[k].length+1;d[k].push({...body,id,created_at:now(),code:k==='projects'?`PRJ-${String(id).padStart(4,'0')}`:undefined});saveDB(d);return {id}}
+ if(path==='/api/tests/proctor'||path==='/api/tests/generic'){let id=d.tests.length+1;let code=body.standard_code||'TEST';let cat=d.catalog.find(x=>x.code===code)||d.catalog[0];let test_no=body.test_no||`T-${String(id).padStart(5,'0')}`;d.tests.push({id,test_no,sample_id:body.sample_id||'',name_ar:cat.name_ar,code:cat.code,standard:cat.standard,status:'مسودة',mdd:body.mdd,omc:body.omc});let report_no=`R-${new Date().getFullYear()}-${String(id).padStart(5,'0')}`;d.reports.push({id,report_no,test_id:id,name_ar:cat.name_ar,status:'مسودة',issued_at:now(),inputs:body.inputs||{},results:body.results||{mdd:body.mdd,omc:body.omc}});saveDB(d);return {report_no}}
+ if(path==='/api/users')return [{id:1,username:'admin',full_name:'مدير النظام',role:'admin',active:1,created_at:'—'}];
+ return []}
+async function api(path,opt={}){if(STATIC_MODE){try{return staticApi(path,opt)}catch(e){throw Error(e.message||'خطأ')}}try{let r=await fetch(path,{headers:{'Content-Type':'application/json'},...opt});if(r.status===401){location.reload();return null}let j=await r.json();if(!r.ok)throw Error(j.error||'خطأ');return j}catch(e){throw e}}
 async function login(){try{let j=await api('/api/login',{method:'POST',body:JSON.stringify({username:$('lu').value,password:$('lp').value})});$('login').classList.add('hidden');$('app').classList.remove('hidden');$('me').textContent=j.user.full_name+' — '+roleName(j.user.role);if(j.user.role!=='admin')$('usersNav')?.classList.add('hidden');await loadCatalog();load()}catch(e){alert(e.message)}}
 async function logout(){await fetch('/api/logout',{method:'POST'});location.reload()}
 document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>go(b.dataset.p));function go(p){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(p).classList.add('active');$('title').textContent=document.querySelector('[data-p="'+p+'"]').textContent;side.classList.remove('open');load()}
