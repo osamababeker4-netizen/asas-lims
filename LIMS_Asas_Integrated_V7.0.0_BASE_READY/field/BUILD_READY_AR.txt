@@ -1,0 +1,18 @@
+LIMS أساس V7.1.0 – حزمة تجهيز البناء
+
+تم تجهيز الحزمة لتكون أوضح وأقرب للبناء:
+- توحيد إصدار Gradle في gradlew مع gradle-wrapper.properties على 9.3.1.
+- الحفاظ على applicationId sa.asas.lims والإصدار 7.1.0 (versionCode 9).
+- لا يتم تضمين أسرار أو مفاتيح توقيع داخل المشروع.
+
+البناء على جهاز متصل بالإنترنت:
+1) افتح مجلد field في Android Studio.
+2) أو من الطرفية:
+   ./gradlew assembleDebug
+3) نسخة الإصدار:
+   ./gradlew assembleRelease
+
+ملاحظة: بيئة تجهيز الملف الحالية لا تملك وصولاً لشبكة Gradle، لذلك لم يتم الادعاء بأن APK تم بناؤه هنا.
+
+
+V7.1: تمت إضافة MainActivity Kotlin وموارد Android ونسخة الواجهة داخل assets لتشغيل النظام محلياً داخل التطبيق.

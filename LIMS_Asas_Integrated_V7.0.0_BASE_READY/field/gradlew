@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+GRADLE_VERSION=9.3.1
+CACHE="$HOME/.gradle/wrapper/dists/gradle-${GRADLE_VERSION}-bin"
+DIST="$CACHE/gradle-${GRADLE_VERSION}/bin/gradle"
+if [ ! -x "$DIST" ]; then
+  mkdir -p "$CACHE"
+  ZIP="$CACHE/gradle-${GRADLE_VERSION}-bin.zip"
+  if [ ! -f "$ZIP" ]; then
+    curl -L --fail --retry 3 "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o "$ZIP"
+  fi
+  rm -rf "$CACHE/gradle-${GRADLE_VERSION}"
+  unzip -q "$ZIP" -d "$CACHE"
+fi
+exec "$DIST" "$@"
