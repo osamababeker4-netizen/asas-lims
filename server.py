@@ -1,184 +1,738 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os, json, sqlite3, hashlib, secrets, hmac, math
+import hashlib
+import hmac
+import json
+import os
+import secrets
+import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
-BASE=os.path.dirname(os.path.abspath(__file__)); DB=os.path.join(BASE,'lims.db'); PORT=8080; SESSIONS={}
+from urllib.parse import parse_qs, urlparse
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
+PORT = int(os.environ.get('LIMS_PORT', '8080'))
+SESSIONS = {}
+
+PROJECT_STATUSES = {'مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل', 'مفتوح'}
+WORK_ORDER_STATUSES = {'مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'}
+FIELD_STATUSES = {'مسودة', 'مرسلة', 'قيد المراجعة', 'معتمدة', 'مرفوضة'}
+PRIORITIES = {'منخفضة', 'متوسطة', 'عالية', 'حرجة'}
+
+ROLE_PERMS = {
+    'admin': {'*'},
+    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'users', 'sync'},
+    'technician': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment'},
+    'field': {'dashboard', 'field', 'clients', 'projects', 'samples'}
+}
+
 
 def db():
- c=sqlite3.connect(DB); c.row_factory=sqlite3.Row; c.execute('PRAGMA foreign_keys=ON'); return c
+    connection = sqlite3.connect(DB)
+    connection.row_factory = sqlite3.Row
+    connection.execute('PRAGMA foreign_keys=ON')
+    return connection
 
-def hp(p):
- s=secrets.token_bytes(16); d=hashlib.pbkdf2_hmac('sha256',p.encode(),s,200000); return s.hex()+':'+d.hex()
-def checkpw(p,h):
- try:
-  s,d=h.split(':'); x=hashlib.pbkdf2_hmac('sha256',p.encode(),bytes.fromhex(s),200000).hex(); return hmac.compare_digest(x,d)
- except: return False
+
+def hp(password):
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 200000)
+    return salt.hex() + ':' + digest.hex()
+
+
+def checkpw(password, stored_hash):
+    try:
+        salt, digest = stored_hash.split(':', 1)
+        actual = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt), 200000).hex()
+        return hmac.compare_digest(actual, digest)
+    except (TypeError, ValueError):
+        return False
+
+
+def has_perm(user, permission):
+    if not user:
+        return False
+    permissions = ROLE_PERMS.get(user.get('role'), set())
+    return user.get('role') == 'admin' or '*' in permissions or permission in permissions
+
+
+def require_role(user, roles):
+    return bool(user and (user.get('role') == 'admin' or user.get('role') in roles))
+
+
+def rowdict(row):
+    return dict(row) if row else None
+
+
+def nextno(connection, prefix, table):
+    return prefix + str(connection.execute('select coalesce(max(id),0)+1 from ' + table).fetchone()[0]).zfill(6)
+
+
+def parse_optional_int(value):
+    if value in (None, '', 0, '0'):
+        return None
+    return int(value)
+
+
+def normalize_priority(value):
+    return value if value in PRIORITIES else 'متوسطة'
+
+
+def migrate_schema(connection):
+    additions = {
+        'projects': [
+            ('priority', "priority TEXT NOT NULL DEFAULT 'متوسطة'"),
+            ('description', 'description TEXT'),
+            ('contractor_name', 'contractor_name TEXT'),
+            ('consultant_name', 'consultant_name TEXT'),
+            ('start_date', 'start_date TEXT'),
+            ('due_date', 'due_date TEXT'),
+            ('progress', 'progress INTEGER NOT NULL DEFAULT 0'),
+            ('manager_id', 'manager_id INTEGER'),
+            ('reviewed_by', 'reviewed_by INTEGER'),
+            ('reviewed_at', 'reviewed_at TEXT'),
+            ('approved_by', 'approved_by INTEGER'),
+            ('approved_at', 'approved_at TEXT'),
+            ('updated_at', 'updated_at TEXT')
+        ]
+    }
+    for table, columns in additions.items():
+        existing = {row['name'] for row in connection.execute('pragma table_info(' + table + ')')}
+        for name, definition in columns:
+            if name not in existing:
+                connection.execute('alter table ' + table + ' add column ' + definition)
+    connection.execute('create index if not exists idx_projects_due_date on projects(due_date)')
+
 
 def init():
- c=db(); c.executescript(open(os.path.join(BASE,'schema.sql'),encoding='utf8').read())
- if c.execute('select count(*) from users').fetchone()[0]==0: c.execute('insert into users(username,password_hash,full_name,role) values(?,?,?,?)',('admin',hp('1234'),'مدير المختبر','admin'))
- if c.execute('select count(*) from test_catalog').fetchone()[0]==0: raise RuntimeError('test catalog missing')
- c.commit(); c.close()
+    os.makedirs(os.path.dirname(os.path.abspath(DB)), exist_ok=True)
+    connection = db()
+    with open(os.path.join(BASE, 'schema.sql'), encoding='utf-8') as schema:
+        connection.executescript(schema.read())
+    migrate_schema(connection)
+    if connection.execute('select count(*) from users').fetchone()[0] == 0:
+        password = os.environ.get('LIMS_BOOTSTRAP_PASSWORD')
+        if not password or len(password) < 12:
+            connection.close()
+            raise RuntimeError('يتطلب أول تشغيل تعيين LIMS_BOOTSTRAP_PASSWORD محلياً إلى كلمة مرور من 12 حرفاً على الأقل.')
+        connection.execute(
+            'insert into users(username,password_hash,full_name,role) values(?,?,?,?)',
+            ('admin', hp(password), 'مدير المختبر', 'admin')
+        )
+        print('تم إنشاء حساب admin الأول باستخدام كلمة المرور المحلية التي وفرتها.')
+    connection.commit()
+    connection.close()
 
-def user_from(h):
- for x in h.headers.get('Cookie','').split(';'):
-  if x.strip().startswith('LIMS_SESSION='): return SESSIONS.get(x.strip().split('=',1)[1])
 
-ROLE_PERMS={
- 'admin': {'*'},
- 'manager': {'dashboard','field','clients','projects','samples','tests','catalog','reports','equipment','audit','users'},
- 'technician': {'dashboard','field','clients','projects','samples','tests','catalog','reports','equipment'},
- 'field': {'dashboard','field','clients','projects','samples'}
-}
-def has_perm(u,perm): return u and (u.get('role')=='admin' or perm in ROLE_PERMS.get(u.get('role'),set()) or '*' in ROLE_PERMS.get(u.get('role'),set()))
-def require_role(u,roles): return u and (u.get('role') in roles or u.get('role')=='admin')
+def audit(connection, user_id, action, entity, entity_id, details):
+    connection.execute(
+        'insert into audit_log(user_id,action,entity,entity_id,details) values(?,?,?,?,?)',
+        (user_id, action, entity, entity_id, details)
+    )
 
-def audit(uid,action,entity,eid,details):
- c=db(); c.execute('insert into audit_log(user_id,action,entity,entity_id,details) values(?,?,?,?,?)',(uid,action,entity,eid,details)); c.commit(); c.close()
 
-def rowdict(r): return dict(r) if r else None
+def queue_sync(connection, entity, entity_id, operation, payload):
+    connection.execute(
+        'insert into sync_queue(entity,entity_id,operation,payload_json) values(?,?,?,?)',
+        (entity, entity_id, operation, json.dumps(payload, ensure_ascii=False))
+    )
 
-def nextno(c,prefix,table,col): return prefix+str(c.execute(f'select coalesce(max(id),0)+1 from {table}').fetchone()[0]).zfill(6)
+
+def user_from(handler):
+    for item in handler.headers.get('Cookie', '').split(';'):
+        item = item.strip()
+        if item.startswith('LIMS_SESSION='):
+            return SESSIONS.get(item.split('=', 1)[1])
+    return None
+
 
 class H(BaseHTTPRequestHandler):
- def send_json(self,d,code=200):
-  b=json.dumps(d,ensure_ascii=False).encode(); self.send_response(code); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Content-Length',str(len(b))); self.end_headers(); self.wfile.write(b)
- def body(self):
-  n=int(self.headers.get('Content-Length','0')); return json.loads(self.rfile.read(n) or b'{}')
- def static(self,p,typ):
-  b=open(os.path.join(BASE,p),'rb').read(); self.send_response(200); self.send_header('Content-Type',typ); self.send_header('Content-Length',str(len(b))); self.end_headers(); self.wfile.write(b)
- def do_GET(self):
-  p=urlparse(self.path).path
-  if p=='/': return self.static('index.html','text/html; charset=utf-8')
-  if p=='/style.css': return self.static('style.css','text/css; charset=utf-8')
-  if p=='/app.js': return self.static('app.js','application/javascript; charset=utf-8')
-  u=user_from(self)
-  if p.startswith('/api/') and not u: return self.send_json({'error':'غير مسجل الدخول'},401)
-  c=db()
-  try:
-   if p=='/api/users':
-    if not has_perm(u,'users'): return self.send_json({'error':'ليس لديك صلاحية إدارة المستخدمين'},403)
-    rows=c.execute('select id,username,full_name,role,active,created_at from users order by id desc').fetchall()
-    return self.send_json([dict(x) for x in rows])
-   if p=='/api/catalog': return self.send_json([dict(x) for x in c.execute('select * from test_catalog where active=1 order by category,name_ar').fetchall()])
-   if p=='/api/field/search':
-    from urllib.parse import parse_qs
-    license_no=parse_qs(urlparse(self.path).query).get('license',[''])[0].strip()
-    rows=c.execute('select * from field_visits where license_no=? order by id desc limit 20',(license_no,)).fetchall() if license_no else []
-    return self.send_json([dict(x) for x in rows])
-   if p=='/api/field/recent':
-    rows=c.execute('select f.*,u.full_name,p.code project_code,s.sample_no from field_visits f left join users u on u.id=f.created_by left join projects p on p.id=f.project_id left join samples s on s.id=f.sample_id order by f.id desc limit 30').fetchall()
-    return self.send_json([dict(x) for x in rows])
-   if p=='/api/field/status':
-    if not has_perm(u,'field'): return self.send_json({'error':'ليس لديك صلاحية البرنامج الميداني'},403)
-    rows=c.execute('select f.id,f.status,f.license_no,f.project_name,f.sample_id,f.created_at,u.full_name from field_visits f left join users u on u.id=f.created_by order by f.id desc limit 100').fetchall()
-    return self.send_json([dict(x) for x in rows])
-   if p=='/api/dashboard':
-    q=lambda s:[dict(x) for x in c.execute(s).fetchall()]
-    out={'counts':{k:c.execute(f'select count(*) from {t}').fetchone()[0] for k,t in [('projects','projects'),('samples','samples'),('tests','tests'),('reports','reports'),('equipment','equipment'),('field_visits','field_visits')]},
-     'clients':q('select * from clients order by id desc'),'projects':q('select p.*,c.name client_name from projects p left join clients c on c.id=p.client_id order by p.id desc'),
-     'samples':q('select s.*,p.name project_name from samples s left join projects p on p.id=s.project_id order by s.id desc'),
-     'tests':q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,pr.mdd,pr.omc from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id order by t.id desc'),
-     'reports':q('select r.*,t.test_no,tc.name_ar from reports r join tests t on t.id=r.test_id join test_catalog tc on tc.id=t.catalog_id order by r.id desc'),
-     'equipment':q('select * from equipment order by id desc'),'audit':q('select a.*,u.full_name from audit_log a left join users u on u.id=a.user_id order by a.id desc limit 150'),'activity':q('select created_at,action,details from audit_log order by id desc limit 15')}
-    return self.send_json(out)
-   if p.startswith('/api/report/'):
-    tid=int(p.rsplit('/',1)[1]); x=c.execute('select r.report_no,r.issued_at,r.status,t.*,s.sample_no,s.material,tc.code,tc.name_ar,tc.standard,tc.category,pr.mdd,pr.omc from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id where t.id=?',(tid,)).fetchone()
-    if not x:return self.send_json({'error':'التقرير غير موجود'},404)
-    data={'inputs':{},'results':{}}
-    for z in c.execute('select section,field_name,value_text,value_num,unit,seq from test_data where test_id=? order by section,seq,id',(tid,)).fetchall(): data[z['section']][z['field_name']]=z['value_num'] if z['value_num'] is not None else z['value_text']
-    d=dict(x); d['data']=data; d['lab_name']=c.execute("select value from settings where key='lab_name'").fetchone()['value']; return self.send_json(d)
-   return self.send_json({'error':'غير موجود'},404)
-  finally:c.close()
- def do_POST(self):
-  p=urlparse(self.path).path
-  if p=='/api/login':
-   d=self.body(); c=db(); u=c.execute('select * from users where username=? and active=1',(d.get('username',''),)).fetchone(); c.close()
-   if not u or not checkpw(d.get('password',''),u['password_hash']): return self.send_json({'error':'اسم المستخدم أو كلمة المرور غير صحيحة'},401)
-   tok=secrets.token_urlsafe(32); SESSIONS[tok]=dict(u); self.send_response(200); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Set-Cookie',f'LIMS_SESSION={tok}; HttpOnly; SameSite=Lax; Path=/'); self.end_headers(); self.wfile.write(json.dumps({'ok':True,'user':{'full_name':u['full_name'],'role':u['role']}},ensure_ascii=False).encode()); return
-  if p=='/api/logout':
-   for x in self.headers.get('Cookie','').split(';'):
-    if x.strip().startswith('LIMS_SESSION='): SESSIONS.pop(x.strip().split('=',1)[1],None)
-   return self.send_json({'ok':True})
-  u=user_from(self)
-  if not u:return self.send_json({'error':'غير مسجل الدخول'},401)
-  d=self.body(); c=db()
-  try:
-   if p=='/api/users/create':
-    if not has_perm(u,'users'): return self.send_json({'error':'ليس لديك صلاحية إدارة المستخدمين'},403)
-    username=str(d.get('username','')).strip(); full_name=str(d.get('full_name','')).strip(); role=d.get('role','technician')
-    password=str(d.get('password',''))
-    if not username or not full_name or len(password)<4 or role not in ROLE_PERMS: return self.send_json({'error':'بيانات المستخدم غير مكتملة'},400)
-    c.execute('insert into users(username,password_hash,full_name,role,active) values(?,?,?,?,1)',(username,hp(password),full_name,role)); eid=c.execute('select last_insert_rowid()').fetchone()[0]; c.commit(); audit(u['id'],'إضافة مستخدم','user',eid,username); return self.send_json({'ok':True,'id':eid})
-   if p=='/api/users/update':
-    if not has_perm(u,'users'): return self.send_json({'error':'ليس لديك صلاحية إدارة المستخدمين'},403)
-    uid=int(d.get('id')); target=c.execute('select * from users where id=?',(uid,)).fetchone()
-    if not target: return self.send_json({'error':'المستخدم غير موجود'},404)
-    role=d.get('role',target['role']); active=1 if d.get('active',bool(target['active'])) else 0
-    if role not in ROLE_PERMS: return self.send_json({'error':'الدور غير صالح'},400)
-    if uid==u['id'] and active==0: return self.send_json({'error':'لا يمكن تعطيل حسابك الحالي'},400)
-    c.execute('update users set full_name=?,role=?,active=? where id=?',(d.get('full_name',target['full_name']),role,active,uid))
-    if d.get('password'): c.execute('update users set password_hash=? where id=?',(hp(str(d['password'])),uid))
-    c.commit(); audit(u['id'],'تعديل مستخدم','user',uid,target['username']); return self.send_json({'ok':True})
-   if p=='/api/field/status':
-    if not has_perm(u,'field'): return self.send_json({'error':'ليس لديك صلاحية البرنامج الميداني'},403)
-    vid=int(d.get('id')); status=d.get('status')
-    if status not in {'مسودة','مرسلة','قيد المراجعة','معتمدة','مرفوضة'}: return self.send_json({'error':'حالة غير صالحة'},400)
-    if status=='قيد المراجعة' and not require_role(u,{'manager'}): return self.send_json({'error':'المراجعة للمدير فقط'},403)
-    if status=='معتمدة' and not require_role(u,{'manager'}): return self.send_json({'error':'الاعتماد للمدير فقط'},403)
-    if status=='قيد المراجعة': c.execute('update field_visits set status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP where id=?',(status,u['id'],vid))
-    elif status=='معتمدة': c.execute('update field_visits set status=?,approved_by=?,approved_at=CURRENT_TIMESTAMP where id=?',(status,u['id'],vid))
-    else: c.execute('update field_visits set status=? where id=?',(status,vid))
-    c.commit(); audit(u['id'],'تغيير حالة زيارة ميدانية','field_visit',vid,status); return self.send_json({'ok':True})
-   if p=='/api/field/visits':
-    if not has_perm(u,'field'): return self.send_json({'error':'ليس لديك صلاحية البرنامج الميداني'},403)
-    tests=d.get('tests',[])
-    status=d.get('status','مسودة');
-    if status not in {'مسودة','مرسلة','قيد المراجعة','معتمدة','مرفوضة'}: return self.send_json({'error':'حالة الزيارة غير صالحة'},400)
-    c.execute('insert into field_visits(license_no,contractor_name,project_name,sector_name,layer_no,location,latitude,longitude,tests_json,notes,status,created_by,project_id,sample_id) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(d.get('license_no','').strip(),d.get('contractor_name'),d.get('project_name'),d.get('sector_name'),d.get('layer_no'),d.get('location'),d.get('latitude'),d.get('longitude'),json.dumps(tests,ensure_ascii=False),d.get('notes'),status,u['id'],d.get('project_id') or None,d.get('sample_id') or None))
-    eid=c.execute('select last_insert_rowid()').fetchone()[0]; c.commit(); audit(u['id'],'إضافة زيارة ميدانية','field_visit',eid,d.get('license_no','')); return self.send_json({'ok':True,'id':eid})
-   if p=='/api/clients':
-    if not has_perm(u,'clients'): return self.send_json({'error':'ليس لديك صلاحية العملاء'},403)
-    c.execute('insert into clients(name,phone,email) values(?,?,?)',(d['name'],d.get('phone'),d.get('email'))); eid=c.execute('select last_insert_rowid()').fetchone()[0]; c.commit(); audit(u['id'],'إضافة','client',eid,d['name']); return self.send_json({'ok':True,'id':eid})
-   if p=='/api/projects':
-    if not has_perm(u,'projects'): return self.send_json({'error':'ليس لديك صلاحية المشاريع'},403)
-    code=nextno(c,'PR-','projects','id'); c.execute('insert into projects(code,name,client_id,location) values(?,?,?,?)',(code,d['name'],d.get('client_id') or None,d.get('location'))); eid=c.execute('select last_insert_rowid()').fetchone()[0]; c.commit(); audit(u['id'],'إضافة','project',eid,code); return self.send_json({'ok':True,'id':eid,'code':code})
-   if p=='/api/samples':
-    if not has_perm(u,'samples'): return self.send_json({'error':'ليس لديك صلاحية العينات'},403)
-    c.execute('insert into samples(sample_no,project_id,material,source,received_date,notes) values(?,?,?,?,?,?)',(d['sample_no'],d.get('project_id') or None,d['material'],d.get('source'),d['received_date'],d.get('notes'))); eid=c.execute('select last_insert_rowid()').fetchone()[0]; c.commit(); audit(u['id'],'إضافة','sample',eid,d['sample_no']); return self.send_json({'ok':True,'id':eid})
-   if p=='/api/equipment':
-    if not has_perm(u,'equipment'): return self.send_json({'error':'ليس لديك صلاحية الأجهزة'},403)
-    c.execute('insert into equipment(name,serial_no,manufacturer,model,last_calibration,next_calibration,certificate_no,notes) values(?,?,?,?,?,?,?,?)',(d['name'],d.get('serial_no'),d.get('manufacturer'),d.get('model'),d.get('last_calibration'),d.get('next_calibration'),d.get('certificate_no'),d.get('notes'))); eid=c.execute('select last_insert_rowid()').fetchone()[0]; c.commit(); audit(u['id'],'إضافة','equipment',eid,d['name']); return self.send_json({'ok':True,'id':eid})
-   if p=='/api/tests/proctor':
-    if not has_perm(u,'tests'): return self.send_json({'error':'ليس لديك صلاحية الاختبارات'},403)
-    return self.create_proctor(c,u,d)
-   if p=='/api/tests/generic':
-    if not has_perm(u,'tests'): return self.send_json({'error':'ليس لديك صلاحية الاختبارات'},403)
-    cat=c.execute('select * from test_catalog where id=?',(d['catalog_id'],)).fetchone()
-    if not cat:return self.send_json({'error':'الاختبار غير موجود'},404)
-    testno=d.get('test_no') or nextno(c,'TST-','tests','id'); c.execute('insert into tests(test_no,sample_id,catalog_id,status,technician_id,started_at,completed_at) values(?,?,?,?,?,?,CURRENT_TIMESTAMP)',(testno,int(d['sample_id']),cat['id'],d.get('status','مكتمل'),u['id'],d.get('started_at'))); tid=c.execute('select last_insert_rowid()').fetchone()[0]
-    for section,vals in [('inputs',d.get('inputs',{})),('results',d.get('results',{}))]:
-     if isinstance(vals,dict):
-      for k,v in vals.items():
-       num=None; txt=None
-       if v is None or v=='': continue
-       try:num=float(v) if not isinstance(v,bool) else None
-       except:txt=str(v)
-       c.execute('insert into test_data(test_id,section,field_name,value_text,value_num,unit) values(?,?,?,?,?,?)',(tid,section,k,txt,num,d.get('units',{}).get(k)))
-    rn=nextno(c,'AST-R-','reports','id'); c.execute('insert into reports(report_no,test_id,status) values(?,?,?)',(rn,tid,'مسودة')); c.commit(); audit(u['id'],'إضافة اختبار','test',tid,f"{testno} - {cat['name_ar']}"); return self.send_json({'ok':True,'test_id':tid,'report_no':rn})
-   return self.send_json({'error':'مسار غير معروف'},404)
-  except sqlite3.IntegrityError as e:
-   c.rollback(); return self.send_json({'error':'بيانات مكررة أو مرجع غير صحيح: '+str(e)},400)
-  except Exception as e:
-   c.rollback(); return self.send_json({'error':str(e)},400)
-  finally:c.close()
- def create_proctor(self,c,u,d):
-  cat=c.execute('select id from test_catalog where code=?',(d['standard_code'],)).fetchone();
-  if not cat:return self.send_json({'error':'معيار البروكتور غير موجود'},400)
-  testno=d.get('test_no') or nextno(c,'TST-','tests','id'); c.execute('insert into tests(test_no,sample_id,catalog_id,status,technician_id,started_at,completed_at) values(?,?,?,?,?,?,CURRENT_TIMESTAMP)',(testno,int(d['sample_id']),cat['id'],'مكتمل',u['id'],d.get('started_at'))); tid=c.execute('select last_insert_rowid()').fetchone()[0]
-  for i,z in enumerate(d.get('points',[]),1): c.execute('insert into proctor_points(test_id,point_no,moisture,mold_soil_wet,wet_density,dry_density) values(?,?,?,?,?,?)',(tid,i,z['moisture'],z['mold_soil_wet'],z.get('wet_density'),z.get('dry_density')))
-  c.execute('insert into proctor_results(test_id,mdd,omc) values(?,?,?)',(tid,d['mdd'],d['omc'])); rn=nextno(c,'AST-R-','reports','id'); c.execute('insert into reports(report_no,test_id,status) values(?,?,?)',(rn,tid,'مسودة')); c.commit(); audit(u['id'],'إضافة اختبار','test',tid,f"{testno} - {d['standard_code']}"); return self.send_json({'ok':True,'test_id':tid,'report_no':rn})
+    def log_message(self, format, *args):
+        return
 
-if __name__=='__main__':
- init(); print(f'LIMS مختبر أساس: http://127.0.0.1:{PORT}'); ThreadingHTTPServer(('0.0.0.0',PORT),H).serve_forever()
+    def send_json(self, data, code=200):
+        body = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def body(self):
+        length = int(self.headers.get('Content-Length', '0'))
+        raw = self.rfile.read(length) if length else b'{}'
+        return json.loads(raw or b'{}')
+
+    def static(self, filename, content_type):
+        target = os.path.join(BASE, filename)
+        if not os.path.isfile(target):
+            return self.send_json({'error': 'الملف غير موجود'}, 404)
+        with open(target, 'rb') as asset:
+            body = asset.read()
+        self.send_response(200)
+        self.send_header('Content-Type', content_type)
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def require_permission(self, user, permission):
+        if not has_perm(user, permission):
+            self.send_json({'error': 'ليس لديك الصلاحية المطلوبة'}, 403)
+            return False
+        return True
+
+    def project_rows(self, connection):
+        query = '''
+            select p.*, c.name client_name, u.full_name manager_name,
+              (select count(*) from work_orders w where w.project_id=p.id) work_orders_count,
+              (select count(*) from samples s where s.project_id=p.id) samples_count,
+              (select count(*) from tests t join samples s on s.id=t.sample_id where s.project_id=p.id) tests_count,
+              (select count(*) from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id where s.project_id=p.id) reports_count
+            from projects p
+              left join clients c on c.id=p.client_id
+              left join users u on u.id=p.manager_id
+            order by case when p.due_date is null then 1 else 0 end, p.due_date, p.id desc
+        '''
+        return [dict(row) for row in connection.execute(query).fetchall()]
+
+    def dashboard(self, connection):
+        projects = self.project_rows(connection)
+        q = lambda sql, params=(): [dict(row) for row in connection.execute(sql, params).fetchall()]
+        work_orders = q('''
+            select w.*, p.code project_code, p.name project_name, u.full_name assignee_name
+            from work_orders w
+            join projects p on p.id=w.project_id
+            left join users u on u.id=w.assigned_to
+            order by case when w.due_date is null then 1 else 0 end, w.due_date, w.id desc
+        ''')
+        counts = {
+            key: connection.execute('select count(*) from ' + table).fetchone()[0]
+            for key, table in (
+                ('projects', 'projects'), ('work_orders', 'work_orders'), ('samples', 'samples'),
+                ('tests', 'tests'), ('reports', 'reports'), ('equipment', 'equipment'),
+                ('field_visits', 'field_visits'), ('sync_queue', 'sync_queue')
+            )
+        }
+        alerts = {
+            'blocked_projects': q("select id,code,name,priority,due_date from projects where status='موقوف' order by priority desc,id desc"),
+            'overdue_work_orders': q("select w.id,w.order_no,w.title,w.due_date,p.code project_code from work_orders w join projects p on p.id=w.project_id where w.due_date is not null and w.due_date < date('now') and w.status != 'مكتمل' order by w.due_date"),
+            'awaiting_review': q("select id,code,name,'project' entity from projects where status='قيد المراجعة' union all select id,license_no,'زيارة ميدانية','field_visit' entity from field_visits where status='قيد المراجعة' order by id desc")
+        }
+        return {
+            'counts': counts,
+            'projects': projects,
+            'work_orders': work_orders,
+            'clients': q('select * from clients order by id desc'),
+            'samples': q('select s.*,p.name project_name,p.code project_code from samples s left join projects p on p.id=s.project_id order by s.id desc'),
+            'tests': q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,pr.mdd,pr.omc from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id order by t.id desc'),
+            'reports': q('select r.*,t.test_no,tc.name_ar,s.sample_no from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id order by r.id desc'),
+            'equipment': q('select * from equipment order by id desc'),
+            'audit': q('select a.*,u.full_name from audit_log a left join users u on u.id=a.user_id order by a.id desc limit 150'),
+            'activity': q('select created_at,action,details from audit_log order by id desc limit 15'),
+            'alerts': alerts,
+            'sync': q("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue where status='queued' order by id desc limit 30")
+        }
+
+    def project_workspace(self, connection, project_id):
+        project = connection.execute('''
+            select p.*,c.name client_name,u.full_name manager_name
+            from projects p left join clients c on c.id=p.client_id left join users u on u.id=p.manager_id
+            where p.id=?
+        ''', (project_id,)).fetchone()
+        if not project:
+            return None
+        q = lambda sql: [dict(row) for row in connection.execute(sql, (project_id,)).fetchall()]
+        return {
+            'project': dict(project),
+            'work_orders': q('select w.*,u.full_name assignee_name from work_orders w left join users u on u.id=w.assigned_to where w.project_id=? order by w.id desc'),
+            'samples': q('select * from samples where project_id=? order by id desc'),
+            'tests': q('select t.test_no,t.status,t.completed_at,tc.name_ar,tc.standard,s.sample_no from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id where s.project_id=? order by t.id desc'),
+            'results': q('select t.test_no,tc.name_ar,td.field_name,coalesce(td.value_num,td.value_text) value,td.unit from test_data td join tests t on t.id=td.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id where s.project_id=? order by t.id desc,td.id'),
+            'reports': q('select r.report_no,r.status,r.issued_at,t.test_no,tc.name_ar from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id where s.project_id=? order by r.id desc'),
+            'field_visits': q('select id,license_no,status,location,created_at from field_visits where project_id=? order by id desc')
+        }
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        static_files = {
+            '/': ('index.html', 'text/html; charset=utf-8'),
+            '/style.css': ('style.css', 'text/css; charset=utf-8'),
+            '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
+            '/logo.jpg': ('logo.jpg', 'image/jpeg')
+        }
+        if path in static_files:
+            return self.static(*static_files[path])
+
+        user = user_from(self)
+        if path.startswith('/api/') and not user:
+            return self.send_json({'error': 'غير مسجل الدخول'}, 401)
+
+        connection = db()
+        try:
+            if path == '/api/users':
+                if not self.require_permission(user, 'users'):
+                    return
+                rows = connection.execute('select id,username,full_name,role,active,created_at from users order by id desc').fetchall()
+                return self.send_json([dict(row) for row in rows])
+
+            if path == '/api/catalog':
+                return self.send_json([dict(row) for row in connection.execute('select * from test_catalog where active=1 order by category,name_ar').fetchall()])
+
+            if path == '/api/dashboard':
+                if not self.require_permission(user, 'dashboard'):
+                    return
+                return self.send_json(self.dashboard(connection))
+
+            if path == '/api/projects':
+                if not self.require_permission(user, 'projects'):
+                    return
+                return self.send_json(self.project_rows(connection))
+
+            if path.startswith('/api/projects/') and path.endswith('/workspace'):
+                if not self.require_permission(user, 'projects'):
+                    return
+                project_id = int(path.split('/')[3])
+                result = self.project_workspace(connection, project_id)
+                return self.send_json(result or {'error': 'المشروع غير موجود'}, 200 if result else 404)
+
+            if path == '/api/work-orders':
+                if not self.require_permission(user, 'projects'):
+                    return
+                query = parse_qs(parsed.query)
+                project_id = query.get('project_id', [None])[0]
+                sql = '''
+                    select w.*,p.code project_code,p.name project_name,u.full_name assignee_name
+                    from work_orders w join projects p on p.id=w.project_id
+                    left join users u on u.id=w.assigned_to
+                '''
+                params = ()
+                if project_id:
+                    sql += ' where w.project_id=?'
+                    params = (int(project_id),)
+                sql += ' order by w.id desc'
+                return self.send_json([dict(row) for row in connection.execute(sql, params).fetchall()])
+
+            if path == '/api/field/search':
+                if not self.require_permission(user, 'field'):
+                    return
+                license_no = parse_qs(parsed.query).get('license', [''])[0].strip()
+                rows = connection.execute('select * from field_visits where license_no=? order by id desc limit 20', (license_no,)).fetchall() if license_no else []
+                return self.send_json([dict(row) for row in rows])
+
+            if path == '/api/field/recent':
+                if not self.require_permission(user, 'field'):
+                    return
+                rows = connection.execute('''
+                    select f.*,u.full_name,p.code project_code,s.sample_no
+                    from field_visits f
+                    left join users u on u.id=f.created_by
+                    left join projects p on p.id=f.project_id
+                    left join samples s on s.id=f.sample_id
+                    order by f.id desc limit 30
+                ''').fetchall()
+                return self.send_json([dict(row) for row in rows])
+
+            if path == '/api/sync/queue':
+                if not self.require_permission(user, 'sync'):
+                    return
+                rows = connection.execute("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue order by id desc limit 200").fetchall()
+                return self.send_json([dict(row) for row in rows])
+
+            if path.startswith('/api/report/'):
+                if not self.require_permission(user, 'reports'):
+                    return
+                test_id = int(path.rsplit('/', 1)[1])
+                row = connection.execute('''
+                    select r.report_no,r.issued_at,r.status,t.*,s.sample_no,s.material,tc.code,tc.name_ar,tc.standard,tc.category,pr.mdd,pr.omc
+                    from reports r
+                    join tests t on t.id=r.test_id
+                    join samples s on s.id=t.sample_id
+                    join test_catalog tc on tc.id=t.catalog_id
+                    left join proctor_results pr on pr.test_id=t.id
+                    where t.id=?
+                ''', (test_id,)).fetchone()
+                if not row:
+                    return self.send_json({'error': 'التقرير غير موجود'}, 404)
+                data = {'inputs': {}, 'results': {}}
+                for value in connection.execute('select section,field_name,value_text,value_num,unit,seq from test_data where test_id=? order by section,seq,id', (test_id,)):
+                    data[value['section']][value['field_name']] = value['value_num'] if value['value_num'] is not None else value['value_text']
+                lab = connection.execute("select value from settings where key='lab_name'").fetchone()
+                report = dict(row)
+                report['data'] = data
+                report['lab_name'] = lab['value'] if lab and lab['value'] else 'مختبر أساس'
+                return self.send_json(report)
+
+            return self.send_json({'error': 'غير موجود'}, 404)
+        except (ValueError, sqlite3.Error) as error:
+            return self.send_json({'error': str(error)}, 400)
+        finally:
+            connection.close()
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+        if path == '/api/login':
+            try:
+                data = self.body()
+            except json.JSONDecodeError:
+                return self.send_json({'error': 'بيانات الدخول غير صالحة'}, 400)
+            connection = db()
+            user = connection.execute('select * from users where username=? and active=1', (str(data.get('username', '')).strip(),)).fetchone()
+            connection.close()
+            if not user or not checkpw(str(data.get('password', '')), user['password_hash']):
+                return self.send_json({'error': 'اسم المستخدم أو كلمة المرور غير صحيحة'}, 401)
+            token = secrets.token_urlsafe(32)
+            SESSIONS[token] = dict(user)
+            body = json.dumps({'ok': True, 'user': {'full_name': user['full_name'], 'role': user['role'], 'username': user['username']}}, ensure_ascii=False).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Set-Cookie', 'LIMS_SESSION=' + token + '; HttpOnly; SameSite=Lax; Path=/')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if path == '/api/logout':
+            for item in self.headers.get('Cookie', '').split(';'):
+                item = item.strip()
+                if item.startswith('LIMS_SESSION='):
+                    SESSIONS.pop(item.split('=', 1)[1], None)
+            return self.send_json({'ok': True})
+
+        user = user_from(self)
+        if not user:
+            return self.send_json({'error': 'غير مسجل الدخول'}, 401)
+        try:
+            data = self.body()
+        except json.JSONDecodeError:
+            return self.send_json({'error': 'بيانات JSON غير صالحة'}, 400)
+
+        connection = db()
+        try:
+            if path == '/api/users/create':
+                if not self.require_permission(user, 'users'):
+                    return
+                username = str(data.get('username', '')).strip()
+                full_name = str(data.get('full_name', '')).strip()
+                password = str(data.get('password', ''))
+                role = data.get('role', 'technician')
+                if not username or not full_name or len(password) < 12 or role not in ROLE_PERMS:
+                    return self.send_json({'error': 'بيانات المستخدم غير مكتملة أو كلمة المرور أقل من 12 حرفاً'}, 400)
+                connection.execute('insert into users(username,password_hash,full_name,role,active) values(?,?,?,?,1)', (username, hp(password), full_name, role))
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                audit(connection, user['id'], 'إضافة مستخدم', 'user', entity_id, username)
+                connection.commit()
+                return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/users/update':
+                if not self.require_permission(user, 'users'):
+                    return
+                entity_id = int(data.get('id'))
+                target = connection.execute('select * from users where id=?', (entity_id,)).fetchone()
+                if not target:
+                    return self.send_json({'error': 'المستخدم غير موجود'}, 404)
+                role = data.get('role', target['role'])
+                active = 1 if data.get('active', bool(target['active'])) else 0
+                password = str(data.get('password', ''))
+                if role not in ROLE_PERMS or (entity_id == user['id'] and active == 0):
+                    return self.send_json({'error': 'تعديل المستخدم غير صالح'}, 400)
+                if password and len(password) < 12:
+                    return self.send_json({'error': 'كلمة المرور يجب ألا تقل عن 12 حرفاً'}, 400)
+                connection.execute('update users set full_name=?,role=?,active=? where id=?', (data.get('full_name', target['full_name']), role, active, entity_id))
+                if password:
+                    connection.execute('update users set password_hash=? where id=?', (hp(password), entity_id))
+                audit(connection, user['id'], 'تعديل مستخدم', 'user', entity_id, target['username'])
+                connection.commit()
+                return self.send_json({'ok': True})
+
+            if path == '/api/projects':
+                if not self.require_permission(user, 'projects'):
+                    return
+                name = str(data.get('name', '')).strip()
+                if not name:
+                    return self.send_json({'error': 'اسم المشروع مطلوب'}, 400)
+                progress = max(0, min(100, int(data.get('progress', 0) or 0)))
+                status = data.get('status', 'مخطط')
+                if status not in PROJECT_STATUSES:
+                    return self.send_json({'error': 'حالة المشروع غير صالحة'}, 400)
+                code = nextno(connection, 'PR-', 'projects')
+                values = (
+                    code, name, parse_optional_int(data.get('client_id')), data.get('location'), status,
+                    normalize_priority(data.get('priority')), data.get('description'), data.get('contractor_name'),
+                    data.get('consultant_name'), data.get('start_date') or None, data.get('due_date') or None,
+                    progress, parse_optional_int(data.get('manager_id'))
+                )
+                connection.execute('''
+                    insert into projects(code,name,client_id,location,status,priority,description,contractor_name,consultant_name,start_date,due_date,progress,manager_id,updated_at)
+                    values(?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+                ''', values)
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                queue_sync(connection, 'project', entity_id, 'create', {'code': code, 'name': name, 'status': status})
+                audit(connection, user['id'], 'إضافة مشروع', 'project', entity_id, code + ' - ' + name)
+                connection.commit()
+                return self.send_json({'ok': True, 'id': entity_id, 'code': code})
+
+            if path == '/api/projects/update':
+                if not self.require_permission(user, 'projects'):
+                    return
+                entity_id = int(data.get('id'))
+                project = connection.execute('select * from projects where id=?', (entity_id,)).fetchone()
+                if not project:
+                    return self.send_json({'error': 'المشروع غير موجود'}, 404)
+                name = str(data.get('name', project['name'])).strip()
+                if not name:
+                    return self.send_json({'error': 'اسم المشروع مطلوب'}, 400)
+                progress = max(0, min(100, int(data.get('progress', project['progress']) or 0)))
+                connection.execute('''
+                    update projects set name=?,client_id=?,location=?,priority=?,description=?,contractor_name=?,consultant_name=?,start_date=?,due_date=?,progress=?,manager_id=?,updated_at=CURRENT_TIMESTAMP
+                    where id=?
+                ''', (
+                    name, parse_optional_int(data.get('client_id', project['client_id'])), data.get('location', project['location']),
+                    normalize_priority(data.get('priority', project['priority'])), data.get('description', project['description']),
+                    data.get('contractor_name', project['contractor_name']), data.get('consultant_name', project['consultant_name']),
+                    data.get('start_date', project['start_date']) or None, data.get('due_date', project['due_date']) or None,
+                    progress, parse_optional_int(data.get('manager_id', project['manager_id'])), entity_id
+                ))
+                queue_sync(connection, 'project', entity_id, 'update', {'code': project['code'], 'name': name, 'progress': progress})
+                audit(connection, user['id'], 'تعديل مشروع', 'project', entity_id, project['code'])
+                connection.commit()
+                return self.send_json({'ok': True})
+
+            if path == '/api/projects/status':
+                if not self.require_permission(user, 'projects'):
+                    return
+                entity_id = int(data.get('id'))
+                status = data.get('status')
+                if status not in PROJECT_STATUSES:
+                    return self.send_json({'error': 'حالة المشروع غير صالحة'}, 400)
+                project = connection.execute('select * from projects where id=?', (entity_id,)).fetchone()
+                if not project:
+                    return self.send_json({'error': 'المشروع غير موجود'}, 404)
+                if status == 'قيد المراجعة' and not require_role(user, {'manager'}):
+                    return self.send_json({'error': 'إحالة المشروع للمراجعة للمدير فقط'}, 403)
+                if status == 'معتمد' and user.get('role') != 'admin':
+                    return self.send_json({'error': 'اعتماد المشروع لمدير النظام فقط'}, 403)
+                if status == 'قيد المراجعة':
+                    connection.execute('update projects set status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP where id=?', (status, user['id'], entity_id))
+                elif status == 'معتمد':
+                    connection.execute('update projects set status=?,approved_by=?,approved_at=CURRENT_TIMESTAMP,progress=100,updated_at=CURRENT_TIMESTAMP where id=?', (status, user['id'], entity_id))
+                else:
+                    connection.execute('update projects set status=?,updated_at=CURRENT_TIMESTAMP where id=?', (status, entity_id))
+                queue_sync(connection, 'project', entity_id, 'status', {'code': project['code'], 'status': status})
+                audit(connection, user['id'], 'تغيير حالة مشروع', 'project', entity_id, project['code'] + ' → ' + status)
+                connection.commit()
+                return self.send_json({'ok': True})
+
+            if path == '/api/work-orders':
+                if not self.require_permission(user, 'projects'):
+                    return
+                project_id = parse_optional_int(data.get('project_id'))
+                title = str(data.get('title', '')).strip()
+                if not project_id or not title:
+                    return self.send_json({'error': 'المشروع وعنوان أمر العمل مطلوبان'}, 400)
+                if not connection.execute('select id from projects where id=?', (project_id,)).fetchone():
+                    return self.send_json({'error': 'المشروع غير موجود'}, 404)
+                status = data.get('status', 'مفتوح')
+                if status not in WORK_ORDER_STATUSES:
+                    return self.send_json({'error': 'حالة أمر العمل غير صالحة'}, 400)
+                order_no = nextno(connection, 'WO-', 'work_orders')
+                connection.execute('''
+                    insert into work_orders(order_no,project_id,title,description,status,priority,scheduled_date,due_date,assigned_to,created_by,updated_at)
+                    values(?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+                ''', (
+                    order_no, project_id, title, data.get('description'), status, normalize_priority(data.get('priority')),
+                    data.get('scheduled_date') or None, data.get('due_date') or None, parse_optional_int(data.get('assigned_to')), user['id']
+                ))
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                queue_sync(connection, 'work_order', entity_id, 'create', {'order_no': order_no, 'project_id': project_id, 'title': title, 'status': status})
+                audit(connection, user['id'], 'إضافة أمر عمل', 'work_order', entity_id, order_no + ' - ' + title)
+                connection.commit()
+                return self.send_json({'ok': True, 'id': entity_id, 'order_no': order_no})
+
+            if path == '/api/field/status':
+                if not self.require_permission(user, 'field'):
+                    return
+                entity_id = int(data.get('id'))
+                status = data.get('status')
+                if status not in FIELD_STATUSES:
+                    return self.send_json({'error': 'حالة غير صالحة'}, 400)
+                if status == 'قيد المراجعة' and not require_role(user, {'manager'}):
+                    return self.send_json({'error': 'المراجعة للمدير فقط'}, 403)
+                if status == 'معتمدة' and not require_role(user, {'manager'}):
+                    return self.send_json({'error': 'الاعتماد للمدير فقط'}, 403)
+                if status == 'قيد المراجعة':
+                    connection.execute('update field_visits set status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP where id=?', (status, user['id'], entity_id))
+                elif status == 'معتمدة':
+                    connection.execute('update field_visits set status=?,approved_by=?,approved_at=CURRENT_TIMESTAMP where id=?', (status, user['id'], entity_id))
+                else:
+                    connection.execute('update field_visits set status=? where id=?', (status, entity_id))
+                audit(connection, user['id'], 'تغيير حالة زيارة ميدانية', 'field_visit', entity_id, status)
+                connection.commit()
+                return self.send_json({'ok': True})
+
+            if path == '/api/field/visits':
+                if not self.require_permission(user, 'field'):
+                    return
+                license_no = str(data.get('license_no', '')).strip()
+                status = data.get('status', 'مسودة')
+                if not license_no or status not in FIELD_STATUSES:
+                    return self.send_json({'error': 'بيانات الزيارة غير مكتملة'}, 400)
+                connection.execute('''
+                    insert into field_visits(license_no,contractor_name,project_name,sector_name,layer_no,location,latitude,longitude,tests_json,notes,status,created_by,project_id,sample_id)
+                    values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ''', (
+                    license_no, data.get('contractor_name'), data.get('project_name'), data.get('sector_name'), data.get('layer_no'),
+                    data.get('location'), data.get('latitude'), data.get('longitude'), json.dumps(data.get('tests', []), ensure_ascii=False),
+                    data.get('notes'), status, user['id'], parse_optional_int(data.get('project_id')), parse_optional_int(data.get('sample_id'))
+                ))
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                queue_sync(connection, 'field_visit', entity_id, 'create', {'license_no': license_no, 'status': status})
+                audit(connection, user['id'], 'إضافة زيارة ميدانية', 'field_visit', entity_id, license_no)
+                connection.commit()
+                return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/clients':
+                if not self.require_permission(user, 'clients'):
+                    return
+                name = str(data.get('name', '')).strip()
+                if not name:
+                    return self.send_json({'error': 'اسم العميل مطلوب'}, 400)
+                connection.execute('insert into clients(name,phone,email) values(?,?,?)', (name, data.get('phone'), data.get('email')))
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                audit(connection, user['id'], 'إضافة عميل', 'client', entity_id, name)
+                connection.commit()
+                return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/samples':
+                if not self.require_permission(user, 'samples'):
+                    return
+                sample_no = str(data.get('sample_no', '')).strip()
+                material = str(data.get('material', '')).strip()
+                if not sample_no or not material or not data.get('received_date'):
+                    return self.send_json({'error': 'بيانات العينة غير مكتملة'}, 400)
+                connection.execute('insert into samples(sample_no,project_id,material,source,received_date,notes) values(?,?,?,?,?,?)', (
+                    sample_no, parse_optional_int(data.get('project_id')), material, data.get('source'), data.get('received_date'), data.get('notes')
+                ))
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                queue_sync(connection, 'sample', entity_id, 'create', {'sample_no': sample_no, 'project_id': data.get('project_id')})
+                audit(connection, user['id'], 'إضافة عينة', 'sample', entity_id, sample_no)
+                connection.commit()
+                return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/equipment':
+                if not self.require_permission(user, 'equipment'):
+                    return
+                name = str(data.get('name', '')).strip()
+                if not name:
+                    return self.send_json({'error': 'اسم الجهاز مطلوب'}, 400)
+                connection.execute('insert into equipment(name,serial_no,manufacturer,model,last_calibration,next_calibration,certificate_no,notes) values(?,?,?,?,?,?,?,?)', (
+                    name, data.get('serial_no'), data.get('manufacturer'), data.get('model'), data.get('last_calibration'),
+                    data.get('next_calibration'), data.get('certificate_no'), data.get('notes')
+                ))
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                audit(connection, user['id'], 'إضافة جهاز', 'equipment', entity_id, name)
+                connection.commit()
+                return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/tests/proctor':
+                if not self.require_permission(user, 'tests'):
+                    return
+                return self.create_proctor(connection, user, data)
+
+            if path == '/api/tests/generic':
+                if not self.require_permission(user, 'tests'):
+                    return
+                catalog = connection.execute('select * from test_catalog where id=?', (data.get('catalog_id'),)).fetchone()
+                if not catalog:
+                    return self.send_json({'error': 'الاختبار غير موجود'}, 404)
+                sample_id = parse_optional_int(data.get('sample_id'))
+                if not sample_id:
+                    return self.send_json({'error': 'معرف العينة مطلوب'}, 400)
+                test_no = data.get('test_no') or nextno(connection, 'TST-', 'tests')
+                connection.execute('''
+                    insert into tests(test_no,sample_id,catalog_id,status,technician_id,started_at,completed_at)
+                    values(?,?,?,?,?,?,CURRENT_TIMESTAMP)
+                ''', (test_no, sample_id, catalog['id'], data.get('status', 'مكتمل'), user['id'], data.get('started_at')))
+                test_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                for section, values in (('inputs', data.get('inputs', {})), ('results', data.get('results', {}))):
+                    if isinstance(values, dict):
+                        for key, value in values.items():
+                            if value in (None, ''):
+                                continue
+                            try:
+                                numeric_value, text_value = float(value), None
+                            except (TypeError, ValueError):
+                                numeric_value, text_value = None, str(value)
+                            connection.execute('insert into test_data(test_id,section,field_name,value_text,value_num,unit) values(?,?,?,?,?,?)', (
+                                test_id, section, key, text_value, numeric_value, data.get('units', {}).get(key)
+                            ))
+                report_no = nextno(connection, 'AST-R-', 'reports')
+                connection.execute('insert into reports(report_no,test_id,status) values(?,?,?)', (report_no, test_id, 'مسودة'))
+                queue_sync(connection, 'test', test_id, 'create', {'test_no': test_no, 'catalog': catalog['code']})
+                audit(connection, user['id'], 'إضافة اختبار', 'test', test_id, test_no + ' - ' + catalog['name_ar'])
+                connection.commit()
+                return self.send_json({'ok': True, 'test_id': test_id, 'report_no': report_no})
+
+            if path == '/api/reports/status':
+                if not self.require_permission(user, 'reports'):
+                    return
+                report_id = int(data.get('id'))
+                status = data.get('status')
+                if status not in {'مسودة', 'قيد المراجعة', 'معتمد', 'مرفوض'}:
+                    return self.send_json({'error': 'حالة التقرير غير صالحة'}, 400)
+                if status == 'قيد المراجعة' and not require_role(user, {'manager'}):
+                    return self.send_json({'error': 'المراجعة للمدير فقط'}, 403)
+                if status == 'معتمد' and user.get('role') != 'admin':
+                    return self.send_json({'error': 'الاعتماد لمدير النظام فقط'}, 403)
+                if status == 'معتمد':
+                    connection.execute('update reports set status=?,approved_by=?,issued_at=CURRENT_TIMESTAMP where id=?', (status, user['id'], report_id))
+                else:
+                    connection.execute('update reports set status=? where id=?', (status, report_id))
+                audit(connection, user['id'], 'تغيير حالة تقرير', 'report', report_id, status)
+                connection.commit()
+                return self.send_json({'ok': True})
+
+            return self.send_json({'error': 'مسار غير معروف'}, 404)
+        except sqlite3.IntegrityError as error:
+            connection.rollback()
+            return self.send_json({'error': 'بيانات مكررة أو مرجع غير صحيح: ' + str(error)}, 400)
+        except (TypeError, ValueError, sqlite3.Error) as error:
+            connection.rollback()
+            return self.send_json({'error': str(error)}, 400)
+        finally:
+            connection.close()
+
+    def create_proctor(self, connection, user, data):
+        catalog = connection.execute('select id from test_catalog where code=?', (data.get('standard_code'),)).fetchone()
+        sample_id = parse_optional_int(data.get('sample_id'))
+        points = data.get('points', [])
+        if not catalog or not sample_id or len(points) < 2:
+            return self.send_json({'error': 'بيانات اختبار البروكتور غير مكتملة'}, 400)
+        test_no = data.get('test_no') or nextno(connection, 'TST-', 'tests')
+        connection.execute('''
+            insert into tests(test_no,sample_id,catalog_id,status,technician_id,started_at,completed_at)
+            values(?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        ''', (test_no, sample_id, catalog['id'], 'مكتمل', user['id'], data.get('started_at')))
+        test_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+        for index, point in enumerate(points, 1):
+            connection.execute('insert into proctor_points(test_id,point_no,moisture,mold_soil_wet,wet_density,dry_density) values(?,?,?,?,?,?)', (
+                test_id, index, point['moisture'], point['mold_soil_wet'], point.get('wet_density'), point.get('dry_density')
+            ))
+        connection.execute('insert into proctor_results(test_id,mdd,omc) values(?,?,?)', (test_id, data['mdd'], data['omc']))
+        report_no = nextno(connection, 'AST-R-', 'reports')
+        connection.execute('insert into reports(report_no,test_id,status) values(?,?,?)', (report_no, test_id, 'مسودة'))
+        queue_sync(connection, 'test', test_id, 'create', {'test_no': test_no, 'catalog': data.get('standard_code')})
+        audit(connection, user['id'], 'إضافة اختبار', 'test', test_id, test_no + ' - ' + data.get('standard_code'))
+        connection.commit()
+        return self.send_json({'ok': True, 'test_id': test_id, 'report_no': report_no})
+
+
+if __name__ == '__main__':
+    init()
+    print('LIMS مختبر أساس: http://127.0.0.1:' + str(PORT))
+    ThreadingHTTPServer(('0.0.0.0', PORT), H).serve_forever()

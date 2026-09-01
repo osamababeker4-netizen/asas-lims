@@ -1,16 +1,210 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>نظام مختبر أساس</title><link rel="stylesheet" href="style.css"></head><body>
-<div id="login"><div class="loginbox"><img src="logo.jpg" class="login-logo"><h1>نظام مختبر أساس</h1><p>إدارة المختبر والبرنامج الميداني</p><input id="lu" value="admin" placeholder="اسم المستخدم"><input id="lp" value="1234" type="password" placeholder="كلمة المرور"><button class="btn" onclick="login()">دخول</button><small>بيانات الدخول تُدار من صفحة المستخدمين والصلاحيات.</small></div></div>
-<div id="app" class="hidden"><aside id="side"><div class="brand"><img src="logo.jpg"><b>مختبر أساس</b><small>LIMS • Field + Laboratory</small></div><button data-p="dashboard">لوحة التحكم</button><button data-p="field" class="field-nav">البرنامج الميداني</button><button data-p="clients">العملاء</button><button data-p="projects">المشاريع</button><button data-p="samples">العينات</button><button data-p="tests">الاختبارات</button><button data-p="catalog">دليل الاختبارات</button><button data-p="reports">التقارير</button><button data-p="equipment">الأجهزة والمعايرة</button><button data-p="audit">سجل التدقيق</button><button data-p="users" id="usersNav">المستخدمون والصلاحيات</button><button class="danger" onclick="logout()">تسجيل الخروج</button></aside>
-<main><header><div><button id="hamb" onclick="side.classList.toggle('open')">☰</button><b id="title">لوحة التحكم</b></div><span id="me"></span></header>
-<section id="dashboard" class="page active"><div class="cards"><div class="card">المشاريع<b id="cProjects">0</b></div><div class="card">العينات<b id="cSamples">0</b></div><div class="card">الاختبارات<b id="cTests">0</b></div><div class="card">التقارير<b id="cReports">0</b></div><div class="card">الأجهزة<b id="cEquipment">0</b></div><div class="card">الزيارات الميدانية<b id="cFieldVisits">0</b></div></div><div class="panel"><h3>إجراءات سريعة</h3><button class="btn" onclick="show('client')">+ عميل</button> <button class="btn" onclick="show('project')">+ مشروع</button> <button class="btn" onclick="show('sample')">+ عينة</button> <button class="btn" onclick="show('test')">+ اختبار</button></div><div class="panel"><h3>آخر العمليات</h3><div id="activity"></div></div></section>
-<section id="field" class="page"><div class="field-wrap"><div class="field-card"><div class="field-head"><img src="logo.jpg"><h2>البرنامج الميداني</h2><p>تسجيل ومتابعة أعمال الفحص الميداني</p></div><div class="login-user"><span>تم تسجيل الدخول باسم:</span><b id="fieldUser"></b><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div><div class="field-grid"><label>رقم الرخصة<input id="f_license" placeholder="أدخل رقم الرخصة"></label><button class="btn search-btn" onclick="searchLicense()">بحث في النظام</button><label>اسم المقاول<input id="f_contractor"></label><label>اسم المشروع<input id="f_project"></label><label>اسم القطاع<input id="f_sector"></label><label>رقم الطبقة<input id="f_layer"></label><label>معرف المشروع (اختياري)<input id="f_project_id" type="number" placeholder="ID"></label><label>معرف العينة (اختياري)<input id="f_sample_id" type="number" placeholder="ID"></label><label>الموقع<input id="f_location" placeholder="وصف الموقع"></label><div class="location-row"><button class="btn" onclick="getLocation()">📍 تحديد الموقع</button><span id="gpsStatus">لم يتم تحديد الموقع</span></div></div><div class="panel field-tests"><div class="head"><h3>الاختبارات</h3><button class="btn" onclick="addFieldTest()">+ إضافة اختبار</button></div><div id="fieldTests"></div><div class="muted">يمكن إضافة حتى 4 اختبارات في نفس الزيارة، مع إمكانية ربطها لاحقًا بنتائج LIMS.</div></div><div class="panel"><label>ملاحظات ميدانية<textarea id="f_notes" rows="4"></textarea></label><label>صور الموقع<input id="f_photos" type="file" accept="image/*" capture="environment" multiple></label><div id="photoPreview" class="photo-grid"></div></div><button class="btn save-field" onclick="saveFieldVisit()">حفظ الزيارة الميدانية</button><div id="fieldMsg"></div></div><div class="panel recent-field"><h3>آخر الزيارات</h3><div id="fieldRecent"></div><div class="muted">الحالات: مسودة → مرسلة → قيد المراجعة → معتمدة / مرفوضة</div></div></div></section>
-<section id="clients" class="page"><div class="head"><h2>العملاء</h2><button class="btn" onclick="show('client')">+ عميل</button></div><div class="panel"><table><thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد</th></tr></thead><tbody id="clients"></tbody></table></div></section>
-<section id="projects" class="page"><div class="head"><h2>المشاريع</h2><button class="btn" onclick="show('project')">+ مشروع</button></div><div class="panel"><table><thead><tr><th>الكود</th><th>المشروع</th><th>العميل</th><th>الموقع</th><th>الحالة</th></tr></thead><tbody id="projects"></tbody></table></div></section>
-<section id="samples" class="page"><div class="head"><h2>العينات</h2><button class="btn" onclick="show('sample')">+ عينة</button></div><div class="panel"><table><thead><tr><th>رقم العينة</th><th>المشروع</th><th>المادة</th><th>التاريخ</th><th>الحالة</th></tr></thead><tbody id="samples"></tbody></table></div></section>
-<section id="tests" class="page"><div class="head"><h2>الاختبارات</h2><button class="btn" onclick="show('test')">+ اختبار</button></div><div class="panel"><table><thead><tr><th>رقم الاختبار</th><th>العينة</th><th>الاختبار</th><th>المعيار</th><th>النتيجة</th><th>الحالة</th></tr></thead><tbody id="tests"></tbody></table></div></section>
-<section id="catalog" class="page"><div class="head"><h2>دليل الاختبارات</h2></div><div class="panel"><input id="catSearch" oninput="renderCatalog()" placeholder="بحث عن ASTM أو اسم الاختبار"><table><thead><tr><th>الكود</th><th>الاختبار</th><th>التصنيف</th><th>المعيار</th><th>الإصدار</th></tr></thead><tbody id="catalogRows"></tbody></table></div></section>
-<section id="reports" class="page"><div class="head"><h2>التقارير</h2></div><div class="panel"><table><thead><tr><th>التقرير</th><th>الاختبار</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead><tbody id="reports"></tbody></table></div></section>
-<section id="equipment" class="page"><div class="head"><h2>الأجهزة والمعايرة</h2><button class="btn" onclick="show('equipment')">+ جهاز</button></div><div class="panel"><table><thead><tr><th>الجهاز</th><th>Serial</th><th>آخر معايرة</th><th>القادمة</th><th>الشهادة</th><th>الحالة</th></tr></thead><tbody id="equipment"></tbody></table></div></section>
-<section id="users" class="page"><div class="head"><h2>المستخدمون والصلاحيات</h2><button class="btn" onclick="showUserForm()">+ مستخدم</button></div><div class="panel"><p class="muted">إدارة الحسابات والأدوار. هذه الصفحة للمدير فقط.</p><table><thead><tr><th>اسم المستخدم</th><th>الاسم</th><th>الدور</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>إجراء</th></tr></thead><tbody id="usersRows"></tbody></table></div></section>
-<section id="audit" class="page"><div class="head"><h2>سجل التدقيق</h2></div><div class="panel"><table><thead><tr><th>التاريخ</th><th>المستخدم</th><th>العملية</th><th>الكيان</th><th>التفاصيل</th></tr></thead><tbody id="audit"></tbody></table></div></section>
-</main></div><div id="modal" class="modal"><div><button class="btn close" onclick="closeModal()">×</button><div id="modalBody"></div></div></div><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>أساس LIMS | إدارة المختبر والمشاريع</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <section id="login" class="login-screen">
+    <div class="login-card">
+      <img src="logo.jpg" class="login-logo" alt="شعار مختبر أساس">
+      <p class="eyebrow">ASAS LIMS · V7.2.0</p>
+      <h1>منصة أساس لإدارة المختبر</h1>
+      <p class="muted">إدارة المشاريع، أوامر العمل، العينات، الاختبارات والتقارير في واجهة عربية موحّدة.</p>
+      <form id="loginForm" class="form-stack">
+        <label>اسم المستخدم<input id="loginUsername" autocomplete="username" required placeholder="اسم المستخدم"></label>
+        <label>كلمة المرور<input id="loginPassword" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
+        <button class="btn primary" type="submit">تسجيل الدخول</button>
+      </form>
+      <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
+      <p id="loginMessage" class="form-message" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <div id="app" class="app-shell hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="brand">
+        <img src="logo.jpg" alt="شعار مختبر أساس">
+        <strong>مختبر أساس</strong>
+        <span>LIMS · Field + Laboratory</span>
+      </div>
+      <nav aria-label="التنقل الرئيسي">
+        <button class="nav-link active" data-page="dashboard">لوحة القيادة</button>
+        <button class="nav-link" data-page="projects">إدارة المشاريع</button>
+        <button class="nav-link" data-page="workOrders">أوامر العمل</button>
+        <button class="nav-link" data-page="field">البرنامج الميداني</button>
+        <button class="nav-link" data-page="clients">العملاء</button>
+        <button class="nav-link" data-page="samples">العينات</button>
+        <button class="nav-link" data-page="tests">الاختبارات</button>
+        <button class="nav-link" data-page="catalog">دليل الاختبارات</button>
+        <button class="nav-link" data-page="reports">التقارير</button>
+        <button class="nav-link" data-page="equipment">الأجهزة والمعايرة</button>
+        <button class="nav-link" data-page="audit">سجل التدقيق</button>
+        <button class="nav-link" data-page="users" id="usersNav">المستخدمون والصلاحيات</button>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="syncIndicator" class="sync-indicator">المزامنة: —</span>
+        <button id="logoutBtn" class="nav-link danger">تسجيل الخروج</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-title">
+          <button id="menuBtn" class="icon-btn" type="button" aria-label="فتح القائمة">☰</button>
+          <div>
+            <p class="eyebrow" id="pageKicker">إدارة المختبر</p>
+            <h2 id="pageTitle">لوحة القيادة</h2>
+          </div>
+        </div>
+        <div class="user-chip"><span id="currentUser">—</span></div>
+      </header>
+
+      <section id="dashboard" class="page active">
+        <div class="page-heading">
+          <div><h2>نظرة تشغيلية</h2><p>الأولويات، الأعمال المتأخرة، وحالة سلسلة العينة حتى التقرير.</p></div>
+          <button class="btn primary" data-open-project type="button">+ مشروع جديد</button>
+        </div>
+        <div class="metric-grid">
+          <article class="metric-card accent-blue"><span>المشاريع النشطة</span><strong id="metricProjects">0</strong></article>
+          <article class="metric-card accent-purple"><span>أوامر العمل</span><strong id="metricOrders">0</strong></article>
+          <article class="metric-card accent-orange"><span>العينات قيد المعالجة</span><strong id="metricSamples">0</strong></article>
+          <article class="metric-card accent-green"><span>التقارير</span><strong id="metricReports">0</strong></article>
+          <article class="metric-card accent-red"><span>بانتظار المراجعة</span><strong id="metricReview">0</strong></article>
+          <article class="metric-card accent-slate"><span>طابور المزامنة</span><strong id="metricSync">0</strong></article>
+        </div>
+        <div class="dashboard-grid">
+          <article class="panel priority-panel">
+            <div class="panel-heading"><h3>أولويات اليوم</h3><span class="pill">تشغيلي</span></div>
+            <div id="priorityList" class="stack-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><h3>آخر العمليات</h3><button class="text-btn" data-page-go="audit" type="button">سجل التدقيق</button></div>
+            <div id="activityList" class="timeline-list"></div>
+          </article>
+        </div>
+        <article class="panel">
+          <div class="panel-heading"><h3>المشاريع ذات الأولوية</h3><button class="text-btn" data-page-go="projects" type="button">إدارة المشاريع</button></div>
+          <div id="dashboardProjects" class="compact-projects"></div>
+        </article>
+      </section>
+
+      <section id="projects" class="page">
+        <div class="page-heading">
+          <div><h2>إدارة المشاريع</h2><p>عرض موحّد يربط المشروع بأوامر العمل والعينات والاختبارات والنتائج والتقارير.</p></div>
+          <button class="btn primary" data-open-project type="button">+ مشروع جديد</button>
+        </div>
+        <div class="view-toolbar panel">
+          <div class="view-switch" role="tablist" aria-label="طرق عرض المشاريع">
+            <button class="view-btn active" data-project-view="table" type="button">جدول</button>
+            <button class="view-btn" data-project-view="board" type="button">لوحة Kanban</button>
+            <button class="view-btn" data-project-view="roadmap" type="button">خارطة الطريق</button>
+          </div>
+          <label class="search-field">بحث<input id="projectSearch" type="search" placeholder="الكود أو اسم المشروع أو العميل"></label>
+          <select id="projectPriorityFilter" aria-label="فلترة حسب الأولوية">
+            <option value="">كل الأولويات</option>
+            <option>حرجة</option><option>عالية</option><option>متوسطة</option><option>منخفضة</option>
+          </select>
+        </div>
+        <div id="projectTableView" class="project-view">
+          <div class="panel table-panel"><table>
+            <thead><tr><th>المشروع</th><th>المالك / الموقع</th><th>الأولوية</th><th>الاستحقاق</th><th>التقدم</th><th>الحالة</th><th>الروابط</th><th></th></tr></thead>
+            <tbody id="projectsTable"></tbody>
+          </table></div>
+        </div>
+        <div id="projectBoardView" class="project-view hidden"><div id="projectBoard" class="kanban-board"></div></div>
+        <div id="projectRoadmapView" class="project-view hidden"><div id="projectRoadmap" class="roadmap-list panel"></div></div>
+      </section>
+
+      <section id="workOrders" class="page">
+        <div class="page-heading">
+          <div><h2>أوامر العمل</h2><p>أوامر مرتبطة بمشروع محدد، وتتبع حالة التنفيذ والمواعيد والمكلّف.</p></div>
+          <button id="openWorkOrder" class="btn primary" type="button">+ أمر عمل</button>
+        </div>
+        <div class="panel table-panel"><table>
+          <thead><tr><th>الرقم</th><th>أمر العمل</th><th>المشروع</th><th>المكلّف</th><th>الأولوية</th><th>الاستحقاق</th><th>الحالة</th></tr></thead>
+          <tbody id="workOrdersTable"></tbody>
+        </table></div>
+      </section>
+
+      <section id="field" class="page">
+        <div class="page-heading"><div><h2>البرنامج الميداني</h2><p>تسجيل الزيارات الميدانية وربطها بالمشروع والعينة.</p></div></div>
+        <div class="field-layout">
+          <article class="panel">
+            <div class="panel-heading"><h3>زيارة ميدانية جديدة</h3><button id="searchLicenseBtn" class="text-btn" type="button">بحث برقم الرخصة</button></div>
+            <div class="form-grid">
+              <label>رقم الرخصة<input id="fieldLicense" required></label>
+              <label>المقاول<input id="fieldContractor"></label>
+              <label>اسم المشروع<input id="fieldProjectName"></label>
+              <label>القطاع<input id="fieldSector"></label>
+              <label>رقم الطبقة<input id="fieldLayer"></label>
+              <label>معرف المشروع<input id="fieldProjectId" type="number" min="1"></label>
+              <label>معرف العينة<input id="fieldSampleId" type="number" min="1"></label>
+              <label>الموقع<input id="fieldLocation"></label>
+            </div>
+            <div class="field-actions"><button id="getLocationBtn" class="btn secondary" type="button">تحديد الموقع</button><span id="gpsStatus" class="muted">لم يتم تحديد الموقع</span></div>
+            <div class="field-tests panel inset-panel">
+              <div class="panel-heading"><h3>اختبارات الزيارة</h3><button id="addFieldTest" class="btn secondary" type="button">+ اختبار</button></div>
+              <div id="fieldTests"></div>
+            </div>
+            <label>ملاحظات ميدانية<textarea id="fieldNotes" rows="4"></textarea></label>
+            <button id="saveFieldVisit" class="btn primary wide" type="button">حفظ الزيارة الميدانية</button>
+            <p id="fieldMessage" class="form-message"></p>
+          </article>
+          <article class="panel"><div class="panel-heading"><h3>آخر الزيارات</h3></div><div id="fieldRecent" class="stack-list"></div></article>
+        </div>
+      </section>
+
+      <section id="clients" class="page">
+        <div class="page-heading"><div><h2>العملاء</h2></div><button id="openClient" class="btn primary" type="button">+ عميل</button></div>
+        <div class="panel table-panel"><table><thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد</th></tr></thead><tbody id="clientsTable"></tbody></table></div>
+      </section>
+
+      <section id="samples" class="page">
+        <div class="page-heading"><div><h2>العينات</h2></div><button id="openSample" class="btn primary" type="button">+ عينة</button></div>
+        <div class="panel table-panel"><table><thead><tr><th>رقم العينة</th><th>المشروع</th><th>المادة</th><th>تاريخ الاستلام</th><th>الحالة</th></tr></thead><tbody id="samplesTable"></tbody></table></div>
+      </section>
+
+      <section id="tests" class="page">
+        <div class="page-heading"><div><h2>الاختبارات</h2></div><button id="openTest" class="btn primary" type="button">+ اختبار</button></div>
+        <div class="panel table-panel"><table><thead><tr><th>رقم الاختبار</th><th>العينة</th><th>الاختبار</th><th>المعيار</th><th>النتيجة</th><th>الحالة</th></tr></thead><tbody id="testsTable"></tbody></table></div>
+      </section>
+
+      <section id="catalog" class="page">
+        <div class="page-heading"><div><h2>دليل الاختبارات</h2></div></div>
+        <div class="panel table-panel"><label class="search-field">بحث<input id="catalogSearch" type="search" placeholder="ASTM أو اسم الاختبار"></label><table><thead><tr><th>الكود</th><th>الاختبار</th><th>التصنيف</th><th>المعيار</th><th>الإصدار</th></tr></thead><tbody id="catalogTable"></tbody></table></div>
+      </section>
+
+      <section id="reports" class="page">
+        <div class="page-heading"><div><h2>التقارير</h2><p>دورة التقرير محفوظة: مسودة ← مراجعة ← اعتماد.</p></div></div>
+        <div class="panel table-panel"><table><thead><tr><th>التقرير</th><th>العينة / الاختبار</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead><tbody id="reportsTable"></tbody></table></div>
+      </section>
+
+      <section id="equipment" class="page">
+        <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2></div><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div>
+        <div class="panel table-panel"><table><thead><tr><th>الجهاز</th><th>الرقم التسلسلي</th><th>آخر معايرة</th><th>القادمة</th><th>الشهادة</th><th>الحالة</th></tr></thead><tbody id="equipmentTable"></tbody></table></div>
+      </section>
+
+      <section id="audit" class="page">
+        <div class="page-heading"><div><h2>سجل التدقيق</h2><p>الأثر التدقيقي للعمليات الحساسة والتغييرات التشغيلية.</p></div></div>
+        <div class="panel table-panel"><table><thead><tr><th>التاريخ</th><th>المستخدم</th><th>العملية</th><th>الكيان</th><th>التفاصيل</th></tr></thead><tbody id="auditTable"></tbody></table></div>
+      </section>
+
+      <section id="users" class="page">
+        <div class="page-heading"><div><h2>المستخدمون والصلاحيات</h2><p>صفحة مقصورة على مدير النظام.</p></div><button id="openUser" class="btn primary" type="button">+ مستخدم</button></div>
+        <div class="panel table-panel"><table><thead><tr><th>اسم المستخدم</th><th>الاسم</th><th>الدور</th><th>الحالة</th><th>تاريخ الإنشاء</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
+  </div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
+
