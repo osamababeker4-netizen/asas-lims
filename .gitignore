@@ -3,3 +3,12 @@
 *.sqlite3
 storage/
 .env
+.codex/
+
+# Android/Gradle generated output (including nested field application builds)
+**/.gradle/
+**/build/
+*.apk
+*.aab
+*.sqlite3-shm
+*.sqlite3-wal
