@@ -11,7 +11,8 @@ from urllib.parse import parse_qs, urlparse
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
-PORT = int(os.environ.get('LIMS_PORT', '8080'))
+PORT = int(os.environ.get('PORT', os.environ.get('LIMS_PORT', '8080')))
+ALLOWED_ORIGIN = os.environ.get('LIMS_ALLOWED_ORIGIN', '').rstrip('/')
 SESSIONS = {}
 
 PROJECT_STATUSES = {'مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل', 'مفتوح'}
@@ -150,12 +151,24 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
+    def cors_origin(self):
+        origin = self.headers.get('Origin', '').rstrip('/')
+        return origin if ALLOWED_ORIGIN and origin == ALLOWED_ORIGIN else None
+
+    def send_cors_headers(self):
+        origin = self.cors_origin()
+        if origin:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Access-Control-Allow-Credentials', 'true')
+            self.send_header('Vary', 'Origin')
+
     def send_json(self, data, code=200):
         body = json.dumps(data, ensure_ascii=False).encode('utf-8')
         self.send_response(code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_cors_headers()
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -178,6 +191,16 @@ class H(BaseHTTPRequestHandler):
         self.send_header('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'")
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        if not urlparse(self.path).path.startswith('/api/') or not self.cors_origin():
+            return self.send_json({'error': 'المصدر غير مسموح'}, 403)
+        self.send_response(204)
+        self.send_cors_headers()
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Max-Age', '600')
+        self.end_headers()
 
     def require_permission(self, user, permission):
         if not has_perm(user, permission):
@@ -390,8 +413,11 @@ class H(BaseHTTPRequestHandler):
             body = json.dumps({'ok': True, 'user': {'full_name': user['full_name'], 'role': user['role'], 'username': user['username']}}, ensure_ascii=False).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
-            self.send_header('Set-Cookie', 'LIMS_SESSION=' + token + '; HttpOnly; SameSite=Lax; Path=/')
+            cookie = 'LIMS_SESSION=' + token + '; HttpOnly; Path=/'
+            cookie += '; SameSite=None; Secure' if ALLOWED_ORIGIN else '; SameSite=Lax'
+            self.send_header('Set-Cookie', cookie)
             self.send_header('Cache-Control', 'no-store')
+            self.send_cors_headers()
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)

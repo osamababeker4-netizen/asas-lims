@@ -1,7 +1,8 @@
 'use strict';
 
 const $ = function(id) { return document.getElementById(id); };
-const STATIC_MODE = location.hostname.endsWith('github.io');
+const API_BASE_URL = String(window.LIMS_API_BASE_URL || '').replace(/\/+$/, '');
+const STATIC_MODE = location.hostname.endsWith('github.io') && !API_BASE_URL;
 const STORAGE_KEY = 'asas_lims_v720';
 const PROJECT_STATUSES = ['مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل'];
 const BOARD_STATUSES = ['مخطط', 'نشط', 'قيد المراجعة', 'موقوف', 'مكتمل'];
@@ -249,7 +250,7 @@ function staticApi(path, options) {
 async function api(path, options) {
   const opts = options || {};
   if (STATIC_MODE) return staticApi(path, opts);
-  const response = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts));
+  const response = await fetch(API_BASE_URL + path, Object.assign({credentials:'include', headers:{'Content-Type':'application/json'}}, opts));
   let payload = {};
   try { payload = await response.json(); } catch (error) { throw new Error('استجابة غير صالحة من الخادم'); }
   if (!response.ok) throw new Error(payload.error || 'تعذر تنفيذ العملية');
@@ -781,4 +782,3 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded',init);
-
