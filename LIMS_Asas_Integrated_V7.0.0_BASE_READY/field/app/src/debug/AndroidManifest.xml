@@ -1,0 +1,4 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Debug only: allows the bundled local Python server over LAN HTTP. Release builds still require HTTPS. -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>
