@@ -117,6 +117,41 @@ class SchemaMigrationTests(unittest.TestCase):
             httpd.server_close()
             worker.join(timeout=5)
 
+    def test_pages_origin_cors_uses_secure_cross_site_session_cookie(self):
+        self.server.init()
+        original_origin = self.server.ALLOWED_ORIGIN
+        self.server.ALLOWED_ORIGIN = 'https://osamababeker4-netizen.github.io'
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        port = httpd.server_address[1]
+        origin = 'https://osamababeker4-netizen.github.io'
+
+        try:
+            connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            connection.request('OPTIONS', '/api/login', headers={'Origin': origin, 'Access-Control-Request-Method': 'POST'})
+            response = connection.getresponse()
+            self.assertEqual(response.status, 204)
+            self.assertEqual(response.getheader('Access-Control-Allow-Origin'), origin)
+            self.assertEqual(response.getheader('Access-Control-Allow-Credentials'), 'true')
+            response.read()
+            connection.close()
+
+            connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            body = json.dumps({'username': 'admin', 'password': self.bootstrap_password}).encode('utf-8')
+            connection.request('POST', '/api/login', body, {'Origin': origin, 'Content-Type': 'application/json'})
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.getheader('Access-Control-Allow-Origin'), origin)
+            self.assertIn('SameSite=None; Secure', response.getheader('Set-Cookie'))
+            response.read()
+            connection.close()
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(timeout=5)
+            self.server.ALLOWED_ORIGIN = original_origin
+
 
 if __name__ == '__main__':
     unittest.main()

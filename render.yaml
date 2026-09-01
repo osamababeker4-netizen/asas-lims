@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: asas-lims-api
+    runtime: python
+    region: frankfurt
+    plan: 0.5c-512mb
+    buildCommand: ""
+    startCommand: python server.py
+    healthCheckPath: /
+    envVars:
+      - key: LIMS_DB_PATH
+        value: /opt/render/project/src/storage/lims.db
+      - key: LIMS_ALLOWED_ORIGIN
+        value: https://osamababeker4-netizen.github.io
+      - key: LIMS_BOOTSTRAP_PASSWORD
+        sync: false
+    disk:
+      name: lims-data
+      mountPath: /opt/render/project/src/storage
+      sizeGB: 1
