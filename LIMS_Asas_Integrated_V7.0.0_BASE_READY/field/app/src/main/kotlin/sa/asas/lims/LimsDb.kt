@@ -115,8 +115,8 @@ class LimsDb(ctx: Context) : SQLiteOpenHelper(ctx, "lims_asas_v5.db", null, 6) {
         }
     }
 
-    fun login(username:String,password:String): Array<String?>? {
-        return readableDatabase.rawQuery("SELECT id,username,password_hash,salt,full_name,role,phone FROM users WHERE username=? AND active=1",arrayOf(username)).use { c ->
+    fun login(usernameOrPhone:String,password:String): Array<String?>? {
+        return readableDatabase.rawQuery("SELECT id,username,password_hash,salt,full_name,role,phone FROM users WHERE (username=? OR phone=?) AND active=1",arrayOf(usernameOrPhone,usernameOrPhone)).use { c ->
             if(!c.moveToFirst()) null else if(SecurityUtil.hash(password,c.getString(3)) == c.getString(2)) arrayOf(c.getString(0),c.getString(1),c.getString(4),c.getString(5),c.getString(6)) else null
         }
     }

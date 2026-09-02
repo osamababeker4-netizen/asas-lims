@@ -72,7 +72,7 @@ class MainActivity : Activity() {
     private fun showLogin(){
         if(db.getSetting("initial_setup_required")=="1"){showInitialSetup();return}
         backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.1",28f,true));root.addView(tv("نظام إدارة المختبر — النسخة الإنتاجية الموسعة",16f))
-        val u=inp("اسم المستخدم");val p=inp("كلمة المرور");p.inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        val u=inp("اسم المستخدم أو رقم الجوال الدولي");u.inputType=InputType.TYPE_CLASS_PHONE;val p=inp("كلمة المرور");p.inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         root.addView(u);root.addView(p);root.addView(btn("دخول"){
             val a=db.login(u.text.toString().trim(),p.text.toString())
             if(a==null){toast("بيانات الدخول غير صحيحة أو المستخدم غير فعال");return@btn}
@@ -89,7 +89,7 @@ class MainActivity : Activity() {
         if(autoSyncRunning || api.isBlank() || token.isBlank() || db.pendingSyncRows().isEmpty()) return
         autoSyncRunning=true; Thread { SyncClient(this,db).upload(api,token); autoSyncRunning=false }.start()
     }
-    private fun setupAdminPhone(){val ph=inp("رقم الجوال +966...");AlertDialog.Builder(this).setTitle("تسجيل جوال مدير النظام").setMessage("سيستخدم الرقم لاستقبال OTP عند كل دخول.").setView(ph).setNegativeButton("إلغاء",null).setPositiveButton("حفظ"){_,_->if(ph.text.toString().trim().length>=8){db.updateUserPhone("admin",ph.text.toString().trim());pendingPhone=ph.text.toString().trim();issueOtp()}else toast("رقم الجوال غير صالح")}.show()}
+    private fun setupAdminPhone(){val ph=inp("رقم الجوال +966...");AlertDialog.Builder(this).setTitle("تسجيل جوال مدير النظام").setMessage("سيستخدم الرقم لاستقبال OTP عند كل دخول.").setView(ph).setNegativeButton("إلغاء",null).setPositiveButton("حفظ"){_,_->if(validE164(ph.text.toString().trim())){db.updateUserPhone("admin",ph.text.toString().trim());pendingPhone=ph.text.toString().trim();issueOtp()}else toast("رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX")}.show()}
     private fun issueOtp(){pendingOtp=(100000+SecureRandom().nextInt(900000)).toString();pendingOtpAt=System.currentTimeMillis();db.createOtp(pendingOtpUserId,pendingOtp);showOtp()}
     private fun showOtp(){root=base();root.addView(tv("🔐 التحقق بخطوتين",26f,true));root.addView(tv("المستخدم: $pendingOtpUser\nالجوال: ${mask(pendingPhone)}",16f));val code=inp("رمز OTP");code.inputType=InputType.TYPE_CLASS_NUMBER;root.addView(code)
         root.addView(btn("تحقق ودخول"){if(System.currentTimeMillis()-pendingOtpAt<=300000 && db.verifyOtp(pendingOtpUserId,code.text.toString())){currentUser=pendingOtpUser;pendingOtp="";pendingOtpAt=0;db.audit(currentUserId,"LOGIN","USER",currentUser,"OTP verified");showDashboard()}else toast("رمز OTP غير صحيح أو منتهي")})
@@ -101,6 +101,7 @@ class MainActivity : Activity() {
         mount()
     }
     private fun mask(p:String)=p.filter{it.isDigit()}.let{if(it.length<5)"****" else "*".repeat(it.length-4)+it.takeLast(4)}
+    private fun validE164(phone:String)=phone.matches(Regex("^\\+\\d{8,15}$"))
 
     private fun showDashboard(){
         backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.1",28f,true));root.addView(tv("المستخدم: $currentUser   |   الصلاحية: $currentRole",15f))
@@ -208,7 +209,7 @@ class MainActivity : Activity() {
         val api=inp("عنوان الخادم (مثال: http://192.168.1.10:8080)",db.getSetting("central_api"));root.addView(api)
         val prefs=getSharedPreferences("central_sync",MODE_PRIVATE)
         val token=inp("رمز وصول مركزي Bearer",prefs.getString("access_token","") ?: "");root.addView(token)
-        val centralUser=inp("اسم المستخدم المركزي",prefs.getString("central_user",currentUser) ?: currentUser);root.addView(centralUser)
+        val centralUser=inp("اسم المستخدم أو الجوال المركزي",prefs.getString("central_user",currentUser) ?: currentUser);root.addView(centralUser)
         val centralPassword=inp("كلمة المرور المركزية");centralPassword.inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD;root.addView(centralPassword)
         val centralOtp=inp("رمز OTP المركزي");root.addView(centralOtp)
         val c=db.syncCounts(); root.addView(tv("الطابور: ${c[0]} معلقة | ${c[1]} تعارض | ${c[2]} فشلت",15f,true))

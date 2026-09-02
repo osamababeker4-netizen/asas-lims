@@ -12,8 +12,8 @@ android {
         applicationId = "sa.asas.lims"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "7.1.1"
+        versionCode = 12
+        versionName = "7.1.2"
     }
     buildTypes { release { isMinifyEnabled = false } }
 }
