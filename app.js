@@ -239,10 +239,20 @@ function staticApi(path, options) {
     if (!options || !options.method || options.method === 'GET') return data.users.map(function(item) { return {id:item.id,username:item.username,full_name:item.full_name,role:item.role,active:item.active,created_at:item.created_at}; });
   }
   if (path === '/api/users/create') {
-    const id = localId(data.users); data.users.push({id:id,username:body.username,password:body.password,full_name:body.full_name,role:body.role,active:1,created_at:new Date().toLocaleString('ar-SA')}); localAudit(data,'إضافة مستخدم','user',body.username); saveLocal(data); return {ok:true,id:id};
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '');
+    if (!username || !String(body.full_name || '').trim() || password.length < 12) throw new Error('أكمل بيانات المستخدم واجعل كلمة المرور 12 حرفاً على الأقل');
+    if (data.users.some(function(item) { return item.username === username; })) throw new Error('اسم المستخدم مستخدم بالفعل');
+    const id = localId(data.users); data.users.push({id:id,username:username,password:password,full_name:String(body.full_name).trim(),role:body.role || 'technician',active:1,created_at:new Date().toLocaleString('ar-SA')}); localAudit(data,'إضافة مستخدم','user',username); saveLocal(data); return {ok:true,id:id};
   }
   if (path === '/api/users/update') {
-    const user = data.users.find(function(item) { return item.id === Number(body.id); }); if (!user) throw new Error('المستخدم غير موجود'); Object.assign(user,body,{active:body.active ? 1 : 0}); if (!body.password) delete user.password; localAudit(data,'تعديل مستخدم','user',user.username); saveLocal(data); return {ok:true};
+    const user = data.users.find(function(item) { return item.id === Number(body.id); }); if (!user) throw new Error('المستخدم غير موجود');
+    const password = String(body.password || '');
+    if (!String(body.full_name || '').trim()) throw new Error('الاسم الكامل مطلوب');
+    if (password && password.length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
+    user.full_name = String(body.full_name).trim(); user.role = body.role || user.role; user.active = body.active ? 1 : 0;
+    if (password) user.password = password;
+    localAudit(data,'تعديل مستخدم','user',user.username); saveLocal(data); return {ok:true};
   }
   throw new Error('المسار غير مدعوم في العرض الثابت');
 }
@@ -607,13 +617,18 @@ async function submitTest(form) {
 
 function openUserForm(user) {
   const value = user || {};
-  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><form id="userForm"><input type="hidden" name="id" value="' + esc(value.id || '') + '"><div class="modal-grid"><label>اسم المستخدم<input name="username" required ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور ' + (user ? '(اتركها فارغة للإبقاء)' : '') + '<input name="password" type="password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p class="muted">كلمة المرور لا تقل عن 12 حرفاً ولا تُحفظ في Git.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ المستخدم</button></div></form>');
+  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور ' + (user ? '(اتركها فارغة للإبقاء)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">كلمة المرور لا تقل عن 12 حرفاً ولا تُحفظ في Git.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ المستخدم</button></div></form>');
 }
 
 async function submitSimple(form, path) {
   const data = {};
   new FormData(form).forEach(function(value,key) { data[key] = value; });
-  if (path === '/api/users/update') data.active = form.elements.active.checked;
+  if (path === '/api/users/update') { const active = form.querySelector('[name="active"]'); data.active = active ? active.checked : true; }
+  if (path.indexOf('/api/users/') === 0) {
+    if (!String(data.full_name || '').trim()) throw new Error('الاسم الكامل مطلوب');
+    if (!data.id && String(data.password || '').length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
+    if (data.id && data.password && String(data.password).length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
+  }
   await api(path,{method:'POST',body:JSON.stringify(data)});
   closeModal(); await refresh(); showToast('تم الحفظ');
 }
@@ -772,7 +787,12 @@ function bindEvents() {
       if (form.id === 'equipmentForm') await submitSimple(form,'/api/equipment');
       if (form.id === 'testForm') await submitTest(form);
       if (form.id === 'userForm') await submitSimple(form,form.elements.id.value ? '/api/users/update' : '/api/users/create');
-    } catch (error) { showToast(error.message,true); }
+    } catch (error) {
+      const message = error && error.message ? error.message : 'تعذر حفظ البيانات';
+      const formMessage = form.querySelector('#userFormMessage');
+      if (formMessage) formMessage.textContent = message;
+      showToast(message,true);
+    }
   });
 }
 

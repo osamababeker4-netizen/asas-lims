@@ -117,6 +117,54 @@ class SchemaMigrationTests(unittest.TestCase):
             httpd.server_close()
             worker.join(timeout=5)
 
+    def test_admin_can_create_and_update_a_user(self):
+        self.server.init()
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        port = httpd.server_address[1]
+
+        def request(method, path, payload=None, cookie=None):
+            connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            headers = {'Content-Type': 'application/json'} if payload is not None else {}
+            if cookie:
+                headers['Cookie'] = cookie
+            body = json.dumps(payload).encode('utf-8') if payload is not None else None
+            connection.request(method, path, body, headers)
+            response = connection.getresponse()
+            data = json.loads(response.read().decode('utf-8'))
+            response_headers = dict(response.getheaders())
+            connection.close()
+            return response.status, data, response_headers
+
+        try:
+            status, _, headers = request('POST', '/api/login', {'username': 'admin', 'password': self.bootstrap_password})
+            self.assertEqual(status, 200)
+            cookie = headers['Set-Cookie'].split(';', 1)[0]
+
+            status, created, _ = request('POST', '/api/users/create', {
+                'username': 'lab.user', 'full_name': 'مستخدم المختبر', 'password': 'Secure-password-123', 'role': 'technician'
+            }, cookie)
+            self.assertEqual(status, 200)
+            self.assertTrue(created['ok'])
+
+            status, updated, _ = request('POST', '/api/users/update', {
+                'id': created['id'], 'full_name': 'مستخدم مختبر محدّث', 'role': 'manager', 'active': True, 'password': ''
+            }, cookie)
+            self.assertEqual(status, 200)
+            self.assertTrue(updated['ok'])
+
+            status, users, _ = request('GET', '/api/users', cookie=cookie)
+            self.assertEqual(status, 200)
+            saved = next(item for item in users if item['id'] == created['id'])
+            self.assertEqual(saved['full_name'], 'مستخدم مختبر محدّث')
+            self.assertEqual(saved['role'], 'manager')
+            self.assertEqual(saved['active'], 1)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(timeout=5)
+
     def test_pages_origin_cors_uses_secure_cross_site_session_cookie(self):
         self.server.init()
         original_origin = self.server.ALLOWED_ORIGIN
