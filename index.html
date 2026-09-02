@@ -20,7 +20,7 @@
       <h1>منصة أساس لإدارة المختبر</h1>
       <p class="muted">إدارة المشاريع، أوامر العمل، العينات، الاختبارات والتقارير في واجهة عربية موحّدة.</p>
       <form id="loginForm" class="form-stack">
-        <label>اسم المستخدم<input id="loginUsername" autocomplete="username" required placeholder="اسم المستخدم"></label>
+        <label>اسم المستخدم أو رقم الجوال<input id="loginUsername" autocomplete="username tel" inputmode="tel" required placeholder="اسم المستخدم أو +9665XXXXXXXX"></label>
         <label>كلمة المرور<input id="loginPassword" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
         <button class="btn primary" type="submit">تسجيل الدخول</button>
       </form>
@@ -29,6 +29,7 @@
         <p class="form-note">أنشئ حساب المدير المحلي مرة واحدة على هذا الجهاز.</p>
         <label>اسم مستخدم المدير<input id="setupUsername" autocomplete="username" required value="admin" placeholder="اسم المستخدم"></label>
         <label>الاسم الكامل<input id="setupFullName" autocomplete="name" required value="مدير المختبر" placeholder="الاسم الكامل"></label>
+        <label>رقم الجوال الدولي (اختياري)<input id="setupPhone" autocomplete="tel" inputmode="tel" placeholder="+9665XXXXXXXX"></label>
         <label>كلمة مرور جديدة<input id="setupPassword" autocomplete="new-password" type="password" required minlength="12" placeholder="12 حرفاً على الأقل"></label>
         <label>تأكيد كلمة المرور<input id="setupPasswordConfirm" autocomplete="new-password" type="password" required minlength="12" placeholder="أعد كتابة كلمة المرور"></label>
         <button class="btn primary" type="submit">إنشاء الحساب المحلي</button>
@@ -178,7 +179,7 @@
 
       <section id="samples" class="page">
         <div class="page-heading"><div><h2>العينات</h2></div><button id="openSample" class="btn primary" type="button">+ عينة</button></div>
-        <div class="panel table-panel"><table><thead><tr><th>رقم العينة</th><th>المشروع</th><th>المادة</th><th>تاريخ الاستلام</th><th>الحالة</th></tr></thead><tbody id="samplesTable"></tbody></table></div>
+        <div class="panel table-panel"><table><thead><tr><th>رقم العينة</th><th>المشروع</th><th>المادة</th><th>الخطة الرسمية</th><th>تاريخ الاستلام</th><th>الحالة</th></tr></thead><tbody id="samplesTable"></tbody></table></div>
       </section>
 
       <section id="tests" class="page">

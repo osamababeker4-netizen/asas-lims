@@ -9,6 +9,18 @@ const BOARD_STATUSES = ['مخطط', 'نشط', 'قيد المراجعة', 'موق
 const PRIORITIES = ['منخفضة', 'متوسطة', 'عالية', 'حرجة'];
 const WORK_ORDER_STATUSES = ['مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'];
 const ROLE_NAMES = {admin:'مدير نظام',manager:'مدير',technician:'فني مختبر',field:'مفتش ميداني'};
+// الكتالوج الرسمي الموحد: يظهر في الموقع المركزي، ويطابق التطبيق الميداني.
+const OFFICIAL_TEST_CATALOG = Object.freeze({
+  'تربة':[
+    ['D6913','التدرج الحبيبي بالغرابيل','Sieve Analysis'],['D7928','التدرج الحبيبي للهيدروميتر','Hydrometer Analysis'],['D2216','المحتوى المائي','Water Content'],['D4318','حدود أتربرج (LL / PL / PI)','Atterberg Limits'],['D854','الكثافة النوعية لحبيبات التربة','Specific Gravity'],['D698','الدمك القياسي (Standard Proctor)','Standard Proctor'],['D1557','الدمك المعدل (Modified Proctor)','Modified Proctor'],['D1883','نسبة التحمل كاليفورنيا CBR','California Bearing Ratio'],['D1556','كثافة الموقع بطريقة مخروط الرمل','Sand Cone Density'],['D6938','كثافة ورطوبة الموقع بالطريقة النووية','Nuclear Density and Moisture'],['D2487','تصنيف التربة الموحد USCS','USCS Classification'],['D2435','الانضغاط والهبوط أحادي البعد','One-Dimensional Consolidation'],['D3080','القص المباشر','Direct Shear'],['D2166','الانضغاط غير المحصور UCS','Unconfined Compression'],['D2850','الضغط ثلاثي المحاور غير الموحد UU','Triaxial UU'],['D4767','الضغط ثلاثي المحاور الموحد CU/CD','Triaxial CU/CD'],['D5084','النفاذية / التوصيل الهيدروليكي','Hydraulic Conductivity'],['D4546','الانتفاخ والانهيار','Swell and Collapse'],['D4972','الأس الهيدروجيني pH للتربة','Soil pH'],['D2974','المحتوى العضوي','Organic Content']
+  ],
+  'خرسانة':[
+    ['C172','أخذ عينات الخرسانة الطازجة','Sampling Fresh Concrete'],['C143','الهبوط Slump','Slump'],['C1064','درجة حرارة الخرسانة الطازجة','Fresh Concrete Temperature'],['C138','الكثافة والعائد ومحتوى الهواء الوزني','Density Yield and Air Content'],['C231','محتوى الهواء بطريقة الضغط','Air Content by Pressure'],['C173','محتوى الهواء بالطريقة الحجمية','Air Content by Volumetric Method'],['C31','تجهيز ومعالجة العينات في الموقع','Making and Curing Specimens'],['C39','مقاومة الضغط للأسطوانات','Compressive Strength'],['C78','مقاومة الانحناء للكمرة','Flexural Strength'],['C496','مقاومة الشد بالانشطار','Splitting Tensile Strength'],['C469','معامل المرونة ونسبة بواسون','Elastic Modulus'],['C42','فحص اللباب الخرساني','Concrete Cores'],['C403','زمن الشك بالاختراق','Time of Setting'],['C597','النبضات فوق الصوتية UPV','Ultrasonic Pulse Velocity'],['C642','الكثافة والامتصاص والفراغات','Density Absorption and Voids'],['C157','الانكماش الطولي المتصلب','Length Change'],['C1202','نفاذية أيونات الكلوريد السريعة RCPT','Rapid Chloride Permeability'],['C1152','كلوريد الخرسانة المتصلبة','Water-Soluble Chloride'],['C666','مقاومة التجميد والذوبان','Freeze-Thaw Resistance'],['C1260','قابلية التفاعل القلوي للركام','Alkali Reactivity']
+  ],
+  'أسفلت':[
+    ['D979','أخذ عينات الخلطات الأسفلتية','Sampling Asphalt Mixtures'],['D6926','تحضير عينات مارشال','Marshall Specimen Preparation'],['D6927','ثبات وانسياب مارشال','Marshall Stability and Flow'],['D2041','الكثافة النوعية العظمى النظرية Rice','Maximum Theoretical Specific Gravity'],['D2726','الكثافة النوعية والكثافة الظاهرية','Bulk Specific Gravity'],['D3203','الفراغات الهوائية في الخلطات','Air Voids'],['D6307','محتوى الأسفلت بفرن الإشعال','Asphalt Content by Ignition'],['D5444','التدرج الميكانيكي للركام المستخلص','Extracted Aggregate Gradation'],['D4867','الحساسية للرطوبة / الشد غير المباشر','Moisture Susceptibility'],['D6931','الكثافة في الموقع بالطريقة النووية','In-Place Density'],['D3549','السماكة أو الارتفاع للعينة المدموكة','Thickness of Compacted Specimens'],['D1188','الكثافة النوعية للعينات اللبية','Core Density'],['D6928','معامل المرونة للخلطات الأسفلتية','Resilient Modulus'],['D5','اختراق الرابط الأسفلتي','Bitumen Penetration'],['D36','نقطة تليّن الرابط الأسفلتي','Softening Point'],['D4402','اللزوجة الدورانية للرابط الأسفلتي','Rotational Viscosity'],['D2872','التقادم قصير الأجل RTFO','Rolling Thin-Film Oven'],['D6648','القص الديناميكي للرابط DSR','Dynamic Shear Rheometer']
+  ]
+});
 const TEST_FIELDS = {
   D1883:[['cbr254','CBR عند 2.54 mm','%'],['cbr508','CBR عند 5.08 mm','%'],['swelling','الانتفاخ','%']],
   D2216:[['wet_mass','وزن العينة الرطبة','g'],['dry_mass','وزن العينة الجافة','g']],
@@ -63,7 +75,7 @@ function localDB() {
   ['users','clients','projects','workOrders','samples','tests','reports','equipment','visits','catalog','audit','syncQueue'].forEach(function(key) {
     if (!Array.isArray(data[key])) data[key] = [];
   });
-  if (!data.catalog.length) data.catalog = defaultCatalog();
+  data.catalog = mergeOfficialCatalog(data.catalog);
   return data;
 }
 
@@ -73,17 +85,20 @@ function saveLocal(data) {
 }
 
 function defaultCatalog() {
-  return [
-    {id:1,code:'D1883',name_ar:'نسبة تحمل كاليفورنيا CBR',name_en:'California Bearing Ratio',category:'تربة',standard:'ASTM D1883',version:'2024'},
-    {id:2,code:'D2216',name_ar:'محتوى الرطوبة',name_en:'Water Content',category:'تربة',standard:'ASTM D2216',version:'2019'},
-    {id:3,code:'D4318',name_ar:'حدود أتربرج',name_en:'Atterberg Limits',category:'تربة',standard:'ASTM D4318',version:'2018'},
-    {id:4,code:'C136',name_ar:'التحليل المنخلي',name_en:'Sieve Analysis',category:'ركام',standard:'ASTM C136',version:'2019'},
-    {id:5,code:'D1557',name_ar:'بروكتور المعدل',name_en:'Modified Proctor',category:'تربة',standard:'ASTM D1557',version:'2021'},
-    {id:6,code:'D698',name_ar:'بروكتور القياسي',name_en:'Standard Proctor',category:'تربة',standard:'ASTM D698',version:'2021'},
-    {id:7,code:'C39',name_ar:'مقاومة الضغط للخرسانة',name_en:'Compressive Strength',category:'خرسانة',standard:'ASTM C39',version:'2024'},
-    {id:8,code:'C143',name_ar:'اختبار الهطول',name_en:'Slump',category:'خرسانة',standard:'ASTM C143',version:'2020'},
-    {id:9,code:'D2041',name_ar:'الوزن النوعي الأقصى للخلطة الإسفلتية Gmm',category:'أسفلت',standard:'ASTM D2041',version:'2022'}
-  ];
+  return Object.entries(OFFICIAL_TEST_CATALOG).flatMap(function(entry) {
+    const category = entry[0], tests = entry[1];
+    return tests.map(function(test, index) { return {id:index + 1,code:test[0],name_ar:test[1],name_en:test[2],category:category,standard:'ASTM ' + test[0],version:'معتمد'}; });
+  });
+}
+
+function mergeOfficialCatalog(existing) {
+  const rows = Array.isArray(existing) ? existing.slice() : [];
+  defaultCatalog().forEach(function(official) {
+    const current = rows.find(function(row) { return row.code === official.code; });
+    if (current) Object.assign(current, official, {id:current.id});
+    else rows.push(Object.assign({}, official, {id:localId(rows)}));
+  });
+  return rows;
 }
 
 function localId(items) {
@@ -130,7 +145,7 @@ function localDashboard(data) {
   });
   return {
     counts:{projects:projects.length,work_orders:orders.length,samples:samples.length,tests:tests.length,reports:reports.length,equipment:data.equipment.length,field_visits:data.visits.length,sync_queue:data.syncQueue.length},
-    projects:projects,work_orders:orders,clients:data.clients.slice().reverse(),samples:samples.slice().reverse(),tests:tests.slice().reverse(),reports:reports.slice().reverse(),equipment:data.equipment.slice().reverse(),audit:data.audit,activity:data.audit.slice(0,15),sync:data.syncQueue,
+    projects:projects,work_orders:orders,clients:data.clients.slice().reverse(),samples:samples.slice().reverse().map(function(sample) { return Object.assign({}, sample, {planned_tests_count:(sample.test_plan || []).length}); }),tests:tests.slice().reverse(),reports:reports.slice().reverse(),equipment:data.equipment.slice().reverse(),audit:data.audit,activity:data.audit.slice(0,15),sync:data.syncQueue,
     alerts:{
       blocked_projects:projects.filter(function(item) { return item.status === 'موقوف'; }),
       overdue_work_orders:orders.filter(function(item) { return item.due_date && item.due_date < today() && item.status !== 'مكتمل'; }),
@@ -159,7 +174,8 @@ function staticApi(path, options) {
   const data = localDB();
   const body = options && options.body ? JSON.parse(options.body) : {};
   if (path === '/api/login') {
-    const user = data.users.find(function(item) { return item.username === String(body.username || '').trim() && item.password === String(body.password || '') && item.active; });
+    const loginId = String(body.username || '').trim();
+    const user = data.users.find(function(item) { return (item.username === loginId || item.phone === loginId) && item.password === String(body.password || '') && item.active; });
     if (!user) throw new Error(data.users.length ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : 'أنشئ حساب المدير المحلي أولاً');
     currentUser = {id:user.id,username:user.username,full_name:user.full_name,role:user.role};
     localStorage.setItem(STORAGE_KEY + '_session', JSON.stringify(currentUser));
@@ -208,7 +224,9 @@ function staticApi(path, options) {
     const id = localId(data.clients); data.clients.push(Object.assign({id:id},body)); localAudit(data,'إضافة عميل','client',body.name); saveLocal(data); return {ok:true,id:id};
   }
   if (path === '/api/samples') {
-    const id = localId(data.samples); data.samples.push(Object.assign({id:id,status:'قيد الاختبار',project_id:body.project_id ? Number(body.project_id) : null},body)); localQueue(data,'sample',id,'create'); localAudit(data,'إضافة عينة','sample',body.sample_no); saveLocal(data); return {ok:true,id:id};
+    const id = localId(data.samples); const sample = Object.assign({id:id,status:'قيد الاختبار',project_id:body.project_id ? Number(body.project_id) : null},body);
+    sample.test_plan = data.catalog.filter(function(item) { return item.category === sample.material; }).map(function(item) { return {catalog_id:item.id,code:item.code,name_ar:item.name_ar,status:'مخطط'}; });
+    data.samples.push(sample); localQueue(data,'sample',id,'create'); localAudit(data,'إضافة عينة وخطة اختبارات تلقائية','sample',body.sample_no + ' (' + sample.test_plan.length + ' اختباراً)'); saveLocal(data); return {ok:true,id:id,planned_count:sample.test_plan.length};
   }
   if (path === '/api/equipment') {
     const id = localId(data.equipment); data.equipment.push(Object.assign({id:id,status:'ساري'},body)); localAudit(data,'إضافة جهاز','equipment',body.name); saveLocal(data); return {ok:true,id:id};
@@ -349,7 +367,9 @@ async function submitStaticAdmin(event) {
   if (password !== confirmation) return $('loginMessage').textContent = 'تأكيد كلمة المرور غير مطابق.';
   const data = localDB();
   if (data.users.length) return $('loginMessage').textContent = 'الحساب المحلي موجود بالفعل. سجّل الدخول.';
-  data.users.push({id:1,username:username.trim(),password:password,full_name:name.trim(),role:'admin',active:1,created_at:new Date().toLocaleString('ar-SA')});
+  const phone = $('setupPhone').value.trim();
+  if (phone && !/^\+\d{8,15}$/.test(phone)) return $('loginMessage').textContent = 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX.';
+  data.users.push({id:1,username:username.trim(),password:password,full_name:name.trim(),phone:phone,role:'admin',active:1,created_at:new Date().toLocaleString('ar-SA')});
   saveLocal(data);
   $('staticSetupForm').classList.add('hidden');
   $('loginUsername').value = username;
@@ -451,7 +471,7 @@ function renderClients() {
 }
 
 function renderSamples() {
-  $('samplesTable').innerHTML = (dashboard ? dashboard.samples : []).map(function(sample) { return '<tr><td><strong>' + esc(sample.sample_no) + '</strong></td><td>' + esc(sample.project_code || '—') + '<small>' + esc(sample.project_name || '') + '</small></td><td>' + esc(sample.material) + '</td><td>' + esc(sample.received_date) + '</td><td>' + statusChip(sample.status) + '</td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">لا توجد عينات.</td></tr>';
+  $('samplesTable').innerHTML = (dashboard ? dashboard.samples : []).map(function(sample) { return '<tr><td><strong>' + esc(sample.sample_no) + '</strong></td><td>' + esc(sample.project_code || '—') + '<small>' + esc(sample.project_name || '') + '</small></td><td>' + esc(sample.material) + '</td><td>' + esc(sample.planned_tests_count || 0) + ' اختباراً تلقائياً</td><td>' + esc(sample.received_date) + '</td><td>' + statusChip(sample.status) + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد عينات.</td></tr>';
 }
 
 function renderTests() {
@@ -568,7 +588,7 @@ function openClientForm() {
 
 function openSampleForm() {
   const projects = dashboard ? dashboard.projects : [];
-  modal('<h2>تسجيل عينة</h2><form id="sampleForm"><div class="modal-grid"><label>رقم العينة<input name="sample_no" required></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material"><option>تربة</option><option>ركام</option><option>خرسانة</option><option>أسفلت</option><option>طلاءات</option><option>مواد بناء</option></select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + today() + '" required></label><label>المصدر<input name="source"></label><label>ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العينة</button></div></form>');
+  modal('<h2>تسجيل عينة</h2><form id="sampleForm"><div class="modal-grid"><label>رقم العينة<input name="sample_no" required></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material"><option>تربة</option><option>خرسانة</option><option>أسفلت</option></select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + today() + '" required></label><label>المصدر<input name="source"></label><label>ملاحظات<textarea name="notes"></textarea></label></div><p class="form-message">سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العينة والخطة</button></div></form>');
 }
 
 function openEquipmentForm() {
@@ -639,8 +659,9 @@ async function submitSimple(form, path) {
     if (!data.id && String(data.password || '').length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
     if (data.id && data.password && String(data.password).length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
   }
-  await api(path,{method:'POST',body:JSON.stringify(data)});
-  closeModal(); await refresh(); showToast('تم الحفظ');
+  const result = await api(path,{method:'POST',body:JSON.stringify(data)});
+  closeModal(); await refresh();
+  showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ');
 }
 
 async function changeProjectStatus(id, status) {

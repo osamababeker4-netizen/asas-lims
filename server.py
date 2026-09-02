@@ -14,6 +14,7 @@ import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
+OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 PORT = int(os.environ.get('PORT', os.environ.get('LIMS_PORT', '8080')))
 ALLOWED_ORIGIN = os.environ.get('LIMS_ALLOWED_ORIGIN', '').rstrip('/')
 SESSIONS = {}
@@ -117,6 +118,16 @@ def init():
     with open(os.path.join(BASE, 'schema.sql'), encoding='utf-8') as schema:
         connection.executescript(schema.read())
     migrate_schema(connection)
+    with open(OFFICIAL_CATALOG, encoding='utf-8') as catalog_file:
+        official_catalog = json.load(catalog_file)
+    for category, entries in official_catalog.items():
+        for code, name_ar in entries:
+            connection.execute('''
+                insert into test_catalog(code,name_ar,name_en,category,standard,version,active)
+                values(?,?,?,?,?,'معتمد',1)
+                on conflict(code) do update set name_ar=excluded.name_ar,name_en=excluded.name_en,
+                    category=excluded.category,standard=excluded.standard,version=excluded.version,active=1
+            ''', (code, name_ar, name_ar, category, 'ASTM ' + code))
     if connection.execute('select count(*) from users').fetchone()[0] == 0:
         password = os.environ.get('LIMS_BOOTSTRAP_PASSWORD')
         if not password or len(password) < 12:
@@ -289,7 +300,11 @@ class H(BaseHTTPRequestHandler):
             'projects': projects,
             'work_orders': work_orders,
             'clients': q('select * from clients order by id desc'),
-            'samples': q('select s.*,p.name project_name,p.code project_code from samples s left join projects p on p.id=s.project_id order by s.id desc'),
+            'samples': q('''
+                select s.*,p.name project_name,p.code project_code,
+                    (select count(*) from tests t where t.sample_id=s.id and t.status='مخطط') planned_tests_count
+                from samples s left join projects p on p.id=s.project_id order by s.id desc
+            '''),
             'tests': q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,pr.mdd,pr.omc from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id order by t.id desc'),
             'reports': q('select r.*,t.test_no,tc.name_ar,s.sample_no from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id order by r.id desc'),
             'equipment': q('select * from equipment order by id desc'),
@@ -444,7 +459,7 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json({'ok': False, 'error': 'invalid_request'}, 400)
             connection = db()
             username = str(data.get('username', '')).strip()
-            user = connection.execute('select * from users where username=? and active=1', (username,)).fetchone()
+            user = connection.execute('select * from users where (username=? or phone=?) and active=1', (username, username)).fetchone()
             if not user or not checkpw(str(data.get('password', '')), user['password_hash']):
                 connection.close()
                 return self.send_json({'ok': False, 'error': 'invalid_credentials'}, 401)
@@ -475,7 +490,7 @@ class H(BaseHTTPRequestHandler):
             connection = db()
             username = str(data.get('username', '')).strip()
             code = str(data.get('otp', '')).strip()
-            user = connection.execute('select * from users where username=? and active=1', (username,)).fetchone()
+            user = connection.execute('select * from users where (username=? or phone=?) and active=1', (username, username)).fetchone()
             phone = str(user['phone'] or '').strip() if user else ''
             if not user or not valid_e164(phone) or not code:
                 connection.close()
@@ -506,7 +521,8 @@ class H(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 return self.send_json({'error': 'بيانات الدخول غير صالحة'}, 400)
             connection = db()
-            user = connection.execute('select * from users where username=? and active=1', (str(data.get('username', '')).strip(),)).fetchone()
+            login_id = str(data.get('username', '')).strip()
+            user = connection.execute('select * from users where (username=? or phone=?) and active=1', (login_id, login_id)).fetchone()
             connection.close()
             if not user or not checkpw(str(data.get('password', '')), user['password_hash']):
                 return self.send_json({'error': 'اسم المستخدم أو كلمة المرور غير صحيحة'}, 401)
@@ -753,10 +769,17 @@ class H(BaseHTTPRequestHandler):
                     sample_no, parse_optional_int(data.get('project_id')), material, data.get('source'), data.get('received_date'), data.get('notes')
                 ))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                planned = connection.execute('select id,code from test_catalog where category=? and active=1 order by name_ar', (material,)).fetchall()
+                for catalog_item in planned:
+                    test_no = nextno(connection, 'TST-', 'tests')
+                    connection.execute('''
+                        insert into tests(test_no,sample_id,catalog_id,status,technician_id)
+                        values(?,?,?,?,?)
+                    ''', (test_no, entity_id, catalog_item['id'], 'مخطط', user['id']))
                 queue_sync(connection, 'sample', entity_id, 'create', {'sample_no': sample_no, 'project_id': data.get('project_id')})
-                audit(connection, user['id'], 'إضافة عينة', 'sample', entity_id, sample_no)
+                audit(connection, user['id'], 'إضافة عينة وخطة اختبارات تلقائية', 'sample', entity_id, sample_no + ' (' + str(len(planned)) + ' اختباراً)')
                 connection.commit()
-                return self.send_json({'ok': True, 'id': entity_id})
+                return self.send_json({'ok': True, 'id': entity_id, 'planned_count': len(planned)})
 
             if path == '/api/equipment':
                 if not self.require_permission(user, 'equipment'):
