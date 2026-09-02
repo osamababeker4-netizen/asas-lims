@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import base64
 import hashlib
 import hmac
 import json
@@ -7,7 +8,9 @@ import os
 import secrets
 import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
+import urllib.error
+import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
@@ -81,6 +84,9 @@ def normalize_priority(value):
 
 def migrate_schema(connection):
     additions = {
+        'users': [
+            ('phone', 'phone TEXT')
+        ],
         'projects': [
             ('priority', "priority TEXT NOT NULL DEFAULT 'متوسطة'"),
             ('description', 'description TEXT'),
@@ -140,11 +146,44 @@ def queue_sync(connection, entity, entity_id, operation, payload):
 
 
 def user_from(handler):
+    authorization = handler.headers.get('Authorization', '')
+    if authorization.startswith('Bearer '):
+        return SESSIONS.get(authorization[7:])
     for item in handler.headers.get('Cookie', '').split(';'):
         item = item.strip()
         if item.startswith('LIMS_SESSION='):
             return SESSIONS.get(item.split('=', 1)[1])
     return None
+
+
+def twilio_verify_ready():
+    return all(os.environ.get(key, '').strip() for key in (
+        'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_VERIFY_SERVICE_SID'
+    ))
+
+
+def valid_e164(phone):
+    return phone.startswith('+') and phone[1:].isdigit() and 8 <= len(phone) <= 16
+
+
+def twilio_verify_request(endpoint, fields):
+    """Use Verify credentials from server environment; never return them to clients."""
+    account_sid = os.environ['TWILIO_ACCOUNT_SID']
+    auth_token = os.environ['TWILIO_AUTH_TOKEN']
+    service_sid = os.environ['TWILIO_VERIFY_SERVICE_SID']
+    credentials = base64.b64encode(f'{account_sid}:{auth_token}'.encode()).decode()
+    request = urllib.request.Request(
+        f'https://verify.twilio.com/v2/Services/{service_sid}/{endpoint}',
+        data=urlencode(fields).encode(),
+        headers={
+            'Authorization': 'Basic ' + credentials,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        },
+        method='POST'
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        return json.loads(response.read())
 
 
 class H(BaseHTTPRequestHandler):
@@ -300,7 +339,7 @@ class H(BaseHTTPRequestHandler):
             if path == '/api/users':
                 if not self.require_permission(user, 'users'):
                     return
-                rows = connection.execute('select id,username,full_name,role,active,created_at from users order by id desc').fetchall()
+                rows = connection.execute('select id,username,full_name,role,phone,active,created_at from users order by id desc').fetchall()
                 return self.send_json([dict(row) for row in rows])
 
             if path == '/api/catalog':
@@ -398,6 +437,69 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == '/api/auth/login':
+            try:
+                data = self.body()
+            except json.JSONDecodeError:
+                return self.send_json({'ok': False, 'error': 'invalid_request'}, 400)
+            connection = db()
+            username = str(data.get('username', '')).strip()
+            user = connection.execute('select * from users where username=? and active=1', (username,)).fetchone()
+            if not user or not checkpw(str(data.get('password', '')), user['password_hash']):
+                connection.close()
+                return self.send_json({'ok': False, 'error': 'invalid_credentials'}, 401)
+            phone = str(user['phone'] or '').strip()
+            if not valid_e164(phone):
+                connection.close()
+                return self.send_json({'ok': False, 'error': 'phone_not_configured'}, 409)
+            if not twilio_verify_ready():
+                connection.close()
+                return self.send_json({'ok': False, 'error': 'otp_provider_not_configured'}, 503)
+            try:
+                twilio_verify_request('Verifications', {'To': phone, 'Channel': 'sms'})
+            except (urllib.error.HTTPError, urllib.error.URLError):
+                audit(connection, user['id'], 'OTP_FAILED', 'user', user['id'], 'Twilio Verify request failed')
+                connection.commit()
+                connection.close()
+                return self.send_json({'ok': False, 'error': 'otp_provider_error'}, 502)
+            audit(connection, user['id'], 'OTP_REQUESTED', 'user', user['id'], 'Twilio Verify SMS requested')
+            connection.commit()
+            connection.close()
+            return self.send_json({'ok': True, 'challenge': True, 'expiresIn': 600, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}})
+
+        if path == '/api/auth/verify':
+            try:
+                data = self.body()
+            except json.JSONDecodeError:
+                return self.send_json({'ok': False, 'error': 'invalid_request'}, 400)
+            connection = db()
+            username = str(data.get('username', '')).strip()
+            code = str(data.get('otp', '')).strip()
+            user = connection.execute('select * from users where username=? and active=1', (username,)).fetchone()
+            phone = str(user['phone'] or '').strip() if user else ''
+            if not user or not valid_e164(phone) or not code:
+                connection.close()
+                return self.send_json({'ok': False, 'error': 'invalid_otp'}, 401)
+            if not twilio_verify_ready():
+                connection.close()
+                return self.send_json({'ok': False, 'error': 'otp_provider_not_configured'}, 503)
+            try:
+                result = twilio_verify_request('VerificationCheck', {'To': phone, 'Code': code})
+            except (urllib.error.HTTPError, urllib.error.URLError):
+                audit(connection, user['id'], 'OTP_FAILED', 'user', user['id'], 'Twilio Verify check failed')
+                connection.commit()
+                connection.close()
+                return self.send_json({'ok': False, 'error': 'otp_provider_error'}, 502)
+            if result.get('status') != 'approved':
+                connection.close()
+                return self.send_json({'ok': False, 'error': 'invalid_otp'}, 401)
+            token = secrets.token_urlsafe(32)
+            SESSIONS[token] = dict(user)
+            audit(connection, user['id'], 'OTP_VERIFIED', 'user', user['id'], 'Twilio Verify approved')
+            connection.commit()
+            connection.close()
+            return self.send_json({'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}})
+
         if path == '/api/login':
             try:
                 data = self.body()
@@ -447,9 +549,12 @@ class H(BaseHTTPRequestHandler):
                 full_name = str(data.get('full_name', '')).strip()
                 password = str(data.get('password', ''))
                 role = data.get('role', 'technician')
+                phone = str(data.get('phone', '')).strip()
                 if not username or not full_name or len(password) < 12 or role not in ROLE_PERMS:
                     return self.send_json({'error': 'بيانات المستخدم غير مكتملة أو كلمة المرور أقل من 12 حرفاً'}, 400)
-                connection.execute('insert into users(username,password_hash,full_name,role,active) values(?,?,?,?,1)', (username, hp(password), full_name, role))
+                if phone and not valid_e164(phone):
+                    return self.send_json({'error': 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX'}, 400)
+                connection.execute('insert into users(username,password_hash,full_name,role,phone,active) values(?,?,?,?,?,1)', (username, hp(password), full_name, role, phone))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 audit(connection, user['id'], 'إضافة مستخدم', 'user', entity_id, username)
                 connection.commit()
@@ -465,11 +570,14 @@ class H(BaseHTTPRequestHandler):
                 role = data.get('role', target['role'])
                 active = 1 if data.get('active', bool(target['active'])) else 0
                 password = str(data.get('password', ''))
+                phone = str(data.get('phone', target['phone'] or '')).strip()
                 if role not in ROLE_PERMS or (entity_id == user['id'] and active == 0):
                     return self.send_json({'error': 'تعديل المستخدم غير صالح'}, 400)
                 if password and len(password) < 12:
                     return self.send_json({'error': 'كلمة المرور يجب ألا تقل عن 12 حرفاً'}, 400)
-                connection.execute('update users set full_name=?,role=?,active=? where id=?', (data.get('full_name', target['full_name']), role, active, entity_id))
+                if phone and not valid_e164(phone):
+                    return self.send_json({'error': 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX'}, 400)
+                connection.execute('update users set full_name=?,role=?,phone=?,active=? where id=?', (data.get('full_name', target['full_name']), role, phone, active, entity_id))
                 if password:
                     connection.execute('update users set password_hash=? where id=?', (hp(password), entity_id))
                 audit(connection, user['id'], 'تعديل مستخدم', 'user', entity_id, target['username'])

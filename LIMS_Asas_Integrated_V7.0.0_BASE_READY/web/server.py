@@ -5,7 +5,7 @@ Development-ready central service. Put behind HTTPS/reverse proxy for production
 import base64, hashlib, hmac, json, os, secrets, sqlite3, threading, time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 import urllib.request
 import urllib.error
 
@@ -94,6 +94,40 @@ def messaging_config():
         'mode': 'official_api_when_configured_else_draft'
     }
 
+def otp_provider():
+    """Return the configured OTP provider without exposing credentials."""
+    return os.getenv('ASAS_OTP_PROVIDER', 'local_dev').strip().lower()
+
+def twilio_verify_ready():
+    return all(os.getenv(name, '').strip() for name in (
+        'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_VERIFY_SERVICE_SID'
+    ))
+
+def valid_e164(phone):
+    return phone.startswith('+') and phone[1:].isdigit() and 8 <= len(phone) <= 16
+
+def twilio_verify_request(endpoint, fields):
+    """Call Twilio Verify using server-side environment variables only."""
+    account_sid = os.environ['TWILIO_ACCOUNT_SID']
+    auth_token = os.environ['TWILIO_AUTH_TOKEN']
+    service_sid = os.environ['TWILIO_VERIFY_SERVICE_SID']
+    credentials = base64.b64encode(f'{account_sid}:{auth_token}'.encode()).decode()
+    url = f'https://verify.twilio.com/v2/Services/{service_sid}/{endpoint}'
+    body = urlencode(fields).encode()
+    request = urllib.request.Request(url, data=body, headers={
+        'Authorization': 'Basic ' + credentials,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+    }, method='POST')
+    with urllib.request.urlopen(request, timeout=15) as response:
+        return json.loads(response.read())
+
+def send_twilio_verify_sms(phone):
+    return twilio_verify_request('Verifications', {'To': phone, 'Channel': 'sms'})
+
+def check_twilio_verify_sms(phone, code):
+    return twilio_verify_request('VerificationCheck', {'To': phone, 'Code': code})
+
 def telegram_send(chat_id, text):
     token=os.getenv('TELEGRAM_BOT_TOKEN','')
     url=f'https://api.telegram.org/bot{token}/sendMessage'
@@ -144,6 +178,25 @@ class Handler(SimpleHTTPRequestHandler):
                 d=self.body(); username=str(d.get('username','')).strip(); password=str(d.get('password',''))
                 with db_conn() as c: u=c.execute('SELECT * FROM users WHERE username=?',(username,)).fetchone()
                 if not u or not u['active'] or not verify_pw(password,u['password_hash']): return self.send_json(401,{'ok':False,'error':'invalid_credentials'})
+                provider=otp_provider()
+                if provider=='twilio_verify':
+                    phone=str(u['phone'] or '').strip()
+                    if not valid_e164(phone):
+                        return self.send_json(409,{'ok':False,'error':'phone_not_configured'})
+                    if not twilio_verify_ready():
+                        return self.send_json(503,{'ok':False,'error':'otp_provider_not_configured'})
+                    try:
+                        send_twilio_verify_sms(phone)
+                    except urllib.error.HTTPError as e:
+                        audit(username,'LOGIN_OTP_FAILED','USER',username,f'Twilio Verify request rejected ({e.code})')
+                        return self.send_json(502,{'ok':False,'error':'otp_provider_error'})
+                    except urllib.error.URLError:
+                        audit(username,'LOGIN_OTP_FAILED','USER',username,'Twilio Verify unavailable')
+                        return self.send_json(502,{'ok':False,'error':'otp_provider_unavailable'})
+                    audit(username,'LOGIN_OTP','USER',username,'Twilio Verify SMS requested')
+                    return self.send_json(200,{'ok':True,'challenge':True,'expiresIn':600,'user':{'username':u['username'],'name':u['name'],'role':u['role'],'phone':phone}})
+                if provider!='local_dev':
+                    return self.send_json(503,{'ok':False,'error':'unsupported_otp_provider'})
                 otp=f'{secrets.randbelow(1000000):06d}'; exp=int(time.time())+300
                 with db_conn() as c:
                     c.execute('CREATE TABLE IF NOT EXISTS otp (username TEXT PRIMARY KEY, code TEXT, exp INTEGER)')
@@ -156,8 +209,26 @@ class Handler(SimpleHTTPRequestHandler):
         if path=='/api/auth/verify':
             try:
                 d=self.body(); username=str(d.get('username','')); code=str(d.get('otp',''))
-                with db_conn() as c: r=c.execute('SELECT code,exp FROM otp WHERE username=?',(username,)).fetchone(); u=c.execute('SELECT username,name,role,phone,active FROM users WHERE username=?',(username,)).fetchone()
-                if not r or not u or not u['active'] or int(r['exp'])<int(time.time()) or not hmac.compare_digest(r['code'],code): return self.send_json(401,{'ok':False,'error':'invalid_otp'})
+                with db_conn() as c: u=c.execute('SELECT username,name,role,phone,active FROM users WHERE username=?',(username,)).fetchone()
+                if not u or not u['active']: return self.send_json(401,{'ok':False,'error':'invalid_otp'})
+                provider=otp_provider()
+                if provider=='twilio_verify':
+                    phone=str(u['phone'] or '').strip()
+                    if not valid_e164(phone) or not twilio_verify_ready(): return self.send_json(503,{'ok':False,'error':'otp_provider_not_configured'})
+                    try:
+                        result=check_twilio_verify_sms(phone,code)
+                    except urllib.error.HTTPError as e:
+                        audit(username,'LOGIN_OTP_FAILED','USER',username,f'Twilio Verify check rejected ({e.code})')
+                        return self.send_json(502,{'ok':False,'error':'otp_provider_error'})
+                    except urllib.error.URLError:
+                        audit(username,'LOGIN_OTP_FAILED','USER',username,'Twilio Verify unavailable')
+                        return self.send_json(502,{'ok':False,'error':'otp_provider_unavailable'})
+                    if result.get('status')!='approved': return self.send_json(401,{'ok':False,'error':'invalid_otp'})
+                elif provider=='local_dev':
+                    with db_conn() as c: r=c.execute('SELECT code,exp FROM otp WHERE username=?',(username,)).fetchone()
+                    if not r or int(r['exp'])<int(time.time()) or not hmac.compare_digest(r['code'],code): return self.send_json(401,{'ok':False,'error':'invalid_otp'})
+                else:
+                    return self.send_json(503,{'ok':False,'error':'unsupported_otp_provider'})
                 audit(username,'LOGIN','USER',username,'OTP verified'); return self.send_json(200,{'ok':True,'token':token_for(dict(u)),'user':dict(u)})
             except Exception as e: return self.send_json(400,{'ok':False,'error':str(e)})
         if path=='/api/messaging/send':

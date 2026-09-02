@@ -236,21 +236,21 @@ function staticApi(path, options) {
     const visit = data.visits.find(function(item) { return item.id === Number(body.id); }); if (!visit) throw new Error('الزيارة غير موجودة'); visit.status = body.status; localAudit(data,'تغيير حالة زيارة','field_visit',String(visit.id)); saveLocal(data); return {ok:true};
   }
   if (path === '/api/users') {
-    if (!options || !options.method || options.method === 'GET') return data.users.map(function(item) { return {id:item.id,username:item.username,full_name:item.full_name,role:item.role,active:item.active,created_at:item.created_at}; });
+    if (!options || !options.method || options.method === 'GET') return data.users.map(function(item) { return {id:item.id,username:item.username,full_name:item.full_name,role:item.role,phone:item.phone || '',active:item.active,created_at:item.created_at}; });
   }
   if (path === '/api/users/create') {
     const username = String(body.username || '').trim();
     const password = String(body.password || '');
     if (!username || !String(body.full_name || '').trim() || password.length < 12) throw new Error('أكمل بيانات المستخدم واجعل كلمة المرور 12 حرفاً على الأقل');
     if (data.users.some(function(item) { return item.username === username; })) throw new Error('اسم المستخدم مستخدم بالفعل');
-    const id = localId(data.users); data.users.push({id:id,username:username,password:password,full_name:String(body.full_name).trim(),role:body.role || 'technician',active:1,created_at:new Date().toLocaleString('ar-SA')}); localAudit(data,'إضافة مستخدم','user',username); saveLocal(data); return {ok:true,id:id};
+    const id = localId(data.users); data.users.push({id:id,username:username,password:password,full_name:String(body.full_name).trim(),role:body.role || 'technician',phone:String(body.phone || '').trim(),active:1,created_at:new Date().toLocaleString('ar-SA')}); localAudit(data,'إضافة مستخدم','user',username); saveLocal(data); return {ok:true,id:id};
   }
   if (path === '/api/users/update') {
     const user = data.users.find(function(item) { return item.id === Number(body.id); }); if (!user) throw new Error('المستخدم غير موجود');
     const password = String(body.password || '');
     if (!String(body.full_name || '').trim()) throw new Error('الاسم الكامل مطلوب');
     if (password && password.length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
-    user.full_name = String(body.full_name).trim(); user.role = body.role || user.role; user.active = body.active ? 1 : 0;
+    user.full_name = String(body.full_name).trim(); user.role = body.role || user.role; user.phone = String(body.phone || '').trim(); user.active = body.active ? 1 : 0;
     if (password) user.password = password;
     localAudit(data,'تعديل مستخدم','user',user.username); saveLocal(data); return {ok:true};
   }
@@ -627,7 +627,7 @@ async function submitTest(form) {
 
 function openUserForm(user) {
   const value = user || {};
-  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور ' + (user ? '(اتركها فارغة للإبقاء)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">كلمة المرور لا تقل عن 12 حرفاً ولا تُحفظ في Git.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ المستخدم</button></div></form>');
+  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال الدولي<input name="phone" inputmode="tel" placeholder="+9665XXXXXXXX" value="' + esc(value.phone || '') + '"></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور ' + (user ? '(اتركها فارغة للإبقاء)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">لتحقق SMS أدخل رقم الجوال الدولي، وكلمة المرور لا تقل عن 12 حرفاً.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ المستخدم</button></div></form>');
 }
 
 async function submitSimple(form, path) {
