@@ -108,7 +108,7 @@ class MainActivity : Activity() {
         root.addView(tv("━━ الإدارة والتكامل ━━",19f,true));root.addView(btn("📊 لوحة القيادة والتحليلات"){analytics()});root.addView(btn("👤 المستخدمون والصلاحيات"){users()});root.addView(btn("📝 سجل التدقيق Audit Trail"){audit()});root.addView(btn("⚙ الإعدادات والأمان"){settings()})
         root.addView(tv("━━ إدارة الأعمال والعملاء ━━",19f,true));root.addView(btn("👥 العملاء"){clients()});root.addView(btn("🏗 المشاريع والمواقع"){projects()});root.addView(btn("💰 عروض الأسعار"){quotes()});root.addView(btn("📑 العقود"){contracts()});root.addView(btn("📨 طلبات العملاء"){requests()});root.addView(btn("🧾 أوامر العمل"){workOrders()});root.addView(btn("💵 الفواتير"){invoices()});root.addView(btn("⚠ شكاوى العملاء"){complaints()})
         root.addView(tv("━━ المختبر والعمليات الميدانية ━━",19f,true));root.addView(btn("🧪 العينات + QR"){samples()});root.addView(btn("🔬 الاختبارات والحسابات"){tests()});root.addView(btn("👨‍🔬 إسناد الاختبارات للفنيين"){assignments()});root.addView(btn("⚙ الأجهزة والمعايرة والصيانة"){equipment()});root.addView(btn("📦 مواقع التخزين"){storage()});root.addView(btn("🚚 حركة الأجهزة"){movements()});root.addView(btn("❌ تقارير عدم المطابقة NCR"){ncr()});root.addView(btn("📄 التقارير والمراجعة والاعتماد"){reports()})
-        root.addView(tv("━━ الجودة والتكامل ━━",19f,true));root.addView(btn("🏛 منصة بلدي"){openBalady()});root.addView(btn("⛏ رخص الحفريات"){excavationLicenses()});root.addView(btn("🔄 المزامنة مع النظام المركزي"){sync()});root.addView(btn("💾 النسخ الاحتياطي والاستعادة"){backup()});root.addView(btn("📋 إعدادات الاختبارات وحدود القبول"){testSettings()});root.addView(btn("🚪 تسجيل الخروج"){currentUser="";showLogin()})
+        root.addView(tv("━━ الجودة والتكامل ━━",19f,true));root.addView(btn("🏛 منصة بلدي"){openBalady()});root.addView(btn("💬 واتساب الرسمي للمختبر"){openOfficialWhatsApp()});root.addView(btn("⛏ رخص الحفريات"){excavationLicenses()});root.addView(btn("🔄 المزامنة مع النظام المركزي"){sync()});root.addView(btn("💾 النسخ الاحتياطي والاستعادة"){backup()});root.addView(btn("📋 إعدادات الاختبارات وحدود القبول"){testSettings()});root.addView(btn("🚪 تسجيل الخروج"){currentUser="";showLogin()})
         mount()
     }
 
@@ -195,6 +195,12 @@ class MainActivity : Activity() {
         db.audit(currentUserId,"OPEN","BALADY","https://balady.gov.sa","Opened official Balady portal")
         val intent=Intent(Intent.ACTION_VIEW, Uri.parse("https://balady.gov.sa"))
         try{startActivity(intent)}catch(_:Exception){toast("تعذر فتح منصة بلدي") }
+    }
+
+    private fun openOfficialWhatsApp(){
+        val url="https://chat.whatsapp.com/CWalJYwXsocKtYiqsJsMSh"
+        db.audit(currentUserId,"OPEN","WHATSAPP_GROUP",url,"Opened official laboratory WhatsApp channel")
+        try{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}catch(_:Exception){toast("تعذر فتح واتساب الرسمي")}
     }
 
     private fun sync(){
