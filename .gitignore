@@ -10,5 +10,7 @@ storage/
 **/build/
 *.apk
 *.aab
+**/release-signing.properties
+**/release/*.jks
 *.sqlite3-shm
 *.sqlite3-wal
