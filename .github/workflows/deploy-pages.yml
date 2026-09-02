@@ -31,7 +31,7 @@ jobs:
       - name: تجهيز ملفات الواجهة
         run: |
           mkdir _site
-          cp index.html style.css app.js runtime-config.js logo.jpg _site/
+          cp index.html style.css app.js runtime-config.js logo.jpg manifest.webmanifest sw.js _site/
 
       - name: رفع الواجهة الثابتة
         uses: actions/upload-pages-artifact@v3

@@ -1,0 +1,20 @@
+{
+  "name": "أساس LIMS",
+  "short_name": "أساس LIMS",
+  "description": "منصة أساس لإدارة المختبر والمشاريع والعمليات الميدانية.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1167b1",
+  "icons": [
+    {
+      "src": "logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
