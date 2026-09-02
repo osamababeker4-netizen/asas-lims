@@ -3,7 +3,7 @@ name: نشر واجهة أساس على GitHub Pages
 on:
   push:
     branches:
-      - v7.1-merge
+      - main
   workflow_dispatch:
 
 permissions:
