@@ -20,6 +20,14 @@
         <button class="btn primary" type="submit">تسجيل الدخول</button>
       </form>
       <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
+      <form id="staticSetupForm" class="form-stack hidden" novalidate>
+        <p class="form-note">أنشئ حساب المدير المحلي مرة واحدة على هذا الجهاز.</p>
+        <label>اسم مستخدم المدير<input id="setupUsername" autocomplete="username" required value="admin" placeholder="اسم المستخدم"></label>
+        <label>الاسم الكامل<input id="setupFullName" autocomplete="name" required value="مدير المختبر" placeholder="الاسم الكامل"></label>
+        <label>كلمة مرور جديدة<input id="setupPassword" autocomplete="new-password" type="password" required minlength="12" placeholder="12 حرفاً على الأقل"></label>
+        <label>تأكيد كلمة المرور<input id="setupPasswordConfirm" autocomplete="new-password" type="password" required minlength="12" placeholder="أعد كتابة كلمة المرور"></label>
+        <button class="btn primary" type="submit">إنشاء الحساب المحلي</button>
+      </form>
       <p id="loginMessage" class="form-message" aria-live="polite"></p>
     </div>
   </section>

@@ -333,17 +333,27 @@ async function logout() {
 }
 
 async function bootstrapStaticAdmin() {
-  const username = window.prompt('اسم مستخدم المدير المحلي', 'admin');
-  if (!username) return;
-  const name = window.prompt('الاسم الكامل للمدير', 'مدير المختبر');
-  if (!name) return;
-  const password = window.prompt('اختر كلمة مرور محلية قوية (12 حرفاً على الأقل)');
-  if (!password || password.length < 12) return showToast('كلمة المرور يجب ألا تقل عن 12 حرفاً', true);
+  $('staticSetup').classList.add('hidden');
+  $('staticSetupForm').classList.remove('hidden');
+  $('setupUsername').focus();
+}
+
+async function submitStaticAdmin(event) {
+  event.preventDefault();
+  const username = $('setupUsername').value.trim();
+  const name = $('setupFullName').value.trim();
+  const password = $('setupPassword').value;
+  const confirmation = $('setupPasswordConfirm').value;
+  if (!username || !name) return $('loginMessage').textContent = 'أدخل اسم المستخدم والاسم الكامل.';
+  if (password.length < 12) return $('loginMessage').textContent = 'كلمة المرور يجب ألا تقل عن 12 حرفاً.';
+  if (password !== confirmation) return $('loginMessage').textContent = 'تأكيد كلمة المرور غير مطابق.';
   const data = localDB();
-  if (data.users.length) return;
+  if (data.users.length) return $('loginMessage').textContent = 'الحساب المحلي موجود بالفعل. سجّل الدخول.';
   data.users.push({id:1,username:username.trim(),password:password,full_name:name.trim(),role:'admin',active:1,created_at:new Date().toLocaleString('ar-SA')});
   saveLocal(data);
-  $('staticSetup').classList.add('hidden');
+  $('staticSetupForm').classList.add('hidden');
+  $('loginUsername').value = username;
+  $('loginPassword').value = '';
   $('loginMessage').textContent = 'تم إنشاء الحساب المحلي. سجّل الدخول الآن.';
 }
 
@@ -722,6 +732,7 @@ function bindEvents() {
   $('loginForm').addEventListener('submit',login);
   $('logoutBtn').addEventListener('click',logout);
   $('staticSetup').addEventListener('click',bootstrapStaticAdmin);
+  $('staticSetupForm').addEventListener('submit',submitStaticAdmin);
   $('menuBtn').addEventListener('click',function() { $('sidebar').classList.toggle('open'); });
   $('closeModal').addEventListener('click',closeModal);
   $('modal').addEventListener('click',function(event) { if (event.target === $('modal')) closeModal(); });
