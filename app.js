@@ -38,6 +38,8 @@ const TEST_FIELDS = {
 let catalog = [];
 let dashboard = null;
 let currentUser = null;
+let centralAccessToken = sessionStorage.getItem('asas_lims_access_token') || '';
+let pendingOtpLogin = null;
 let projectView = 'table';
 let fieldTests = [];
 let fieldLat = null;
@@ -278,7 +280,9 @@ function staticApi(path, options) {
 async function api(path, options) {
   const opts = options || {};
   if (STATIC_MODE) return staticApi(path, opts);
-  const response = await fetch(API_BASE_URL + path, Object.assign({credentials:'include', headers:{'Content-Type':'application/json'}}, opts));
+  const headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
+  if (centralAccessToken) headers.Authorization = 'Bearer ' + centralAccessToken;
+  const response = await fetch(API_BASE_URL + path, Object.assign({}, opts, {credentials:'include', headers:headers}));
   let payload = {};
   try { payload = await response.json(); } catch (error) { throw new Error('استجابة غير صالحة من الخادم'); }
   if (!response.ok) throw new Error(payload.error || 'تعذر تنفيذ العملية');
@@ -331,23 +335,44 @@ function navigate(page) {
 async function login(event) {
   event.preventDefault();
   try {
-    const result = await api('/api/login', {method:'POST',body:JSON.stringify({username:$('loginUsername').value,password:$('loginPassword').value})});
-    currentUser = result.user;
-    $('login').classList.add('hidden');
-    $('app').classList.remove('hidden');
-    $('currentUser').textContent = result.user.full_name + ' — ' + (ROLE_NAMES[result.user.role] || result.user.role);
-    $('usersNav').classList.toggle('hidden', result.user.role !== 'admin');
-    await loadCatalog();
-    await refresh();
-    navigate('dashboard');
+    const username = $('loginUsername').value.trim();
+    const password = $('loginPassword').value;
+    if (STATIC_MODE) return await completeLogin(await api('/api/login', {method:'POST',body:JSON.stringify({username:username,password:password})}));
+    const result = await api('/api/auth/login', {method:'POST',body:JSON.stringify({username:username,password:password})});
+    pendingOtpLogin = {username:username,password:password};
+    $('loginForm').classList.add('hidden');
+    $('otpForm').classList.remove('hidden');
+    $('loginOtp').focus();
+    $('loginMessage').textContent = 'تم إرسال رمز التحقق إلى ' + (result.user.phone || 'رقمك المسجل') + '.';
   } catch (error) {
     $('loginMessage').textContent = error.message;
   }
 }
 
+async function verifyOtpLogin(event) {
+  event.preventDefault();
+  if (!pendingOtpLogin) return;
+  try {
+    const result = await api('/api/auth/verify', {method:'POST',body:JSON.stringify({username:pendingOtpLogin.username,otp:$('loginOtp').value.trim()})});
+    centralAccessToken = result.token;
+    sessionStorage.setItem('asas_lims_access_token', centralAccessToken);
+    pendingOtpLogin = null;
+    await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone}});
+  } catch (error) { $('loginMessage').textContent = error.message; }
+}
+
+async function completeLogin(result) {
+  currentUser = result.user;
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('currentUser').textContent = result.user.full_name + ' — ' + (ROLE_NAMES[result.user.role] || result.user.role);
+  $('usersNav').classList.toggle('hidden', result.user.role !== 'admin');
+  await loadCatalog(); await refresh(); navigate('dashboard');
+}
+
 async function logout() {
   try { await api('/api/logout', {method:'POST'}); } catch (error) {}
-  location.reload();
+  centralAccessToken = ''; sessionStorage.removeItem('asas_lims_access_token'); location.reload();
 }
 
 async function bootstrapStaticAdmin() {
@@ -751,6 +776,8 @@ async function setFieldStatus(token) {
 
 function bindEvents() {
   $('loginForm').addEventListener('submit',login);
+  $('otpForm').addEventListener('submit',verifyOtpLogin);
+  $('resendOtp').addEventListener('click',function() { if (pendingOtpLogin) login({preventDefault:function(){}}); });
   $('logoutBtn').addEventListener('click',logout);
   $('staticSetup').addEventListener('click',bootstrapStaticAdmin);
   $('staticSetupForm').addEventListener('submit',submitStaticAdmin);

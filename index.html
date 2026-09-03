@@ -24,6 +24,12 @@
         <label>كلمة المرور<input id="loginPassword" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
         <button class="btn primary" type="submit">تسجيل الدخول</button>
       </form>
+      <form id="otpForm" class="form-stack hidden" novalidate>
+        <p class="form-note">أُرسل رمز التحقق إلى رقم الجوال المسجل. أدخله لإكمال تسجيل الدخول.</p>
+        <label>رمز OTP<input id="loginOtp" autocomplete="one-time-code" inputmode="numeric" required placeholder="6 أرقام"></label>
+        <button class="btn primary" type="submit">تحقق ودخول</button>
+        <button id="resendOtp" class="btn link-btn" type="button">إعادة إرسال الرمز</button>
+      </form>
       <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
       <form id="staticSetupForm" class="form-stack hidden" novalidate>
         <p class="form-note">أنشئ حساب المدير المحلي مرة واحدة على هذا الجهاز.</p>

@@ -177,6 +177,17 @@ def valid_e164(phone):
     return phone.startswith('+') and phone[1:].isdigit() and 8 <= len(phone) <= 16
 
 
+def phone_in_use(connection, phone, exclude_user_id=None):
+    if not phone:
+        return False
+    query = 'select 1 from users where phone=?'
+    params = [phone]
+    if exclude_user_id is not None:
+        query += ' and id<>?'
+        params.append(exclude_user_id)
+    return connection.execute(query, params).fetchone() is not None
+
+
 def twilio_verify_request(endpoint, fields):
     """Use Verify credentials from server environment; never return them to clients."""
     account_sid = os.environ['TWILIO_ACCOUNT_SID']
@@ -248,7 +259,7 @@ class H(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_cors_headers()
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.send_header('Access-Control-Max-Age', '600')
         self.end_headers()
 
@@ -570,6 +581,8 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'بيانات المستخدم غير مكتملة أو كلمة المرور أقل من 12 حرفاً'}, 400)
                 if phone and not valid_e164(phone):
                     return self.send_json({'error': 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX'}, 400)
+                if phone_in_use(connection, phone):
+                    return self.send_json({'error': 'رقم الجوال مسجل لمستخدم آخر'}, 409)
                 connection.execute('insert into users(username,password_hash,full_name,role,phone,active) values(?,?,?,?,?,1)', (username, hp(password), full_name, role, phone))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 audit(connection, user['id'], 'إضافة مستخدم', 'user', entity_id, username)
@@ -593,6 +606,8 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'كلمة المرور يجب ألا تقل عن 12 حرفاً'}, 400)
                 if phone and not valid_e164(phone):
                     return self.send_json({'error': 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX'}, 400)
+                if phone_in_use(connection, phone, entity_id):
+                    return self.send_json({'error': 'رقم الجوال مسجل لمستخدم آخر'}, 409)
                 connection.execute('update users set full_name=?,role=?,phone=?,active=? where id=?', (data.get('full_name', target['full_name']), role, phone, active, entity_id))
                 if password:
                     connection.execute('update users set password_hash=? where id=?', (hp(password), entity_id))
