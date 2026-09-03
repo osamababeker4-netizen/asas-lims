@@ -23,12 +23,16 @@
         <label>اسم المستخدم أو رقم الجوال<input id="loginUsername" autocomplete="username tel" inputmode="tel" required placeholder="اسم المستخدم أو +9665XXXXXXXX"></label>
         <label>كلمة المرور<input id="loginPassword" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
         <button class="btn primary" type="submit">تسجيل الدخول</button>
+        <button id="loginViaWhatsapp" class="btn link-btn" type="button">دخول عبر رمز WhatsApp</button>
+        <button id="loginViaVoice" class="btn link-btn" type="button">دخول عبر اتصال صوتي</button>
       </form>
       <form id="otpForm" class="form-stack hidden" novalidate>
         <p class="form-note">أُرسل رمز التحقق إلى رقم الجوال المسجل. أدخله لإكمال تسجيل الدخول.</p>
-        <label>رمز OTP<input id="loginOtp" autocomplete="one-time-code" inputmode="numeric" required placeholder="6 أرقام"></label>
+        <label>رمز OTP<input id="loginOtp" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required placeholder="6 أرقام"></label>
         <button class="btn primary" type="submit">تحقق ودخول</button>
         <button id="resendOtp" class="btn link-btn" type="button">إعادة إرسال الرمز</button>
+        <button id="voiceOtp" class="btn link-btn" type="button">لم يصل SMS؟ أرسل الرمز عبر اتصال صوتي</button>
+        <button id="whatsappOtp" class="btn link-btn" type="button">أرسل الرمز عبر WhatsApp</button>
       </form>
       <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
       <form id="staticSetupForm" class="form-stack hidden" novalidate>
@@ -151,7 +155,7 @@
       </section>
 
       <section id="field" class="page">
-        <div class="page-heading"><div><h2>البرنامج الميداني</h2><p>تسجيل الزيارات الميدانية وربطها بالمشروع والعينة.</p></div></div>
+        <div class="page-heading"><div><h2>البرنامج الميداني</h2><p>تسجيل الزيارات الميدانية وربطها بالمشروع والعينة.</p></div><button id="openBalady" class="btn secondary" type="button">نافذة نظام بلدي</button></div>
         <div class="field-layout">
           <article class="panel">
             <div class="panel-heading"><h3>زيارة ميدانية جديدة</h3><button id="searchLicenseBtn" class="text-btn" type="button">بحث برقم الرخصة</button></div>
@@ -167,7 +171,7 @@
             </div>
             <div class="field-actions"><button id="getLocationBtn" class="btn secondary" type="button">تحديد الموقع</button><span id="gpsStatus" class="muted">لم يتم تحديد الموقع</span></div>
             <div class="field-tests panel inset-panel">
-              <div class="panel-heading"><h3>اختبارات الزيارة</h3><button id="addFieldTest" class="btn secondary" type="button">+ اختبار</button></div>
+              <div class="panel-heading"><h3>اختبارات الزيارة</h3><button id="addFieldTest" class="btn secondary" type="button">+ اختيار اختبار رسمي</button></div>
               <div id="fieldTests"></div>
             </div>
             <label>ملاحظات ميدانية<textarea id="fieldNotes" rows="4"></textarea></label>

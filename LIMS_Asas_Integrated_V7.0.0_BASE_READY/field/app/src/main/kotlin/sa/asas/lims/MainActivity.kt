@@ -12,7 +12,6 @@ import android.view.*
 import android.widget.*
 import androidx.core.content.FileProvider
 import java.io.File
-import java.security.SecureRandom
 
 class MainActivity : Activity() {
     private lateinit var db:LimsDb
@@ -20,11 +19,6 @@ class MainActivity : Activity() {
     private var currentUserId=0
     private var currentUser=""
     private var currentRole="user"
-    private var pendingOtp=""
-    private var pendingOtpUserId=0
-    private var pendingOtpUser=""
-    private var pendingPhone=""
-    private var pendingOtpAt=0L
     private var backAction:(()->Unit)?=null
     @Volatile private var autoSyncRunning=false
 
@@ -71,15 +65,16 @@ class MainActivity : Activity() {
 
     private fun showLogin(){
         if(db.getSetting("initial_setup_required")=="1"){showInitialSetup();return}
-        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.1",28f,true));root.addView(tv("نظام إدارة المختبر — النسخة الإنتاجية الموسعة",16f))
+        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.2.1",28f,true));root.addView(tv("نظام إدارة المختبر — النسخة الإنتاجية الموسعة",16f))
         val u=inp("اسم المستخدم أو رقم الجوال الدولي");u.inputType=InputType.TYPE_CLASS_PHONE;val p=inp("كلمة المرور");p.inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         root.addView(u);root.addView(p);root.addView(btn("دخول"){
             val a=db.login(u.text.toString().trim(),p.text.toString())
             if(a==null){toast("بيانات الدخول غير صحيحة أو المستخدم غير فعال");return@btn}
-            currentUserId=a[0]?.toIntOrNull()?:0;pendingOtpUserId=currentUserId;pendingOtpUser=a[1]?:(u.text.toString());currentRole=a[3]?:("user");pendingPhone=a[4]?:""
-            if(pendingPhone.isBlank()){if(pendingOtpUser=="admin")setupAdminPhone() else toast("يجب تسجيل رقم الجوال للمستخدم قبل تفعيل OTP")}else issueOtp()
+            currentUserId=a[0]?.toIntOrNull()?:0;currentUser=a[1]?:(u.text.toString());currentRole=a[3]?:("user")
+            db.audit(currentUserId,"LOGIN","USER",currentUser,"Local authenticated sign-in")
+            showDashboard()
         })
-        root.addView(tv("🔐 التحقق بخطوتين OTP مطلوب عند كل دخول. يجب ربط بوابة SMS قبل التشغيل الفعلي.",13f))
+        root.addView(tv("الدخول المحلي يعمل دون اتصال. ربط الحساب والمزامنة مع الخادم المركزي يستخدمان رمز تحقق حقيقياً من Twilio Verify.",13f))
         mount(); autoSyncIfConfigured()
     }
     private fun showInitialSetup(){backAction=null;root=base();root.addView(logo());root.addView(tv("تهيئة مختبر أساس",26f,true));root.addView(tv("أنشئ كلمة مرور مدير النظام ورقم الجوال قبل أول استخدام.",15f));val pass=inp("كلمة مرور المدير (12 حرفاً على الأقل)");pass.inputType=0x81;val confirm=inp("تأكيد كلمة المرور");confirm.inputType=0x81;val phone=inp("رقم الجوال");root.addView(pass);root.addView(confirm);root.addView(phone);root.addView(btn("إنهاء التهيئة"){val p=pass.text.toString();if(p.length<12||p!=confirm.text.toString()||phone.text.trim().length<8){toast("تحقق من كلمة المرور ورقم الجوال");return@btn};db.completeInitialSetup(p,phone.text.toString().trim());toast("اكتملت التهيئة؛ سجّل الدخول الآن");showLogin()});mount()}
@@ -89,22 +84,8 @@ class MainActivity : Activity() {
         if(autoSyncRunning || api.isBlank() || token.isBlank() || db.pendingSyncRows().isEmpty()) return
         autoSyncRunning=true; Thread { SyncClient(this,db).upload(api,token); autoSyncRunning=false }.start()
     }
-    private fun setupAdminPhone(){val ph=inp("رقم الجوال +966...");AlertDialog.Builder(this).setTitle("تسجيل جوال مدير النظام").setMessage("سيستخدم الرقم لاستقبال OTP عند كل دخول.").setView(ph).setNegativeButton("إلغاء",null).setPositiveButton("حفظ"){_,_->if(validE164(ph.text.toString().trim())){db.updateUserPhone("admin",ph.text.toString().trim());pendingPhone=ph.text.toString().trim();issueOtp()}else toast("رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX")}.show()}
-    private fun issueOtp(){pendingOtp=(100000+SecureRandom().nextInt(900000)).toString();pendingOtpAt=System.currentTimeMillis();db.createOtp(pendingOtpUserId,pendingOtp);showOtp()}
-    private fun showOtp(){root=base();root.addView(tv("🔐 التحقق بخطوتين",26f,true));root.addView(tv("المستخدم: $pendingOtpUser\nالجوال: ${mask(pendingPhone)}",16f));val code=inp("رمز OTP");code.inputType=InputType.TYPE_CLASS_NUMBER;root.addView(code)
-        root.addView(btn("تحقق ودخول"){if(System.currentTimeMillis()-pendingOtpAt<=300000 && db.verifyOtp(pendingOtpUserId,code.text.toString())){currentUser=pendingOtpUser;pendingOtp="";pendingOtpAt=0;db.audit(currentUserId,"LOGIN","USER",currentUser,"OTP verified");showDashboard()}else toast("رمز OTP غير صحيح أو منتهي")})
-        root.addView(btn("إعادة إرسال OTP"){issueOtp()});root.addView(btn("← العودة لتسجيل الدخول"){showLogin()})
-        if(false && db.getSetting("sms_provider")=="NOT_CONFIGURED") {
-            root.addView(tv("⚠ وضع الاختبار المحلي: بوابة SMS غير مهيأة.",12f,true))
-            root.addView(tv("رمز OTP للاختبار: $pendingOtp",18f,true))
-        }
-        mount()
-    }
-    private fun mask(p:String)=p.filter{it.isDigit()}.let{if(it.length<5)"****" else "*".repeat(it.length-4)+it.takeLast(4)}
-    private fun validE164(phone:String)=phone.matches(Regex("^\\+\\d{8,15}$"))
-
     private fun showDashboard(){
-        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.1",28f,true));root.addView(tv("المستخدم: $currentUser   |   الصلاحية: $currentRole",15f))
+        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.2.1",28f,true));root.addView(tv("المستخدم: $currentUser   |   الصلاحية: $currentRole",15f))
         val c=db.counts();root.addView(tv("المشاريع ${c[0]}   | العينات ${c[1]}   | الاختبارات ${c[2]}   | التقارير ${c[3]}   | NCR ${c[4]}   | رخص الحفريات ${db.excavationCount()}",16f,true))
         root.addView(tv("━━ الإدارة والتكامل ━━",19f,true));root.addView(btn("📊 لوحة القيادة والتحليلات"){analytics()});root.addView(btn("👤 المستخدمون والصلاحيات"){users()});root.addView(btn("📝 سجل التدقيق Audit Trail"){audit()});root.addView(btn("⚙ الإعدادات والأمان"){settings()})
         root.addView(tv("━━ إدارة الأعمال والعملاء ━━",19f,true));root.addView(btn("👥 العملاء"){clients()});root.addView(btn("🏗 المشاريع والمواقع"){projects()});root.addView(btn("💰 عروض الأسعار"){quotes()});root.addView(btn("📑 العقود"){contracts()});root.addView(btn("📨 طلبات العملاء"){requests()});root.addView(btn("🧾 أوامر العمل"){workOrders()});root.addView(btn("💵 الفواتير"){invoices()});root.addView(btn("⚠ شكاوى العملاء"){complaints()})

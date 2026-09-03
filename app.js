@@ -45,6 +45,16 @@ let fieldTests = [];
 let fieldLat = null;
 let fieldLng = null;
 let toastTimer = null;
+const AUTH_ERRORS = {
+  invalid_credentials:'اسم المستخدم أو كلمة المرور غير صحيحة.',
+  phone_not_configured:'لا يوجد رقم جوال دولي مفعّل لهذا الحساب. تواصل مع مدير النظام.',
+  otp_provider_not_configured:'خدمة رمز التحقق غير مهيأة على الخادم.',
+  otp_provider_error:'تعذر إرسال رمز التحقق حالياً. تحقق من تفعيل قناة WhatsApp ورقم الجوال في Twilio Verify ثم حاول لاحقاً.',
+  invalid_otp_channel:'طريقة التحقق غير مدعومة.',
+  invalid_otp:'رمز التحقق غير صحيح أو منتهي الصلاحية.',
+  otp_resend_too_soon:'تم إرسال رمز مؤخراً. انتظر قليلاً ثم أعد المحاولة.'
+};
+let otpResendTimer = null;
 
 function esc(value) {
   return String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, function(char) {
@@ -285,7 +295,7 @@ async function api(path, options) {
   const response = await fetch(API_BASE_URL + path, Object.assign({}, opts, {credentials:'include', headers:headers}));
   let payload = {};
   try { payload = await response.json(); } catch (error) { throw new Error('استجابة غير صالحة من الخادم'); }
-  if (!response.ok) throw new Error(payload.error || 'تعذر تنفيذ العملية');
+  if (!response.ok) throw new Error(AUTH_ERRORS[payload.error] || payload.error || 'تعذر تنفيذ العملية');
   return payload;
 }
 
@@ -332,18 +342,26 @@ function navigate(page) {
   if (page === 'field') loadFieldRecent();
 }
 
-async function login(event) {
+async function login(event, channel) {
   event.preventDefault();
   try {
     const username = $('loginUsername').value.trim();
     const password = $('loginPassword').value;
     if (STATIC_MODE) return await completeLogin(await api('/api/login', {method:'POST',body:JSON.stringify({username:username,password:password})}));
-    const result = await api('/api/auth/login', {method:'POST',body:JSON.stringify({username:username,password:password})});
-    pendingOtpLogin = {username:username,password:password};
+    channel = channel || $('loginForm').dataset.otpChannel || 'sms';
+    const result = await api('/api/auth/login', {method:'POST',body:JSON.stringify({username:username,password:password,channel:channel})});
+    pendingOtpLogin = {username:username};
+    delete $('loginForm').dataset.otpChannel;
+    $('loginPassword').value = '';
     $('loginForm').classList.add('hidden');
     $('otpForm').classList.remove('hidden');
+    setOtpResendCooldown(60);
     $('loginOtp').focus();
-    $('loginMessage').textContent = 'تم إرسال رمز التحقق إلى ' + (result.user.phone || 'رقمك المسجل') + '.';
+    $('loginMessage').textContent = channel === 'call'
+      ? 'سنتصل بالرقم المسجل لإملاء رمز التحقق.'
+      : channel === 'whatsapp'
+        ? 'تم إرسال رمز التحقق عبر WhatsApp إلى الرقم المسجل.'
+        : 'تم إرسال رمز التحقق إلى ' + (result.user.phone || 'رقمك المسجل') + '.';
   } catch (error) {
     $('loginMessage').textContent = error.message;
   }
@@ -353,12 +371,40 @@ async function verifyOtpLogin(event) {
   event.preventDefault();
   if (!pendingOtpLogin) return;
   try {
-    const result = await api('/api/auth/verify', {method:'POST',body:JSON.stringify({username:pendingOtpLogin.username,otp:$('loginOtp').value.trim()})});
+    const otp = $('loginOtp').value.trim();
+    if (!/^\d{6}$/.test(otp)) throw new Error('أدخل رمز OTP مكوّناً من 6 أرقام.');
+    const result = await api('/api/auth/verify', {method:'POST',body:JSON.stringify({username:pendingOtpLogin.username,otp:otp})});
     centralAccessToken = result.token;
     sessionStorage.setItem('asas_lims_access_token', centralAccessToken);
     pendingOtpLogin = null;
     await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone}});
   } catch (error) { $('loginMessage').textContent = error.message; }
+}
+
+function setOtpResendCooldown(seconds) {
+  const button = $('resendOtp');
+  clearInterval(otpResendTimer);
+  let remaining = seconds;
+  button.disabled = true;
+  button.textContent = 'إعادة الإرسال (' + remaining + ' ث)';
+  otpResendTimer = setInterval(function() {
+    remaining -= 1;
+    if (remaining <= 0) {
+      clearInterval(otpResendTimer);
+      button.disabled = false;
+      button.textContent = 'إعادة إرسال الرمز';
+    } else button.textContent = 'إعادة الإرسال (' + remaining + ' ث)';
+  }, 1000);
+}
+
+function chooseOtpChannel(channel, message) {
+  if (!pendingOtpLogin) return;
+  $('loginUsername').value = pendingOtpLogin.username;
+  $('loginMessage').textContent = message;
+  $('loginForm').classList.remove('hidden');
+  $('otpForm').classList.add('hidden');
+  $('loginForm').dataset.otpChannel = channel;
+  $('loginPassword').focus();
 }
 
 async function completeLogin(result) {
@@ -718,8 +764,24 @@ async function printReport(testId) {
 
 function renderFieldTests() {
   $('fieldTests').innerHTML = fieldTests.map(function(test,index) {
-    return '<div class="field-test-row"><input data-field-test="' + index + '" data-field-key="name" value="' + esc(test.name) + '" placeholder="اسم الاختبار"><input data-field-test="' + index + '" data-field-key="standard" value="' + esc(test.standard) + '" placeholder="المعيار / ASTM"><input data-field-test="' + index + '" data-field-key="result" value="' + esc(test.result) + '" placeholder="النتيجة / القراءات"><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
-  }).join('') || '<div class="empty">أضف الاختبارات المنفذة في هذه الزيارة.</div>';
+    return '<div class="field-test-row"><select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="الاختبار الرسمي"><option value="">— اختر اختباراً رسمياً —</option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select><input data-field-test="' + index + '" data-field-key="result" value="' + esc(test.result) + '" placeholder="النتيجة / القراءات الميدانية"><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
+  }).join('') || '<div class="empty">اختر الاختبارات الرسمية المنفذة في هذه الزيارة.</div>';
+}
+
+function syncFieldTestCatalog(test) {
+  const item = catalog.find(function(row) { return row.id === Number(test.catalog_id); });
+  if (item) { test.name = item.name_ar; test.standard = item.standard; }
+  return test;
+}
+
+function openBaladyWindow() {
+  modal('<h2>نظام بلدي — بيانات الزيارة</h2><p class="form-message">تُحفظ بيانات التصريح مع الزيارة. فتح البوابة لا يرسل بيانات تلقائياً ولا يتجاوز صلاحيات حساب بلدي.</p><form id="baladyForm"><div class="modal-grid"><label>رقم تصريح بلدي<input name="balady_permit_no" value="' + esc($('fieldLicense').value) + '"></label><label>الأمانة / البلدية<input name="balady_municipality"></label><label>نوع التصريح<input name="balady_permit_type" placeholder="مثال: حفرية أو إشغال"></label><label>حالة التصريح<select name="balady_permit_status"><option value="">— غير محددة —</option><option>ساري</option><option>قيد المراجعة</option><option>منتهي</option><option>موقوف</option></select></label><label style="grid-column:1/-1">رابط معاملة بلدي (اختياري)<input name="balady_reference_url" type="url" placeholder="https://..."></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-open-balady-portal>فتح بوابة بلدي</button><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ في الزيارة</button></div></form>');
+}
+
+function saveBaladyData(form) {
+  new FormData(form).forEach(function(value, key) { $('field').dataset[key] = String(value).trim(); });
+  if ($('field').dataset.balady_permit_no) $('fieldLicense').value = $('field').dataset.balady_permit_no;
+  closeModal(); showToast('تم حفظ بيانات بلدي مع الزيارة الميدانية');
 }
 
 async function searchLicense() {
@@ -753,7 +815,7 @@ async function saveFieldVisit() {
   if (!license) return showToast('رقم الرخصة مطلوب',true);
   try {
     const result = await api('/api/field/visits',{method:'POST',body:JSON.stringify({
-      license_no:license,contractor_name:$('fieldContractor').value,project_name:$('fieldProjectName').value,sector_name:$('fieldSector').value,layer_no:$('fieldLayer').value,location:$('fieldLocation').value,latitude:fieldLat,longitude:fieldLng,project_id:$('fieldProjectId').value || null,sample_id:$('fieldSampleId').value || null,tests:fieldTests,notes:$('fieldNotes').value,status:'مسودة'
+      license_no:license,contractor_name:$('fieldContractor').value,project_name:$('fieldProjectName').value,sector_name:$('fieldSector').value,layer_no:$('fieldLayer').value,location:$('fieldLocation').value,latitude:fieldLat,longitude:fieldLng,project_id:$('fieldProjectId').value || null,sample_id:$('fieldSampleId').value || null,tests:fieldTests.map(syncFieldTestCatalog).filter(function(test) { return test.catalog_id; }),notes:$('fieldNotes').value,status:'مسودة',balady_permit_no:$('field').dataset.balady_permit_no || '',balady_municipality:$('field').dataset.balady_municipality || '',balady_permit_type:$('field').dataset.balady_permit_type || '',balady_permit_status:$('field').dataset.balady_permit_status || '',balady_reference_url:$('field').dataset.balady_reference_url || ''
     })});
     $('fieldMessage').textContent = 'تم حفظ الزيارة رقم ' + result.id;
     fieldTests = []; renderFieldTests(); await loadFieldRecent(); await refresh();
@@ -776,8 +838,21 @@ async function setFieldStatus(token) {
 
 function bindEvents() {
   $('loginForm').addEventListener('submit',login);
+  $('loginViaWhatsapp').addEventListener('click', function() { login({preventDefault:function(){}}, 'whatsapp'); });
+  $('loginViaVoice').addEventListener('click', function() { login({preventDefault:function(){}}, 'call'); });
   $('otpForm').addEventListener('submit',verifyOtpLogin);
-  $('resendOtp').addEventListener('click',function() { if (pendingOtpLogin) login({preventDefault:function(){}}); });
+  $('resendOtp').addEventListener('click',function() {
+    if (!pendingOtpLogin) return;
+    $('loginUsername').value = pendingOtpLogin.username;
+    $('loginMessage').textContent = 'لإعادة الإرسال، أدخل كلمة المرور مرة أخرى.';
+    $('loginForm').classList.remove('hidden'); $('otpForm').classList.add('hidden'); $('loginPassword').focus();
+  });
+  $('voiceOtp').addEventListener('click',function() {
+    chooseOtpChannel('call', 'لإرسال الرمز عبر اتصال صوتي، أدخل كلمة المرور مرة أخرى.');
+  });
+  $('whatsappOtp').addEventListener('click',function() {
+    chooseOtpChannel('whatsapp', 'لإرسال الرمز عبر WhatsApp، أدخل كلمة المرور مرة أخرى.');
+  });
   $('logoutBtn').addEventListener('click',logout);
   $('staticSetup').addEventListener('click',bootstrapStaticAdmin);
   $('staticSetupForm').addEventListener('submit',submitStaticAdmin);
@@ -797,19 +872,21 @@ function bindEvents() {
   $('openEquipment').addEventListener('click',openEquipmentForm);
   $('openTest').addEventListener('click',openTestForm);
   $('openUser').addEventListener('click',function() { openUserForm(); });
+  $('openBalady').addEventListener('click',openBaladyWindow);
   $('searchLicenseBtn').addEventListener('click',searchLicense);
   $('getLocationBtn').addEventListener('click',getLocation);
-  $('addFieldTest').addEventListener('click',function() { if (fieldTests.length >= 4) return showToast('الحد الأقصى أربعة اختبارات للزيارة',true); fieldTests.push({name:'',standard:'',result:''}); renderFieldTests(); });
+  $('addFieldTest').addEventListener('click',function() { if (!catalog.length) return showToast('يجري تحميل كتالوج الاختبارات، حاول بعد لحظة',true); if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true); fieldTests.push({catalog_id:'',name:'',standard:'',result:''}); renderFieldTests(); });
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
   document.addEventListener('change',function(event) {
     if (event.target.matches('.project-status')) changeProjectStatus(event.target.dataset.projectId,event.target.value);
     if (event.target.id === 'testCatalogSelect') updateTestDynamic();
-    if (event.target.matches('[data-field-test]')) fieldTests[Number(event.target.dataset.fieldTest)][event.target.dataset.fieldKey] = event.target.value;
+    if (event.target.matches('[data-field-test]')) { const test = fieldTests[Number(event.target.dataset.fieldTest)]; test[event.target.dataset.fieldKey] = event.target.value; if (event.target.dataset.fieldKey === 'catalog_id') syncFieldTestCatalog(test); }
   });
   document.addEventListener('click',async function(event) {
     const button = event.target.closest('button');
     if (!button) return;
     if (button.hasAttribute('data-modal-close')) return closeModal();
+    if (button.hasAttribute('data-open-balady-portal')) return window.open('https://balady.gov.sa/', '_blank', 'noopener');
     if (button.dataset.projectOpen) return openProjectWorkspace(button.dataset.projectOpen);
     if (button.dataset.projectEdit) {
       openProjectForm(button.dataset.projectEdit);
@@ -846,6 +923,7 @@ function bindEvents() {
       if (form.id === 'equipmentForm') await submitSimple(form,'/api/equipment');
       if (form.id === 'testForm') await submitTest(form);
       if (form.id === 'userForm') await submitSimple(form,form.elements.id.value ? '/api/users/update' : '/api/users/create');
+      if (form.id === 'baladyForm') saveBaladyData(form);
     } catch (error) {
       const message = error && error.message ? error.message : 'تعذر حفظ البيانات';
       const formMessage = form.querySelector('#userFormMessage');

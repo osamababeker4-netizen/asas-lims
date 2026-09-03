@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import sqlite3
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
 import urllib.error
@@ -18,6 +19,8 @@ OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 PORT = int(os.environ.get('PORT', os.environ.get('LIMS_PORT', '8080')))
 ALLOWED_ORIGIN = os.environ.get('LIMS_ALLOWED_ORIGIN', '').rstrip('/')
 SESSIONS = {}
+OTP_REQUESTS = {}
+OTP_RESEND_SECONDS = 60
 
 PROJECT_STATUSES = {'مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل', 'مفتوح'}
 WORK_ORDER_STATUSES = {'مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'}
@@ -102,6 +105,13 @@ def migrate_schema(connection):
             ('approved_by', 'approved_by INTEGER'),
             ('approved_at', 'approved_at TEXT'),
             ('updated_at', 'updated_at TEXT')
+        ],
+        'field_visits': [
+            ('balady_permit_no', 'balady_permit_no TEXT'),
+            ('balady_municipality', 'balady_municipality TEXT'),
+            ('balady_permit_type', 'balady_permit_type TEXT'),
+            ('balady_permit_status', 'balady_permit_status TEXT'),
+            ('balady_reference_url', 'balady_reference_url TEXT')
         ]
     }
     for table, columns in additions.items():
@@ -133,9 +143,13 @@ def init():
         if not password or len(password) < 12:
             connection.close()
             raise RuntimeError('يتطلب أول تشغيل تعيين LIMS_BOOTSTRAP_PASSWORD محلياً إلى كلمة مرور من 12 حرفاً على الأقل.')
+        phone = os.environ.get('LIMS_BOOTSTRAP_PHONE', '').strip()
+        if not valid_e164(phone):
+            connection.close()
+            raise RuntimeError('يتطلب أول تشغيل تعيين LIMS_BOOTSTRAP_PHONE برقم المدير بصيغة دولية، مثل +9665XXXXXXXX، لاستخدام OTP.')
         connection.execute(
-            'insert into users(username,password_hash,full_name,role) values(?,?,?,?)',
-            ('admin', hp(password), 'مدير المختبر', 'admin')
+            'insert into users(username,password_hash,full_name,role,phone) values(?,?,?,?,?)',
+            ('admin', hp(password), 'مدير المختبر', 'admin', phone)
         )
         print('تم إنشاء حساب admin الأول باستخدام كلمة المرور المحلية التي وفرتها.')
     connection.commit()
@@ -206,6 +220,38 @@ def twilio_verify_request(endpoint, fields):
     )
     with urllib.request.urlopen(request, timeout=15) as response:
         return json.loads(response.read())
+
+
+def start_otp_challenge(connection, login_id, password, channel='sms'):
+    """Validate the first factor, then request a time-limited OTP challenge."""
+    if channel not in ('sms', 'call', 'whatsapp'):
+        return None, 'invalid_otp_channel', 400, None
+    user = connection.execute(
+        'select * from users where (username=? or phone=?) and active=1',
+        (login_id, login_id)
+    ).fetchone()
+    if not user or not checkpw(password, user['password_hash']):
+        return None, 'invalid_credentials', 401, None
+    phone = str(user['phone'] or '').strip()
+    if not valid_e164(phone):
+        return None, 'phone_not_configured', 409, None
+    if not twilio_verify_ready():
+        return None, 'otp_provider_not_configured', 503, None
+    now = time.monotonic()
+    request_key = (user['id'], channel)
+    retry_after = OTP_RESEND_SECONDS - (now - OTP_REQUESTS.get(request_key, 0))
+    if retry_after > 0:
+        return None, 'otp_resend_too_soon', 429, int(retry_after) + 1
+    try:
+        twilio_verify_request('Verifications', {'To': phone, 'Channel': channel})
+    except (urllib.error.HTTPError, urllib.error.URLError):
+        audit(connection, user['id'], 'OTP_FAILED', 'user', user['id'], 'Twilio Verify request failed')
+        connection.commit()
+        return None, 'otp_provider_error', 502, None
+    OTP_REQUESTS[request_key] = now
+    audit(connection, user['id'], 'OTP_REQUESTED', 'user', user['id'], 'Twilio Verify {} requested'.format(channel))
+    connection.commit()
+    return user, None, 200, None
 
 
 class H(BaseHTTPRequestHandler):
@@ -470,27 +516,15 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json({'ok': False, 'error': 'invalid_request'}, 400)
             connection = db()
             username = str(data.get('username', '')).strip()
-            user = connection.execute('select * from users where (username=? or phone=?) and active=1', (username, username)).fetchone()
-            if not user or not checkpw(str(data.get('password', '')), user['password_hash']):
-                connection.close()
-                return self.send_json({'ok': False, 'error': 'invalid_credentials'}, 401)
-            phone = str(user['phone'] or '').strip()
-            if not valid_e164(phone):
-                connection.close()
-                return self.send_json({'ok': False, 'error': 'phone_not_configured'}, 409)
-            if not twilio_verify_ready():
-                connection.close()
-                return self.send_json({'ok': False, 'error': 'otp_provider_not_configured'}, 503)
-            try:
-                twilio_verify_request('Verifications', {'To': phone, 'Channel': 'sms'})
-            except (urllib.error.HTTPError, urllib.error.URLError):
-                audit(connection, user['id'], 'OTP_FAILED', 'user', user['id'], 'Twilio Verify request failed')
-                connection.commit()
-                connection.close()
-                return self.send_json({'ok': False, 'error': 'otp_provider_error'}, 502)
-            audit(connection, user['id'], 'OTP_REQUESTED', 'user', user['id'], 'Twilio Verify SMS requested')
-            connection.commit()
+            channel = str(data.get('channel', 'sms')).strip().lower()
+            user, error, status, retry_after = start_otp_challenge(connection, username, str(data.get('password', '')), channel)
             connection.close()
+            if error:
+                payload = {'ok': False, 'error': error}
+                if retry_after:
+                    payload['retryAfter'] = retry_after
+                return self.send_json(payload, status)
+            phone = str(user['phone'] or '').strip()
             return self.send_json({'ok': True, 'challenge': True, 'expiresIn': 600, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}})
 
         if path == '/api/auth/verify':
@@ -503,7 +537,7 @@ class H(BaseHTTPRequestHandler):
             code = str(data.get('otp', '')).strip()
             user = connection.execute('select * from users where (username=? or phone=?) and active=1', (username, username)).fetchone()
             phone = str(user['phone'] or '').strip() if user else ''
-            if not user or not valid_e164(phone) or not code:
+            if not user or not valid_e164(phone) or not (code.isdigit() and len(code) == 6):
                 connection.close()
                 return self.send_json({'ok': False, 'error': 'invalid_otp'}, 401)
             if not twilio_verify_ready():
@@ -527,32 +561,12 @@ class H(BaseHTTPRequestHandler):
             return self.send_json({'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}})
 
         if path == '/api/login':
-            try:
-                data = self.body()
-            except json.JSONDecodeError:
-                return self.send_json({'error': 'بيانات الدخول غير صالحة'}, 400)
-            connection = db()
-            login_id = str(data.get('username', '')).strip()
-            user = connection.execute('select * from users where (username=? or phone=?) and active=1', (login_id, login_id)).fetchone()
-            connection.close()
-            if not user or not checkpw(str(data.get('password', '')), user['password_hash']):
-                return self.send_json({'error': 'اسم المستخدم أو كلمة المرور غير صحيحة'}, 401)
-            token = secrets.token_urlsafe(32)
-            SESSIONS[token] = dict(user)
-            body = json.dumps({'ok': True, 'user': {'full_name': user['full_name'], 'role': user['role'], 'username': user['username']}}, ensure_ascii=False).encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json; charset=utf-8')
-            cookie = 'LIMS_SESSION=' + token + '; HttpOnly; Path=/'
-            cookie += '; SameSite=None; Secure' if ALLOWED_ORIGIN else '; SameSite=Lax'
-            self.send_header('Set-Cookie', cookie)
-            self.send_header('Cache-Control', 'no-store')
-            self.send_cors_headers()
-            self.send_header('Content-Length', str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-            return
+            return self.send_json({'error': 'استخدم /api/auth/login لبدء التحقق برمز OTP'}, 410)
 
         if path == '/api/logout':
+            authorization = self.headers.get('Authorization', '')
+            if authorization.startswith('Bearer '):
+                SESSIONS.pop(authorization[7:], None)
             for item in self.headers.get('Cookie', '').split(';'):
                 item = item.strip()
                 if item.startswith('LIMS_SESSION='):
@@ -748,12 +762,13 @@ class H(BaseHTTPRequestHandler):
                 if not license_no or status not in FIELD_STATUSES:
                     return self.send_json({'error': 'بيانات الزيارة غير مكتملة'}, 400)
                 connection.execute('''
-                    insert into field_visits(license_no,contractor_name,project_name,sector_name,layer_no,location,latitude,longitude,tests_json,notes,status,created_by,project_id,sample_id)
-                    values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    insert into field_visits(license_no,contractor_name,project_name,sector_name,layer_no,location,latitude,longitude,tests_json,notes,status,created_by,project_id,sample_id,balady_permit_no,balady_municipality,balady_permit_type,balady_permit_status,balady_reference_url)
+                    values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ''', (
                     license_no, data.get('contractor_name'), data.get('project_name'), data.get('sector_name'), data.get('layer_no'),
                     data.get('location'), data.get('latitude'), data.get('longitude'), json.dumps(data.get('tests', []), ensure_ascii=False),
-                    data.get('notes'), status, user['id'], parse_optional_int(data.get('project_id')), parse_optional_int(data.get('sample_id'))
+                    data.get('notes'), status, user['id'], parse_optional_int(data.get('project_id')), parse_optional_int(data.get('sample_id')),
+                    data.get('balady_permit_no'), data.get('balady_municipality'), data.get('balady_permit_type'), data.get('balady_permit_status'), data.get('balady_reference_url')
                 ))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 queue_sync(connection, 'field_visit', entity_id, 'create', {'license_no': license_no, 'status': status})

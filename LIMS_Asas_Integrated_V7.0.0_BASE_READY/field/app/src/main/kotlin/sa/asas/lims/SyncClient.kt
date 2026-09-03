@@ -17,8 +17,8 @@ class SyncClient(private val context: Context, private val db: LimsDb) {
         return c.responseCode to ((if(c.responseCode in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()} ?: "")
     }
     fun requestCentralOtp(api:String, username:String, password:String):AuthResult = try {
-        val (code,raw)=post(api.trimEnd('/')+"/api/auth/login",JSONObject().put("username",username).put("password",password))
-        val j=JSONObject(raw); if(code !in 200..299) AuthResult("تعذر طلب رمز الدخول المركزي") else AuthResult(if(j.has("otp")) "تم طلب الرمز. رمز بيئة التطوير: ${j.optString("otp")}" else "تم إرسال رمز التحقق إلى الجوال")
+        val (code,raw)=post(api.trimEnd('/')+"/api/auth/login",JSONObject().put("username",username).put("password",password).put("channel","sms"))
+        val j=JSONObject(raw); if(code !in 200..299) AuthResult(j.optString("error","تعذر طلب رمز الدخول المركزي")) else AuthResult("تم إرسال رمز التحقق إلى الجوال المسجل")
     } catch(e:Exception){AuthResult("تعذر الاتصال بالخادم المركزي")}
     fun verifyCentralOtp(api:String, username:String, otp:String):AuthResult = try {
         val (code,raw)=post(api.trimEnd('/')+"/api/auth/verify",JSONObject().put("username",username).put("otp",otp))

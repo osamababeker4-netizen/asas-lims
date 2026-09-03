@@ -17,6 +17,7 @@ class SchemaMigrationTests(unittest.TestCase):
         os.environ['LIMS_DB_PATH'] = self.db_path
         self.bootstrap_password = secrets.token_urlsafe(24)
         os.environ['LIMS_BOOTSTRAP_PASSWORD'] = self.bootstrap_password
+        os.environ['LIMS_BOOTSTRAP_PHONE'] = '+966500000001'
         import server
         self.server = importlib.reload(server)
 
@@ -24,6 +25,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.temp.cleanup()
         os.environ.pop('LIMS_DB_PATH', None)
         os.environ.pop('LIMS_BOOTSTRAP_PASSWORD', None)
+        os.environ.pop('LIMS_BOOTSTRAP_PHONE', None)
 
     def test_init_creates_v720_tables_and_secure_bootstrap_user(self):
         self.server.init()
@@ -71,18 +73,22 @@ class SchemaMigrationTests(unittest.TestCase):
 
     def test_project_work_order_and_workspace_api_flow(self):
         self.server.init()
+        connection = self.server.db()
+        connection.execute("update users set phone='+966500000001' where username='admin'")
+        connection.commit()
+        connection.close()
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
         worker = threading.Thread(target=httpd.serve_forever)
         worker.start()
         port = httpd.server_address[1]
 
-        def request(method, path, payload=None, cookie=None):
+        def request(method, path, payload=None, token=None):
             connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
             headers = {}
             if payload is not None:
                 headers['Content-Type'] = 'application/json'
-            if cookie:
-                headers['Cookie'] = cookie
+            if token:
+                headers['Authorization'] = 'Bearer ' + token
             connection.request(method, path, json.dumps(payload).encode('utf-8') if payload is not None else None, headers)
             response = connection.getresponse()
             data = json.loads(response.read().decode('utf-8'))
@@ -91,24 +97,31 @@ class SchemaMigrationTests(unittest.TestCase):
             return response.status, data, response_headers
 
         try:
-            status, login, headers = request('POST', '/api/login', {'username': 'admin', 'password': self.bootstrap_password})
+            self.server.twilio_verify_ready = lambda: True
+            self.server.twilio_verify_request = lambda endpoint, fields: {'status': 'approved'}
+            status, _, _ = request('POST', '/api/login', {'username': 'admin', 'password': self.bootstrap_password})
+            self.assertEqual(status, 410)
+            status, login, _ = request('POST', '/api/auth/login', {'username': 'admin', 'password': self.bootstrap_password})
             self.assertEqual(status, 200)
-            cookie = headers['Set-Cookie'].split(';', 1)[0]
+            self.assertTrue(login['challenge'])
+            status, verified, _ = request('POST', '/api/auth/verify', {'username': 'admin', 'otp': '123456'})
+            self.assertEqual(status, 200)
+            token = verified['token']
 
-            status, client, _ = request('POST', '/api/clients', {'name': 'عميل الاختبار'}, cookie)
+            status, client, _ = request('POST', '/api/clients', {'name': 'عميل الاختبار'}, token)
             self.assertEqual(status, 200)
-            status, project, _ = request('POST', '/api/projects', {'name': 'مشروع الربط', 'client_id': client['id'], 'priority': 'عالية', 'start_date': '2026-09-01', 'due_date': '2026-09-30'}, cookie)
+            status, project, _ = request('POST', '/api/projects', {'name': 'مشروع الربط', 'client_id': client['id'], 'priority': 'عالية', 'start_date': '2026-09-01', 'due_date': '2026-09-30'}, token)
             self.assertEqual(status, 200)
-            status, order, _ = request('POST', '/api/work-orders', {'project_id': project['id'], 'title': 'فحص عينات الموقع', 'status': 'مفتوح'}, cookie)
+            status, order, _ = request('POST', '/api/work-orders', {'project_id': project['id'], 'title': 'فحص عينات الموقع', 'status': 'مفتوح'}, token)
             self.assertEqual(status, 200)
 
-            status, workspace, _ = request('GET', '/api/projects/' + str(project['id']) + '/workspace', cookie=cookie)
+            status, workspace, _ = request('GET', '/api/projects/' + str(project['id']) + '/workspace', token=token)
             self.assertEqual(status, 200)
             self.assertEqual(workspace['project']['code'], project['code'])
             self.assertEqual(workspace['work_orders'][0]['order_no'], order['order_no'])
             self.assertEqual(workspace['samples'], [])
 
-            status, board, _ = request('GET', '/api/dashboard', cookie=cookie)
+            status, board, _ = request('GET', '/api/dashboard', token=token)
             self.assertEqual(status, 200)
             self.assertEqual(board['projects'][0]['work_orders_count'], 1)
             self.assertGreaterEqual(board['counts']['sync_queue'], 2)
@@ -119,16 +132,20 @@ class SchemaMigrationTests(unittest.TestCase):
 
     def test_admin_can_create_and_update_a_user(self):
         self.server.init()
+        connection = self.server.db()
+        connection.execute("update users set phone='+966500000001' where username='admin'")
+        connection.commit()
+        connection.close()
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
         worker = threading.Thread(target=httpd.serve_forever)
         worker.start()
         port = httpd.server_address[1]
 
-        def request(method, path, payload=None, cookie=None):
+        def request(method, path, payload=None, token=None):
             connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
             headers = {'Content-Type': 'application/json'} if payload is not None else {}
-            if cookie:
-                headers['Cookie'] = cookie
+            if token:
+                headers['Authorization'] = 'Bearer ' + token
             body = json.dumps(payload).encode('utf-8') if payload is not None else None
             connection.request(method, path, body, headers)
             response = connection.getresponse()
@@ -138,23 +155,27 @@ class SchemaMigrationTests(unittest.TestCase):
             return response.status, data, response_headers
 
         try:
-            status, _, headers = request('POST', '/api/login', {'username': 'admin', 'password': self.bootstrap_password})
+            self.server.twilio_verify_ready = lambda: True
+            self.server.twilio_verify_request = lambda endpoint, fields: {'status': 'approved'}
+            status, _, _ = request('POST', '/api/auth/login', {'username': 'admin', 'password': self.bootstrap_password})
             self.assertEqual(status, 200)
-            cookie = headers['Set-Cookie'].split(';', 1)[0]
+            status, verified, _ = request('POST', '/api/auth/verify', {'username': 'admin', 'otp': '123456'})
+            self.assertEqual(status, 200)
+            token = verified['token']
 
             status, created, _ = request('POST', '/api/users/create', {
                 'username': 'lab.user', 'full_name': 'مستخدم المختبر', 'password': 'Secure-password-123', 'role': 'technician'
-            }, cookie)
+            }, token)
             self.assertEqual(status, 200)
             self.assertTrue(created['ok'])
 
             status, updated, _ = request('POST', '/api/users/update', {
                 'id': created['id'], 'full_name': 'مستخدم مختبر محدّث', 'role': 'manager', 'active': True, 'password': ''
-            }, cookie)
+            }, token)
             self.assertEqual(status, 200)
             self.assertTrue(updated['ok'])
 
-            status, users, _ = request('GET', '/api/users', cookie=cookie)
+            status, users, _ = request('GET', '/api/users', token=token)
             self.assertEqual(status, 200)
             saved = next(item for item in users if item['id'] == created['id'])
             self.assertEqual(saved['full_name'], 'مستخدم مختبر محدّث')
@@ -165,8 +186,12 @@ class SchemaMigrationTests(unittest.TestCase):
             httpd.server_close()
             worker.join(timeout=5)
 
-    def test_pages_origin_cors_uses_secure_cross_site_session_cookie(self):
+    def test_pages_origin_cors_allows_otp_authentication(self):
         self.server.init()
+        connection = self.server.db()
+        connection.execute("update users set phone='+966500000001' where username='admin'")
+        connection.commit()
+        connection.close()
         original_origin = self.server.ALLOWED_ORIGIN
         self.server.ALLOWED_ORIGIN = 'https://osamababeker4-netizen.github.io'
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
@@ -174,10 +199,12 @@ class SchemaMigrationTests(unittest.TestCase):
         worker.start()
         port = httpd.server_address[1]
         origin = 'https://osamababeker4-netizen.github.io'
+        self.server.twilio_verify_ready = lambda: True
+        self.server.twilio_verify_request = lambda endpoint, fields: {'status': 'approved'}
 
         try:
             connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
-            connection.request('OPTIONS', '/api/login', headers={'Origin': origin, 'Access-Control-Request-Method': 'POST'})
+            connection.request('OPTIONS', '/api/auth/login', headers={'Origin': origin, 'Access-Control-Request-Method': 'POST'})
             response = connection.getresponse()
             self.assertEqual(response.status, 204)
             self.assertEqual(response.getheader('Access-Control-Allow-Origin'), origin)
@@ -187,11 +214,11 @@ class SchemaMigrationTests(unittest.TestCase):
 
             connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
             body = json.dumps({'username': 'admin', 'password': self.bootstrap_password}).encode('utf-8')
-            connection.request('POST', '/api/login', body, {'Origin': origin, 'Content-Type': 'application/json'})
+            connection.request('POST', '/api/auth/login', body, {'Origin': origin, 'Content-Type': 'application/json'})
             response = connection.getresponse()
             self.assertEqual(response.status, 200)
             self.assertEqual(response.getheader('Access-Control-Allow-Origin'), origin)
-            self.assertIn('SameSite=None; Secure', response.getheader('Set-Cookie'))
+            self.assertEqual(response.getheader('Access-Control-Allow-Credentials'), 'true')
             response.read()
             connection.close()
         finally:
@@ -199,6 +226,47 @@ class SchemaMigrationTests(unittest.TestCase):
             httpd.server_close()
             worker.join(timeout=5)
             self.server.ALLOWED_ORIGIN = original_origin
+
+    def test_field_visit_persists_official_tests_and_balady_data(self):
+        self.server.init()
+        connection = self.server.db()
+        user = connection.execute("select * from users where username='admin'").fetchone()
+        connection.close()
+        token = 'field-visit-test-token'
+        self.server.SESSIONS[token] = dict(user)
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        port = httpd.server_address[1]
+        try:
+            connection = self.server.db()
+            catalog = connection.execute("select id,code,name_ar,standard from test_catalog where code='D1883'").fetchone()
+            connection.close()
+            body = {
+                'license_no': 'BAL-1001', 'status': 'مسودة',
+                'tests': [{'catalog_id': catalog['id'], 'name': catalog['name_ar'], 'standard': catalog['standard'], 'result': 'قيد التنفيذ'}],
+                'balady_permit_no': 'BAL-1001', 'balady_municipality': 'أمانة الرياض',
+                'balady_permit_type': 'حفرية', 'balady_permit_status': 'ساري',
+                'balady_reference_url': 'https://balady.gov.sa/'
+            }
+            client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            client.request('POST', '/api/field/visits', json.dumps(body).encode('utf-8'), {
+                'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token
+            })
+            response = client.getresponse()
+            payload = json.loads(response.read().decode('utf-8'))
+            client.close()
+            self.assertEqual(response.status, 200)
+            connection = self.server.db()
+            saved = connection.execute('select * from field_visits where id=?', (payload['id'],)).fetchone()
+            connection.close()
+            self.assertEqual(saved['balady_municipality'], 'أمانة الرياض')
+            self.assertEqual(json.loads(saved['tests_json'])[0]['catalog_id'], catalog['id'])
+        finally:
+            self.server.SESSIONS.pop(token, None)
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(timeout=5)
 
 
 if __name__ == '__main__':
