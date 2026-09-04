@@ -16,7 +16,7 @@
   <section id="login" class="login-screen">
     <div class="login-card">
       <img src="logo.jpg" class="login-logo" alt="شعار مختبر أساس">
-      <p class="eyebrow">ASAS LIMS · V7.2.0</p>
+      <p class="eyebrow">ASAS LIMS · V7.3.0 FINAL</p>
       <h1>منصة أساس لإدارة المختبر</h1>
       <p class="muted">إدارة المشاريع، أوامر العمل، العينات، الاختبارات والتقارير في واجهة عربية موحّدة.</p>
       <form id="loginForm" class="form-stack">
@@ -77,6 +77,17 @@
     </aside>
 
     <main class="main-content">
+      <header class="official-header" aria-label="هوية مختبر أساس">
+        <a class="official-brand" href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">
+          <img src="logo.jpg" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية">
+          <span><strong>مختبر أساس</strong><small>بيانات هندسية دقيقة لكل مرحلة من مشروعك</small></span>
+        </a>
+        <nav class="official-links" aria-label="روابط أساس الرسمية">
+          <a href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">الموقع الرسمي</a>
+          <button class="text-btn" type="button" data-page-go="company">عن الشركة</button>
+          <button class="text-btn" type="button" data-page-go="projects">المشاريع</button>
+        </nav>
+      </header>
       <header class="topbar">
         <div class="topbar-title">
           <button id="menuBtn" class="icon-btn" type="button" aria-label="فتح القائمة">☰</button>
@@ -253,6 +264,17 @@
         <div class="page-heading"><div><h2>المستخدمون والصلاحيات</h2><p>صفحة مقصورة على مدير النظام.</p></div><button id="openUser" class="btn primary" type="button">+ مستخدم</button></div>
         <div class="panel table-panel"><table><thead><tr><th>اسم المستخدم</th><th>الاسم</th><th>الدور</th><th>الحالة</th><th>تاريخ الإنشاء</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
       </section>
+
+      <footer class="official-footer">
+        <div class="footer-brand">
+          <img src="logo.jpg" alt="شعار مختبر أساس">
+          <p>مختبر أساس للاستشارات الفنية والمختبرات الهندسية — إدارة تشغيلية آمنة للمشاريع والاختبارات والتقارير.</p>
+        </div>
+        <div><h3>روابط سريعة</h3><button class="footer-link" type="button" data-page-go="dashboard">لوحة القيادة</button><button class="footer-link" type="button" data-page-go="projects">المشاريع</button><button class="footer-link" type="button" data-page-go="catalog">دليل الاختبارات</button></div>
+        <div><h3>فروعنا</h3><p>مكة · جدة · المدينة · الرياض · القصيم</p><a href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">asaslab.com</a></div>
+        <div><h3>للتواصل</h3><a href="mailto:info@asaslab.com">info@asaslab.com</a><a href="tel:+966560618527" dir="ltr">+966 56 061 8527</a></div>
+        <p class="footer-legal">© <span id="footerYear"></span> شركة مختبر أساس. جميع الحقوق محفوظة.</p>
+      </footer>
     </main>
   </div>
 

@@ -1012,6 +1012,8 @@ function bindEvents() {
 
 function init() {
   bindEvents();
+  const footerYear = $('footerYear');
+  if (footerYear) footerYear.textContent = String(new Date().getFullYear());
   document.addEventListener('visibilitychange', function() {
     if (!document.hidden && currentUser) refresh().catch(function() {});
   });

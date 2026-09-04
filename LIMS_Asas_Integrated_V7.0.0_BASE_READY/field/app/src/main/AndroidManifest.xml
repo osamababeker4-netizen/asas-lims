@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <application android:allowBackup="true" android:icon="@drawable/asas_official_logo" android:label="مختبر أساس LIMS" android:supportsRtl="true" android:theme="@style/AppTheme">
+    <application android:allowBackup="true" android:icon="@drawable/asas_official_logo" android:label="مختبر أساس | ASAS LIMS" android:supportsRtl="true" android:theme="@style/AppTheme">
         <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

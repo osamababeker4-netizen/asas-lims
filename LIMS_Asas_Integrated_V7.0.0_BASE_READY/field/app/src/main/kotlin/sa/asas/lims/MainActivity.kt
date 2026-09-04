@@ -25,7 +25,14 @@ class MainActivity : Activity() {
     override fun onBackPressed(){ backAction?.invoke() ?: super.onBackPressed() }
     override fun onCreate(b:Bundle?){super.onCreate(b);db=LimsDb(this);showLogin()}
 
-    private fun base()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(20,20,20,20);setBackgroundColor(Color.rgb(244,247,249))}
+    private fun base()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(20,20,20,20);setBackgroundColor(Color.rgb(247,250,249))}
+    private fun officialFooter()=TextView(this).apply{
+        text="مختبر أساس للاستشارات الفنية والمختبرات الهندسية\nwww.asaslab.com  •  جميع الحقوق محفوظة"
+        textSize=12f
+        setTextColor(Color.rgb(82,111,106))
+        gravity=Gravity.CENTER
+        setPadding(8,32,8,8)
+    }
     // حاوية تمرير صريحة وموثوقة لجميع شاشات التطبيق، بما فيها لوحة التحكم الرئيسية.
     private fun mount(){
         val content = root.apply {
@@ -50,6 +57,7 @@ class MainActivity : Activity() {
             descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
             addView(content)
         }
+        content.addView(officialFooter())
         setContentView(scroll)
         scroll.post {
             scroll.scrollTo(0, 0)
@@ -65,7 +73,7 @@ class MainActivity : Activity() {
 
     private fun showLogin(){
         if(db.getSetting("initial_setup_required")=="1"){showInitialSetup();return}
-        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.2.1",28f,true));root.addView(tv("نظام إدارة المختبر — النسخة الإنتاجية الموسعة",16f))
+        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.3.0",28f,true));root.addView(tv("نظام إدارة المختبر — النسخة النهائية الموحدة",16f))
         val u=inp("اسم المستخدم أو رقم الجوال الدولي");u.inputType=InputType.TYPE_CLASS_PHONE;val p=inp("كلمة المرور");p.inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         root.addView(u);root.addView(p);root.addView(btn("دخول"){
             val a=db.login(u.text.toString().trim(),p.text.toString())
@@ -85,7 +93,7 @@ class MainActivity : Activity() {
         autoSyncRunning=true; Thread { SyncClient(this,db).upload(api,token); autoSyncRunning=false }.start()
     }
     private fun showDashboard(){
-        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.2.1",28f,true));root.addView(tv("المستخدم: $currentUser   |   الصلاحية: $currentRole",15f))
+        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.3.0",28f,true));root.addView(tv("المستخدم: $currentUser   |   الصلاحية: $currentRole",15f))
         val c=db.counts();root.addView(tv("المشاريع ${c[0]}   | العينات ${c[1]}   | الاختبارات ${c[2]}   | التقارير ${c[3]}   | NCR ${c[4]}   | رخص الحفريات ${db.excavationCount()}",16f,true))
         root.addView(tv("━━ الإدارة والتكامل ━━",19f,true));root.addView(btn("📊 لوحة القيادة والتحليلات"){analytics()});root.addView(btn("👤 المستخدمون والصلاحيات"){users()});root.addView(btn("📝 سجل التدقيق Audit Trail"){audit()});root.addView(btn("⚙ الإعدادات والأمان"){settings()})
         root.addView(tv("━━ إدارة الأعمال والعملاء ━━",19f,true));root.addView(btn("👥 العملاء"){clients()});root.addView(btn("🏗 المشاريع والمواقع"){projects()});root.addView(btn("💰 عروض الأسعار"){quotes()});root.addView(btn("📑 العقود"){contracts()});root.addView(btn("📨 طلبات العملاء"){requests()});root.addView(btn("🧾 أوامر العمل"){workOrders()});root.addView(btn("💵 الفواتير"){invoices()});root.addView(btn("⚠ شكاوى العملاء"){complaints()})
