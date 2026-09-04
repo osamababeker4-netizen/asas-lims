@@ -148,7 +148,67 @@ class MainActivity : Activity() {
 
     private fun analytics(){header("Dashboard & Analytics");val c=db.counts();root.addView(tv("المؤشرات الرئيسية",20f,true));root.addView(tv("المشاريع: ${c[0]}\nالعينات: ${c[1]}\nالاختبارات: ${c[2]}\nالتقارير: ${c[3]}\nNCR المفتوحة/المسجلة: ${c[4]}",18f));root.addView(tv("مؤشرات الجودة والتشغيل تُبنى من قاعدة البيانات المركزية عند ربط الـAPI.",13f));mount()}
 
-    private fun users(){if(currentRole!="admin"){toast("هذه الصلاحية لمدير النظام");return};header("إدارة المستخدمين والصلاحيات");val u=inp("اسم المستخدم");val p=inp("كلمة المرور");p.inputType=0x81;val n=inp("الاسم الكامل");val ph=inp("الجوال");val role=Spinner(this).apply{adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,listOf("user","technician","reviewer","admin"))};root.addView(u);root.addView(p);root.addView(n);root.addView(ph);root.addView(tv("الدور"));root.addView(role);root.addView(btn("+ إضافة مستخدم"){try{if(u.text.isBlank()||p.text.isBlank()||n.text.isBlank()||ph.text.isBlank())throw Exception("أكمل البيانات");db.addUser(u.text.toString().trim(),p.text.toString(),n.text.toString(),role.selectedItem.toString(),ph.text.toString().trim());db.audit(currentUserId,"CREATE","USER",u.text.toString(),"New user");users()}catch(e:Exception){toast("تعذر الإضافة: ${e.message}")}});db.userRows().forEach{r->root.addView(tv("• ${r[1]} | ${r[2]} | ${r[3]} | ${r[4]} | ${if(r[5]=="1")"فعال" else "موقوف"}"));if(r[1]!="admin")root.addView(btn("🗑 حذف ${r[1]}"){AlertDialog.Builder(this).setTitle("حذف المستخدم").setMessage("تأكيد حذف ${r[1]}؟").setNegativeButton("إلغاء",null).setPositiveButton("حذف"){_,_->db.deleteUser(r[0]!!.toInt());db.audit(currentUserId,"DELETE","USER",r[0]!!);users()}.show()})};mount()}
+    private fun userRoleSpinner(selected:String="technician")=Spinner(this).apply{
+        val roles=listOf("user","technician","reviewer","admin")
+        adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,roles)
+        setSelection(roles.indexOf(selected).coerceAtLeast(0))
+    }
+    private fun users(){
+        if(currentRole!="admin"){toast("هذه الصلاحية لمدير النظام");return}
+        header("إدارة المستخدمين والصلاحيات")
+        val username=inp("اسم المستخدم")
+        val password=inp("كلمة المرور (12 حرفاً على الأقل)");password.inputType=0x81
+        val fullName=inp("الاسم الكامل")
+        val phone=inp("الجوال الدولي")
+        val role=userRoleSpinner()
+        root.addView(username);root.addView(password);root.addView(fullName);root.addView(phone);root.addView(tv("الدور"));root.addView(role)
+        root.addView(btn("+ إضافة مستخدم وحفظ"){
+            try {
+                if(username.text.isBlank()||fullName.text.isBlank()||phone.text.isBlank()) throw Exception("أكمل البيانات")
+                if(password.text.length<12) throw Exception("كلمة المرور يجب ألا تقل عن 12 حرفاً")
+                db.addUser(username.text.toString().trim(),password.text.toString(),fullName.text.toString().trim(),role.selectedItem.toString(),phone.text.toString().trim())
+                db.audit(currentUserId,"CREATE","USER",username.text.toString().trim(),"New local user")
+                toast("تمت إضافة المستخدم وحفظه")
+                users()
+            } catch(e:Exception){toast("تعذر الإضافة: ${e.message}")}
+        })
+        root.addView(tv("المستخدمون الحاليون",18f,true))
+        db.userRows().forEach{ row ->
+            val id=row[0]?.toIntOrNull() ?: return@forEach
+            root.addView(tv("• ${row[1]} | ${row[2]} | ${row[3]} | ${row[4]} | ${if(row[5]=="1")"فعال" else "موقوف"}"))
+            root.addView(btn("✎ تعديل ${row[1]}"){editUser(row)})
+            if(row[1]!="admin") root.addView(btn("🗑 حذف ${row[1]}"){
+                AlertDialog.Builder(this).setTitle("حذف المستخدم").setMessage("تأكيد حذف ${row[1]}؟")
+                    .setNegativeButton("إلغاء",null).setPositiveButton("حذف"){_,_->
+                        db.deleteUser(id);db.audit(currentUserId,"DELETE","USER",id.toString(),"Local user deleted");users()
+                    }.show()
+            })
+        }
+        mount()
+    }
+    private fun editUser(row:Array<String?>){
+        val id=row[0]?.toIntOrNull() ?: return
+        header("تعديل المستخدم ${row[1]}",{users()})
+        root.addView(tv("اسم المستخدم: ${row[1]} (لا يمكن تغييره)",15f,true))
+        val fullName=inp("الاسم الكامل",row[2] ?: "")
+        val phone=inp("الجوال الدولي",row[4] ?: "")
+        val role=userRoleSpinner(row[3] ?: "technician")
+        val password=inp("كلمة مرور جديدة (اتركها فارغة للإبقاء)");password.inputType=0x81
+        val active=CheckBox(this).apply{text="الحساب نشط";isChecked=row[5]=="1"}
+        root.addView(fullName);root.addView(phone);root.addView(tv("الدور"));root.addView(role);root.addView(password);root.addView(active)
+        root.addView(btn("حفظ تعديل المستخدم"){
+            try {
+                if(fullName.text.isBlank()||phone.text.isBlank()) throw Exception("أكمل الاسم ورقم الجوال")
+                if(password.text.isNotBlank()&&password.text.length<12) throw Exception("كلمة المرور يجب ألا تقل عن 12 حرفاً")
+                if(id==currentUserId&&!active.isChecked) throw Exception("لا يمكنك إيقاف حسابك الحالي")
+                db.updateUser(id,fullName.text.toString().trim(),role.selectedItem.toString(),phone.text.toString().trim(),active.isChecked,password.text.toString())
+                db.audit(currentUserId,"UPDATE","USER",id.toString(),"Local user updated")
+                toast("تم تعديل المستخدم وحفظه")
+                users()
+            } catch(e:Exception){toast("تعذر التعديل: ${e.message}")}
+        })
+        mount()
+    }
 
     private fun clients(){header("إدارة العملاء");val n=inp("اسم العميل");val p=inp("الهاتف");val e=inp("البريد الإلكتروني");val v=inp("الرقم الضريبي");root.addView(n);root.addView(p);root.addView(e);root.addView(v);root.addView(btn("+ إضافة عميل"){if(n.text.isNotBlank()){db.addClient(n.text.toString(),p.text.toString(),e.text.toString(),v.text.toString());clients()}});db.clientsRows().forEach{root.addView(tv("• ${it[0]} | ${it[1]} | ${it[2]} | VAT: ${it[3]}"))};mount()}
     private fun projects(){header("المشاريع والمواقع");val n=inp("اسم المشروع");val l=inp("الموقع");val co=inp("الاستشاري");val ct=inp("المقاول");root.addView(n);root.addView(l);root.addView(co);root.addView(ct);root.addView(btn("+ إضافة مشروع"){if(n.text.isNotBlank()){db.addProject(n.text.toString(),l.text.toString(),null,co.text.toString(),ct.text.toString());projects()}});db.projectsRows().forEach{root.addView(tv("• ${it[0]} | ${it[1]} | ${it[2]} | استشاري: ${it[3]} | مقاول: ${it[4]} | ${it[5]}"))};mount()}

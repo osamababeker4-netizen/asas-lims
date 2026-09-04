@@ -125,6 +125,18 @@ class LimsDb(ctx: Context) : SQLiteOpenHelper(ctx, "lims_asas_v5.db", null, 6) {
         "SELECT id FROM users WHERE username=? LIMIT 1", arrayOf(username)
     ).use { cursor -> if(cursor.moveToFirst()) cursor.getInt(0) else 0 }
     fun addUser(username:String,password:String,fullName:String,role:String,phone:String){ val s=SecurityUtil.salt(); writableDatabase.execSQL("INSERT INTO users(username,password_hash,salt,full_name,role,phone,active,created_at) VALUES(?,?,?,?,?,?,1,?)",arrayOf(username,SecurityUtil.hash(password,s),s,fullName,role,phone,now)); }
+    fun updateUser(id:Int,fullName:String,role:String,phone:String,active:Boolean,password:String=""){
+        if(password.isBlank()) writableDatabase.execSQL(
+            "UPDATE users SET full_name=?,role=?,phone=?,active=? WHERE id=?",
+            arrayOf(fullName,role,phone,if(active)1 else 0,id)
+        ) else {
+            val salt=SecurityUtil.salt()
+            writableDatabase.execSQL(
+                "UPDATE users SET full_name=?,role=?,phone=?,active=?,password_hash=?,salt=? WHERE id=?",
+                arrayOf(fullName,role,phone,if(active)1 else 0,SecurityUtil.hash(password,salt),salt,id)
+            )
+        }
+    }
     fun deleteUser(id:Int){writableDatabase.execSQL("DELETE FROM users WHERE id=? AND username<>'admin'",arrayOf(id))}
     fun updateUserPhone(username:String,phone:String){writableDatabase.execSQL("UPDATE users SET phone=? WHERE username=?",arrayOf(phone,username))}
     fun completeInitialSetup(password:String,phone:String){val salt=SecurityUtil.salt();writableDatabase.execSQL("UPDATE users SET password_hash=?,salt=?,phone=? WHERE username='admin'",arrayOf(SecurityUtil.hash(password,salt),salt,phone));setSetting("initial_setup_required","0")}
