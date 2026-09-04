@@ -121,6 +121,9 @@ class LimsDb(ctx: Context) : SQLiteOpenHelper(ctx, "lims_asas_v5.db", null, 6) {
         }
     }
     fun userRows()=query("SELECT id,username,full_name,role,COALESCE(phone,''),active FROM users ORDER BY id")
+    fun userIdByUsername(username:String):Int = readableDatabase.rawQuery(
+        "SELECT id FROM users WHERE username=? LIMIT 1", arrayOf(username)
+    ).use { cursor -> if(cursor.moveToFirst()) cursor.getInt(0) else 0 }
     fun addUser(username:String,password:String,fullName:String,role:String,phone:String){ val s=SecurityUtil.salt(); writableDatabase.execSQL("INSERT INTO users(username,password_hash,salt,full_name,role,phone,active,created_at) VALUES(?,?,?,?,?,?,1,?)",arrayOf(username,SecurityUtil.hash(password,s),s,fullName,role,phone,now)); }
     fun deleteUser(id:Int){writableDatabase.execSQL("DELETE FROM users WHERE id=? AND username<>'admin'",arrayOf(id))}
     fun updateUserPhone(username:String,phone:String){writableDatabase.execSQL("UPDATE users SET phone=? WHERE username=?",arrayOf(phone,username))}

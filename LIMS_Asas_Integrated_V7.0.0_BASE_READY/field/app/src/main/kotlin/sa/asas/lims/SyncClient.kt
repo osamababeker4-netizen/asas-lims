@@ -10,20 +10,38 @@ import java.util.UUID
 /** Uploads durable SQLite queue entries; network failure never rolls back field work. */
 class SyncClient(private val context: Context, private val db: LimsDb) {
     data class Result(val message:String, val uploaded:Int=0, val conflicts:Int=0)
-    data class AuthResult(val message:String, val token:String?=null)
+    /** Metadata returned only after the central service has authenticated the account. */
+    data class CentralUser(val username:String, val name:String, val role:String, val phone:String)
+    data class AuthResult(
+        val message:String,
+        val token:String?=null,
+        val user:CentralUser?=null,
+        /** True only when the central service could not be reached at all. */
+        val unavailable:Boolean=false
+    )
     private fun post(url:String, body:JSONObject, token:String?=null):Pair<Int,String>{
         val c=(URL(url).openConnection() as HttpURLConnection).apply { requestMethod="POST";connectTimeout=10000;readTimeout=20000;doOutput=true;setRequestProperty("Content-Type","application/json");if(!token.isNullOrBlank())setRequestProperty("Authorization","Bearer $token") }
         c.outputStream.use{it.write(body.toString().toByteArray(Charsets.UTF_8))}
         return c.responseCode to ((if(c.responseCode in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()} ?: "")
     }
+    private fun centralUser(json:JSONObject):CentralUser? {
+        val user=json.optJSONObject("user") ?: return null
+        val username=user.optString("username").trim()
+        if(username.isBlank()) return null
+        return CentralUser(username,user.optString("name",username),user.optString("role","user"),user.optString("phone"))
+    }
     fun requestCentralOtp(api:String, username:String, password:String):AuthResult = try {
         val (code,raw)=post(api.trimEnd('/')+"/api/auth/login",JSONObject().put("username",username).put("password",password).put("channel","sms"))
-        val j=JSONObject(raw); if(code !in 200..299) AuthResult(j.optString("error","تعذر طلب رمز الدخول المركزي")) else AuthResult("تم إرسال رمز التحقق إلى الجوال المسجل")
-    } catch(e:Exception){AuthResult("تعذر الاتصال بالخادم المركزي")}
+        val j=JSONObject(raw)
+        if(code !in 200..299) AuthResult(j.optString("error","تعذر طلب رمز الدخول المركزي"))
+        else AuthResult("تم إرسال رمز التحقق إلى الجوال المسجل",user=centralUser(j))
+    } catch(e:Exception){AuthResult("تعذر الاتصال بالخادم المركزي",unavailable=true)}
     fun verifyCentralOtp(api:String, username:String, otp:String):AuthResult = try {
         val (code,raw)=post(api.trimEnd('/')+"/api/auth/verify",JSONObject().put("username",username).put("otp",otp))
-        val j=JSONObject(raw); val token=j.optString("token"); if(code !in 200..299 || token.isBlank()) AuthResult("رمز التحقق غير صحيح أو انتهت صلاحيته") else AuthResult("تم ربط الحساب المركزي",token)
-    } catch(e:Exception){AuthResult("تعذر الاتصال بالخادم المركزي")}
+        val j=JSONObject(raw); val token=j.optString("token")
+        if(code !in 200..299 || token.isBlank()) AuthResult("رمز التحقق غير صحيح أو انتهت صلاحيته")
+        else AuthResult("تم ربط الحساب المركزي",token,centralUser(j))
+    } catch(e:Exception){AuthResult("تعذر الاتصال بالخادم المركزي",unavailable=true)}
     fun upload(api:String, token:String): Result {
         val rows=db.pendingSyncRows()
         if(rows.isEmpty()) return Result("لا توجد عمليات معلقة")

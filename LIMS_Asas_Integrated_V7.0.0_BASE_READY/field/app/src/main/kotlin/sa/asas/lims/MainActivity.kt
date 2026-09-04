@@ -14,6 +14,7 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 class MainActivity : Activity() {
+    private companion object { const val DEFAULT_CENTRAL_API="https://asas-lims-api.onrender.com" }
     private lateinit var db:LimsDb
     private lateinit var root:LinearLayout
     private var currentUserId=0
@@ -70,20 +71,63 @@ class MainActivity : Activity() {
     private fun inp(h:String,v:String="")=EditText(this).apply{hint=h;setText(v);setPadding(12,8,12,8)}
     private fun header(title:String,back:()->Unit={dashboard()}){root=base();backAction=back;root.addView(btn("← رجوع"){back()});root.addView(tv(title,24f,true))}
     private fun dashboard(){showDashboard()}
+    private fun centralApi():String = db.getSetting("central_api").trim().ifBlank { DEFAULT_CENTRAL_API }
+    private fun signInLocally(usernameOrPhone:String,password:String):Boolean {
+        val account=db.login(usernameOrPhone,password) ?: return false
+        currentUserId=account[0]?.toIntOrNull()?:0
+        currentUser=account[1]?:usernameOrPhone
+        currentRole=account[3]?:"user"
+        db.audit(currentUserId,"LOGIN","USER",currentUser,"Local authenticated sign-in")
+        showDashboard()
+        return true
+    }
 
     private fun showLogin(){
         if(db.getSetting("initial_setup_required")=="1"){showInitialSetup();return}
         backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.3.0",28f,true));root.addView(tv("نظام إدارة المختبر — النسخة النهائية الموحدة",16f))
-        val u=inp("اسم المستخدم أو رقم الجوال الدولي");u.inputType=InputType.TYPE_CLASS_PHONE;val p=inp("كلمة المرور");p.inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        val u=inp("اسم المستخدم أو رقم الجوال الدولي");u.inputType=InputType.TYPE_CLASS_TEXT;val p=inp("كلمة المرور");p.inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         root.addView(u);root.addView(p);root.addView(btn("دخول"){
-            val a=db.login(u.text.toString().trim(),p.text.toString())
-            if(a==null){toast("بيانات الدخول غير صحيحة أو المستخدم غير فعال");return@btn}
-            currentUserId=a[0]?.toIntOrNull()?:0;currentUser=a[1]?:(u.text.toString());currentRole=a[3]?:("user")
-            db.audit(currentUserId,"LOGIN","USER",currentUser,"Local authenticated sign-in")
-            showDashboard()
+            val username=u.text.toString().trim();val password=p.text.toString()
+            if(username.isBlank()||password.isBlank()){toast("أدخل اسم المستخدم وكلمة المرور");return@btn}
+            toast("جارٍ التحقق من الحساب المركزي…")
+            Thread {
+                val result=SyncClient(this,db).requestCentralOtp(centralApi(),username,password)
+                runOnUiThread {
+                    when {
+                        result.user!=null -> showCentralOtp(centralApi(),result.user)
+                        result.unavailable && signInLocally(username,password) -> Unit
+                        result.unavailable -> toast("تعذر الاتصال بالخادم، ولم تتطابق بيانات الدخول المحلي")
+                        else -> toast(result.message)
+                    }
+                }
+            }.start()
         })
-        root.addView(tv("الدخول المحلي يعمل دون اتصال. ربط الحساب والمزامنة مع الخادم المركزي يستخدمان رمز تحقق حقيقياً من Twilio Verify.",13f))
+        root.addView(tv("يتم التحقق أولاً من الحساب المركزي ثم إرسال رمز تحقق حقيقي. عند انقطاع الاتصال فقط يمكن استخدام الحساب المحلي المحفوظ على الجهاز.",13f))
         mount(); autoSyncIfConfigured()
+    }
+    private fun showCentralOtp(api:String, account:SyncClient.CentralUser){
+        backAction={showLogin()};root=base();root.addView(logo());root.addView(tv("تأكيد الدخول المركزي",25f,true))
+        val phone=account.phone.takeLast(4).let { if(it.isBlank()) "الجوال المسجل" else "••••$it" }
+        root.addView(tv("أُرسل رمز تحقق إلى $phone للحساب ${account.username}.",15f))
+        val otp=inp("رمز التحقق المكوّن من 6 أرقام");otp.inputType=InputType.TYPE_CLASS_NUMBER
+        root.addView(otp);root.addView(btn("تحقق ودخول"){
+            val code=otp.text.toString().trim();if(code.length!=6||!code.all{it.isDigit()}){toast("أدخل رمز التحقق المكوّن من 6 أرقام");return@btn}
+            toast("جارٍ التحقق من الرمز…")
+            Thread {
+                val result=SyncClient(this,db).verifyCentralOtp(api,account.username,code)
+                runOnUiThread {
+                    val verified=result.user
+                    if(result.token.isNullOrBlank()||verified==null){toast(result.message);return@runOnUiThread}
+                    db.setSetting("central_api",api)
+                    getSharedPreferences("central_sync",MODE_PRIVATE).edit().putString("access_token",result.token).putString("central_user",verified.username).apply()
+                    currentUserId=db.userIdByUsername(verified.username)
+                    currentUser=verified.name.ifBlank { verified.username }
+                    currentRole=verified.role.ifBlank { "user" }
+                    db.audit(currentUserId,"LOGIN","USER",verified.username,"Central OTP authenticated sign-in")
+                    showDashboard()
+                }
+            }.start()
+        });root.addView(btn("عودة لتغيير الحساب"){showLogin()});mount()
     }
     private fun showInitialSetup(){backAction=null;root=base();root.addView(logo());root.addView(tv("تهيئة مختبر أساس",26f,true));root.addView(tv("أنشئ كلمة مرور مدير النظام ورقم الجوال قبل أول استخدام.",15f));val pass=inp("كلمة مرور المدير (12 حرفاً على الأقل)");pass.inputType=0x81;val confirm=inp("تأكيد كلمة المرور");confirm.inputType=0x81;val phone=inp("رقم الجوال");root.addView(pass);root.addView(confirm);root.addView(phone);root.addView(btn("إنهاء التهيئة"){val p=pass.text.toString();if(p.length<12||p!=confirm.text.toString()||phone.text.trim().length<8){toast("تحقق من كلمة المرور ورقم الجوال");return@btn};db.completeInitialSetup(p,phone.text.toString().trim());toast("اكتملت التهيئة؛ سجّل الدخول الآن");showLogin()});mount()}
 

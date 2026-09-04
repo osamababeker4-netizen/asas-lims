@@ -21,8 +21,8 @@ android {
         applicationId = "sa.asas.lims"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "7.3.0"
+        versionCode = 16
+        versionName = "7.3.1"
     }
     if (signingPropertiesFile.exists()) {
         signingConfigs {
