@@ -481,6 +481,7 @@ async function refresh() {
     renderSamples();
     renderTests();
     renderReports();
+    renderWhatsappDrafts();
     renderEquipment();
     renderAudit();
     if (currentUser && currentUser.role === 'admin') await renderUsers();
@@ -609,8 +610,19 @@ function renderSamples() {
 function renderTests() {
   $('testsTable').innerHTML = (dashboard ? dashboard.tests : []).map(function(test) {
     const result = test.mdd !== null && test.mdd !== undefined ? 'MDD ' + Number(test.mdd).toFixed(3) + ' / OMC ' + Number(test.omc).toFixed(2) + '%' : '—';
-    return '<tr><td><strong>' + esc(test.test_no) + '</strong></td><td>' + esc(test.sample_no) + '</td><td>' + esc(test.name_ar) + '<small>' + esc(test.code) + '</small></td><td>' + esc(test.standard) + '</td><td>' + esc(result) + '</td><td>' + statusChip(test.status) + '</td></tr>';
-  }).join('') || '<tr><td colspan="6" class="empty">لا توجد اختبارات.</td></tr>';
+    const canAssign = currentUser && ['admin','manager'].indexOf(currentUser.role) >= 0;
+    return '<tr><td><strong>' + esc(test.test_no) + '</strong></td><td>' + esc(test.sample_no) + '</td><td>' + esc(test.name_ar) + '<small>' + esc(test.code) + '</small></td><td>' + esc(test.standard) + '</td><td>' + esc(test.technician_name || 'غير مسند') + '</td><td>' + esc(result) + '</td><td>' + statusChip(test.status) + '</td><td>' + (canAssign ? '<button class="text-btn" data-test-assign="' + test.id + '" type="button">إسناد لفني</button>' : '—') + '</td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">لا توجد اختبارات.</td></tr>';
+}
+
+function renderWhatsappDrafts() {
+  const drafts = dashboard ? (dashboard.whatsapp_drafts || []) : [];
+  const canReview = currentUser && ['admin','manager'].indexOf(currentUser.role) >= 0;
+  $('whatsappDraftsTable').innerHTML = drafts.map(function(draft) {
+    const action = '<button class="text-btn" data-whatsapp-copy="' + draft.id + '" type="button">نسخ المسودة</button>' +
+      (canReview && draft.status === 'draft' ? '<button class="text-btn" data-whatsapp-ready="' + draft.id + '" type="button">اعتماد للمشاركة</button>' : '');
+    return '<tr><td>' + esc(draft.recipient_name || draft.target_name) + '</td><td>' + esc(draft.related_entity) + ' #' + esc(draft.related_id || '') + '</td><td><small>' + esc(draft.message_text) + '</small></td><td>' + statusChip(draft.status === 'ready' ? 'جاهزة للمشاركة' : 'مسودة') + '</td><td><div class="row-actions">' + action + '</div></td></tr>';
+  }).join('') || '<tr><td colspan="5" class="empty">لا توجد مسودات بعد.</td></tr>';
 }
 
 function renderCatalog() {
@@ -704,7 +716,20 @@ async function openProjectWorkspace(id) {
 
 function openWorkOrderForm(projectId) {
   const projects = dashboard ? dashboard.projects : [];
-  modal('<h2>أمر عمل جديد</h2><p>ينشئ أمراً مرتبطاً بمشروع ويضيفه إلى طابور المزامنة المركزي.</p><form id="workOrderForm"><div class="modal-grid"><label>المشروع<select name="project_id" required><option value="">— اختر المشروع —</option>' + optionList(projects,projectId,function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>عنوان أمر العمل<input name="title" required></label><label>الأولوية<select name="priority">' + optionList(PRIORITIES,'متوسطة',function(item){return item;},function(item){return item;}) + '</select></label><label>الحالة<select name="status">' + optionList(WORK_ORDER_STATUSES,'مفتوح',function(item){return item;},function(item){return item;}) + '</select></label><label>تاريخ التنفيذ<input name="scheduled_date" type="date"></label><label>تاريخ الاستحقاق<input name="due_date" type="date"></label><label>معرف المكلّف<input name="assigned_to" type="number" min="1"></label><label style="grid-column:1/-1">الوصف<textarea name="description"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ أمر العمل</button></div></form>');
+  const technicians = dashboard ? (dashboard.technicians || []) : [];
+  modal('<h2>أمر عمل جديد</h2><p>ينشئ أمراً مرتبطاً بمشروع، مع مسودة واتساب للمكلّف عند اختياره.</p><form id="workOrderForm"><div class="modal-grid"><label>المشروع<select name="project_id" required><option value="">— اختر المشروع —</option>' + optionList(projects,projectId,function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>عنوان أمر العمل<input name="title" required></label><label>الأولوية<select name="priority">' + optionList(PRIORITIES,'متوسطة',function(item){return item;},function(item){return item;}) + '</select></label><label>الحالة<select name="status">' + optionList(WORK_ORDER_STATUSES,'مفتوح',function(item){return item;},function(item){return item;}) + '</select></label><label>تاريخ التنفيذ<input name="scheduled_date" type="date"></label><label>تاريخ الاستحقاق<input name="due_date" type="date"></label><label>الفني المكلّف<select name="assigned_to"><option value="">— غير محدد —</option>' + optionList(technicians,'',function(item){return item.full_name + ' — ' + item.username;},function(item){return item.id;}) + '</select></label><label style="grid-column:1/-1">الوصف<textarea name="description"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ أمر العمل</button></div></form>');
+}
+
+function openTestAssignment(testId) {
+  const test = (dashboard ? dashboard.tests : []).find(function(item) { return item.id === Number(testId); });
+  const technicians = dashboard ? (dashboard.technicians || []) : [];
+  if (!test || !technicians.length) return showToast('أضف فنيًا فعالًا أولًا ثم أعد المحاولة',true);
+  modal('<h2>إسناد اختبار لفني</h2><p>سينشئ النظام مهمة للفني ومسودة واتساب قابلة للمراجعة.</p><form id="testAssignmentForm"><input name="test_id" type="hidden" value="' + esc(test.id) + '"><label>الاختبار<strong>' + esc(test.test_no) + ' — ' + esc(test.name_ar) + '</strong></label><label>الفني<select name="technician_id" required><option value="">— اختر الفني —</option>' + optionList(technicians,test.technician_id || '',function(item){return item.full_name + ' — ' + item.username;},function(item){return item.id;}) + '</select></label><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">إسناد وإنشاء المسودة</button></div></form>');
+}
+
+async function submitTestAssignment(form) {
+  await api('/api/tests/assign',{method:'POST',body:JSON.stringify({test_id:Number(fieldValue(form,'test_id')),technician_id:Number(fieldValue(form,'technician_id'))})});
+  closeModal(); await refresh(); showToast('تم إسناد الاختبار وإنشاء مسودة واتساب للفني');
 }
 
 async function submitWorkOrder(form) {
@@ -984,6 +1009,19 @@ function bindEvents() {
     if (button.dataset.fieldStatus) return setFieldStatus(button.dataset.fieldStatus);
     if (button.dataset.reportPrint) return printReport(button.dataset.reportPrint);
     if (button.dataset.reportReview) return changeReportStatus(button.dataset.reportReview);
+    if (button.dataset.testAssign) return openTestAssignment(button.dataset.testAssign);
+    if (button.dataset.whatsappCopy) {
+      const draft = (dashboard.whatsapp_drafts || []).find(function(item) { return item.id === Number(button.dataset.whatsappCopy); });
+      if (!draft) return;
+      try { await navigator.clipboard.writeText(draft.message_text); showToast('تم نسخ المسودة؛ الصقها في مجتمع مختبر أساس بعد المراجعة'); }
+      catch (error) { showToast('تعذر النسخ التلقائي؛ افتح المسودة وانسخ النص يدويًا',true); }
+      return;
+    }
+    if (button.dataset.whatsappReady) {
+      try { await api('/api/whatsapp/drafts/' + Number(button.dataset.whatsappReady) + '/ready',{method:'POST',body:'{}'}); await refresh(); showToast('المسودة جاهزة للمشاركة اليدوية في مجتمع واتساب'); }
+      catch (error) { showToast(error.message,true); }
+      return;
+    }
     if (button.dataset.userEdit) {
       const users = JSON.parse($('usersTable').dataset.users || '[]'); const user = users.find(function(item) { return item.id === Number(button.dataset.userEdit); }); if (user) openUserForm(user);
     }
@@ -999,6 +1037,7 @@ function bindEvents() {
       if (form.id === 'sampleForm') await submitSimple(form,'/api/samples');
       if (form.id === 'equipmentForm') await submitSimple(form,'/api/equipment');
       if (form.id === 'testForm') await submitTest(form);
+      if (form.id === 'testAssignmentForm') await submitTestAssignment(form);
       if (form.id === 'userForm') await submitSimple(form,form.elements.id.value ? '/api/users/update' : '/api/users/create');
       if (form.id === 'baladyForm') saveBaladyData(form);
     } catch (error) {

@@ -226,6 +226,15 @@ def twilio_verify_request(endpoint, fields):
         return json.loads(response.read())
 
 
+def create_whatsapp_draft(connection, created_by, related_entity, related_id, message, recipient_user_id=None):
+    """Store a reviewable message draft; no WhatsApp transport is invoked here."""
+    connection.execute(
+        '''insert into whatsapp_drafts(recipient_user_id,related_entity,related_id,message_text,created_by)
+           values(?,?,?,?,?)''',
+        (recipient_user_id, related_entity, related_id, message.strip(), created_by)
+    )
+
+
 def publish_event(entity, operation, entity_id):
     """Notify connected same-origin sessions without transmitting record data."""
     event = {'entity': entity, 'operation': operation, 'id': entity_id}
@@ -376,7 +385,7 @@ class H(BaseHTTPRequestHandler):
         '''
         return [dict(row) for row in connection.execute(query).fetchall()]
 
-    def dashboard(self, connection):
+    def dashboard(self, connection, user):
         projects = self.project_rows(connection)
         q = lambda sql, params=(): [dict(row) for row in connection.execute(sql, params).fetchall()]
         work_orders = q('''
@@ -409,13 +418,19 @@ class H(BaseHTTPRequestHandler):
                     (select count(*) from tests t where t.sample_id=s.id and t.status='مخطط') planned_tests_count
                 from samples s left join projects p on p.id=s.project_id order by s.id desc
             '''),
-            'tests': q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,pr.mdd,pr.omc from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id order by t.id desc'),
+            'tests': q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,pr.mdd,pr.omc,u.full_name technician_name from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id left join users u on u.id=t.technician_id order by t.id desc'),
             'reports': q('select r.*,t.test_no,tc.name_ar,s.sample_no from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id order by r.id desc'),
             'equipment': q('select * from equipment order by id desc'),
             'audit': q('select a.*,u.full_name from audit_log a left join users u on u.id=a.user_id order by a.id desc limit 150'),
             'activity': q('select created_at,action,details from audit_log order by id desc limit 15'),
             'alerts': alerts,
-            'sync': q("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue where status='queued' order by id desc limit 30")
+            'sync': q("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue where status='queued' order by id desc limit 30"),
+            'technicians': q("select id,full_name,username from users where active=1 and role in ('technician','field') order by full_name"),
+            'whatsapp_drafts': q('''select d.*,u.full_name recipient_name from whatsapp_drafts d
+                left join users u on u.id=d.recipient_user_id ''' + (
+                    "order by d.id desc limit 100" if user.get('role') in {'admin', 'manager'}
+                    else "where d.recipient_user_id=%d order by d.id desc limit 100" % int(user['id'])
+                ))
         }
 
     def project_workspace(self, connection, project_id):
@@ -469,13 +484,25 @@ class H(BaseHTTPRequestHandler):
                 rows = connection.execute('select id,username,full_name,role,phone,active,created_at from users order by id desc').fetchall()
                 return self.send_json([dict(row) for row in rows])
 
+            if path == '/api/whatsapp/drafts':
+                if not self.require_permission(user, 'dashboard'):
+                    return
+                if user.get('role') in {'admin', 'manager'}:
+                    rows = connection.execute('''select d.*,u.full_name recipient_name from whatsapp_drafts d
+                        left join users u on u.id=d.recipient_user_id order by d.id desc limit 100''').fetchall()
+                else:
+                    rows = connection.execute('''select d.*,u.full_name recipient_name from whatsapp_drafts d
+                        left join users u on u.id=d.recipient_user_id
+                        where d.recipient_user_id=? order by d.id desc limit 100''', (user['id'],)).fetchall()
+                return self.send_json([dict(row) for row in rows])
+
             if path == '/api/catalog':
                 return self.send_json([dict(row) for row in connection.execute('select * from test_catalog where active=1 order by category,name_ar').fetchall()])
 
             if path == '/api/dashboard':
                 if not self.require_permission(user, 'dashboard'):
                     return
-                return self.send_json(self.dashboard(connection))
+                return self.send_json(self.dashboard(connection, user))
 
             if path == '/api/projects':
                 if not self.require_permission(user, 'projects'):
@@ -700,6 +727,43 @@ class H(BaseHTTPRequestHandler):
                 publish_event('user', 'update', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id, 'sync': 'queued'})
 
+            if path.startswith('/api/whatsapp/drafts/') and path.endswith('/ready'):
+                if not require_role(user, {'manager'}):
+                    return self.send_json({'error': 'مراجعة مسودات واتساب للمدير فقط'}, 403)
+                draft_id = int(path.split('/')[4])
+                updated = connection.execute(
+                    "update whatsapp_drafts set status='ready',reviewed_at=CURRENT_TIMESTAMP where id=? and status='draft'", (draft_id,)
+                ).rowcount
+                if not updated:
+                    return self.send_json({'error': 'المسودة غير موجودة أو تمت مراجعتها'}, 404)
+                audit(connection, user['id'], 'مراجعة مسودة واتساب', 'whatsapp_draft', draft_id, 'Ready for manual send')
+                connection.commit()
+                publish_event('whatsapp_draft', 'ready', draft_id)
+                return self.send_json({'ok': True, 'id': draft_id})
+
+            if path == '/api/tests/assign':
+                if not require_role(user, {'manager'}):
+                    return self.send_json({'error': 'إسناد الاختبار للمدير فقط'}, 403)
+                test_id = int(data.get('test_id'))
+                technician_id = int(data.get('technician_id'))
+                test = connection.execute('''select t.*,s.sample_no,tc.code,tc.name_ar
+                    from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id where t.id=?''', (test_id,)).fetchone()
+                technician = connection.execute("select id,full_name,role from users where id=? and active=1 and role in ('technician','field')", (technician_id,)).fetchone()
+                if not test or not technician:
+                    return self.send_json({'error': 'الاختبار أو الفني غير موجود'}, 404)
+                connection.execute("update tests set technician_id=?,status='مسند' where id=?", (technician_id, test_id))
+                message = ('🔬 تكليف اختبار — مختبر أساس\n'
+                    'الفني: {name}\nالعينة: {sample}\nالاختبار: {test_name} ({code})\n'
+                    'رقم الاختبار: {test_no}\nيرجى تنفيذ الاختبار وتسجيل النتيجة في النظام.').format(
+                        name=technician['full_name'], sample=test['sample_no'], test_name=test['name_ar'],
+                        code=test['code'], test_no=test['test_no'])
+                create_whatsapp_draft(connection, user['id'], 'test_assignment', test_id, message, technician_id)
+                queue_sync(connection, 'test', test_id, 'assign', {'technician_id': technician_id, 'status': 'مسند'})
+                audit(connection, user['id'], 'إسناد اختبار لفني', 'test', test_id, test['test_no'] + ' → ' + technician['full_name'])
+                connection.commit()
+                publish_event('test', 'assign', test_id)
+                return self.send_json({'ok': True, 'id': test_id})
+
             if path == '/api/projects':
                 if not self.require_permission(user, 'projects'):
                     return
@@ -800,6 +864,13 @@ class H(BaseHTTPRequestHandler):
                 ))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 queue_sync(connection, 'work_order', entity_id, 'create', {'order_no': order_no, 'project_id': project_id, 'title': title, 'status': status})
+                assignee = connection.execute('select full_name from users where id=?', (parse_optional_int(data.get('assigned_to')),)).fetchone()
+                create_whatsapp_draft(
+                    connection, user['id'], 'work_order', entity_id,
+                    '📋 أمر عمل جديد — مختبر أساس\nرقم: {no}\nالعنوان: {title}\nالحالة: {status}\nالمكلّف: {assignee}\nيرجى متابعة الأمر من النظام.'.format(
+                        no=order_no, title=title, status=status, assignee=assignee['full_name'] if assignee else 'غير محدد'
+                    ), parse_optional_int(data.get('assigned_to'))
+                )
                 audit(connection, user['id'], 'إضافة أمر عمل', 'work_order', entity_id, order_no + ' - ' + title)
                 connection.commit()
                 return self.send_json({'ok': True, 'id': entity_id, 'order_no': order_no})
@@ -843,6 +914,9 @@ class H(BaseHTTPRequestHandler):
                 ))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 queue_sync(connection, 'field_visit', entity_id, 'create', {'license_no': license_no, 'status': status})
+                create_whatsapp_draft(connection, user['id'], 'field_visit', entity_id,
+                    '📍 زيارة ميدانية جديدة — مختبر أساس\nالرخصة: {license}\nالموقع: {location}\nالحالة: {status}\nتم إنشاء مسودة للتواصل الداخلي.'.format(
+                        license=license_no, location=data.get('location') or 'غير محدد', status=status))
                 audit(connection, user['id'], 'إضافة زيارة ميدانية', 'field_visit', entity_id, license_no)
                 connection.commit()
                 return self.send_json({'ok': True, 'id': entity_id})
@@ -876,8 +950,14 @@ class H(BaseHTTPRequestHandler):
                     connection.execute('''
                         insert into tests(test_no,sample_id,catalog_id,status,technician_id)
                         values(?,?,?,?,?)
-                    ''', (test_no, entity_id, catalog_item['id'], 'مخطط', user['id']))
+                    ''', (test_no, entity_id, catalog_item['id'], 'مخطط', None))
                 queue_sync(connection, 'sample', entity_id, 'create', {'sample_no': sample_no, 'project_id': data.get('project_id')})
+                create_whatsapp_draft(
+                    connection, user['id'], 'sample', entity_id,
+                    '🧪 عينة جديدة — مختبر أساس\nالعينة: {sample}\nالمادة: {material}\nخطة الاختبارات الرسمية: {count} اختباراً\nتم إنشاء المسودة للمراجعة قبل النشر في مجتمع الشركة.'.format(
+                        sample=sample_no, material=material, count=len(planned)
+                    )
+                )
                 audit(connection, user['id'], 'إضافة عينة وخطة اختبارات تلقائية', 'sample', entity_id, sample_no + ' (' + str(len(planned)) + ' اختباراً)')
                 connection.commit()
                 return self.send_json({'ok': True, 'id': entity_id, 'planned_count': len(planned)})
@@ -932,6 +1012,8 @@ class H(BaseHTTPRequestHandler):
                 report_no = nextno(connection, 'AST-R-', 'reports')
                 connection.execute('insert into reports(report_no,test_id,status) values(?,?,?)', (report_no, test_id, 'مسودة'))
                 queue_sync(connection, 'test', test_id, 'create', {'test_no': test_no, 'catalog': catalog['code']})
+                create_whatsapp_draft(connection, user['id'], 'test', test_id,
+                    '🔬 تم تسجيل نتيجة اختبار كمسودة — مختبر أساس\nرقم الاختبار: {no}\nالاختبار: {name}\nالتقرير: {report}\nلا تُنشر النتائج خارج النظام قبل الاعتماد.'.format(no=test_no, name=catalog['name_ar'], report=report_no))
                 audit(connection, user['id'], 'إضافة اختبار', 'test', test_id, test_no + ' - ' + catalog['name_ar'])
                 connection.commit()
                 return self.send_json({'ok': True, 'test_id': test_id, 'report_no': report_no})
@@ -951,6 +1033,9 @@ class H(BaseHTTPRequestHandler):
                     connection.execute('update reports set status=?,approved_by=?,issued_at=CURRENT_TIMESTAMP where id=?', (status, user['id'], report_id))
                 else:
                     connection.execute('update reports set status=? where id=?', (status, report_id))
+                report = connection.execute('select report_no from reports where id=?', (report_id,)).fetchone()
+                create_whatsapp_draft(connection, user['id'], 'report', report_id,
+                    '📄 تحديث تقرير — مختبر أساس\nرقم التقرير: {no}\nالحالة: {status}\nهذه مسودة للمراجعة قبل مشاركتها في مجتمع الشركة.'.format(no=report['report_no'], status=status))
                 audit(connection, user['id'], 'تغيير حالة تقرير', 'report', report_id, status)
                 connection.commit()
                 return self.send_json({'ok': True})
@@ -985,6 +1070,8 @@ class H(BaseHTTPRequestHandler):
         report_no = nextno(connection, 'AST-R-', 'reports')
         connection.execute('insert into reports(report_no,test_id,status) values(?,?,?)', (report_no, test_id, 'مسودة'))
         queue_sync(connection, 'test', test_id, 'create', {'test_no': test_no, 'catalog': data.get('standard_code')})
+        create_whatsapp_draft(connection, user['id'], 'test', test_id,
+            '🔬 تم تسجيل اختبار بروكتور كمسودة — مختبر أساس\nرقم الاختبار: {no}\nالتقرير: {report}\nلا تُنشر النتائج خارج النظام قبل الاعتماد.'.format(no=test_no, report=report_no))
         audit(connection, user['id'], 'إضافة اختبار', 'test', test_id, test_no + ' - ' + data.get('standard_code'))
         connection.commit()
         return self.send_json({'ok': True, 'test_id': test_id, 'report_no': report_no})

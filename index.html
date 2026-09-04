@@ -65,6 +65,7 @@
         <button class="nav-link" data-page="tests">الاختبارات</button>
         <button class="nav-link" data-page="catalog">دليل الاختبارات</button>
         <button class="nav-link" data-page="reports">التقارير</button>
+        <button class="nav-link" data-page="whatsapp">مسودات واتساب</button>
         <button class="nav-link" data-page="equipment">الأجهزة والمعايرة</button>
         <button class="nav-link" data-page="company">عن مختبر أساس</button>
         <button class="nav-link" data-page="audit">سجل التدقيق</button>
@@ -206,7 +207,7 @@
 
       <section id="tests" class="page">
         <div class="page-heading"><div><h2>الاختبارات</h2></div><button id="openTest" class="btn primary" type="button">+ اختبار</button></div>
-        <div class="panel table-panel"><table><thead><tr><th>رقم الاختبار</th><th>العينة</th><th>الاختبار</th><th>المعيار</th><th>النتيجة</th><th>الحالة</th></tr></thead><tbody id="testsTable"></tbody></table></div>
+        <div class="panel table-panel"><table><thead><tr><th>رقم الاختبار</th><th>العينة</th><th>الاختبار</th><th>المعيار</th><th>الفني</th><th>النتيجة</th><th>الحالة</th><th></th></tr></thead><tbody id="testsTable"></tbody></table></div>
       </section>
 
       <section id="catalog" class="page">
@@ -222,6 +223,14 @@
       <section id="equipment" class="page">
         <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2></div><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div>
         <div class="panel table-panel"><table><thead><tr><th>الجهاز</th><th>الرقم التسلسلي</th><th>آخر معايرة</th><th>القادمة</th><th>الشهادة</th><th>الحالة</th></tr></thead><tbody id="equipmentTable"></tbody></table></div>
+      </section>
+
+      <section id="whatsapp" class="page">
+        <div class="page-heading"><div><h2>مسودات مجتمع واتساب</h2><p>تُنشأ تلقائيًا من العمليات المهمة. راجعها ثم انسخها وانشرها يدويًا في مجتمع مختبر أساس.</p></div></div>
+        <article class="panel">
+          <p class="form-note">لا يرسل النظام إلى أي مجموعة أو مجتمع تلقائيًا؛ الإرسال النهائي يتطلب مراجعة المسؤول والالتزام بسياسات WhatsApp Business.</p>
+          <div class="table-panel"><table><thead><tr><th>الوجهة</th><th>المرجع</th><th>المسودة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="whatsappDraftsTable"></tbody></table></div>
+        </article>
       </section>
 
       <section id="company" class="page">

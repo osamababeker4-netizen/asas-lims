@@ -212,6 +212,24 @@ CREATE TABLE IF NOT EXISTS sync_queue(
  sent_at TEXT
 );
 
+-- Draft-only WhatsApp outbox.  The application never posts to a group or
+-- community automatically: a company administrator reviews and sends each
+-- draft through the official WhatsApp Business channel.
+CREATE TABLE IF NOT EXISTS whatsapp_drafts(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ recipient_user_id INTEGER,
+ related_entity TEXT NOT NULL,
+ related_id INTEGER,
+ target_name TEXT NOT NULL DEFAULT 'مجتمع مختبر أساس',
+ message_text TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'draft',
+ created_by INTEGER,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ reviewed_at TEXT,
+ FOREIGN KEY(recipient_user_id) REFERENCES users(id),
+ FOREIGN KEY(created_by) REFERENCES users(id)
+);
+
 CREATE TABLE IF NOT EXISTS field_visits(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  license_no TEXT NOT NULL,
@@ -255,6 +273,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_field_license ON field_visits(license_no);
 CREATE INDEX IF NOT EXISTS idx_field_created ON field_visits(created_at);
 CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_drafts_status ON whatsapp_drafts(status, created_at);
 
 INSERT OR IGNORE INTO settings(key,value) VALUES('lab_name','مختبر أساس');
 
