@@ -226,6 +226,16 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(response.getheader('Access-Control-Allow-Credentials'), 'true')
             response.read()
             connection.close()
+
+            connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            body = json.dumps({'username': 'admin', 'otp': '123456'}).encode('utf-8')
+            connection.request('POST', '/api/auth/verify', body, {'Origin': origin, 'Content-Type': 'application/json'})
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.getheader('Access-Control-Allow-Origin'), origin)
+            self.assertIsNotNone(response.getheader('Set-Cookie'))
+            response.read()
+            connection.close()
         finally:
             httpd.shutdown()
             httpd.server_close()

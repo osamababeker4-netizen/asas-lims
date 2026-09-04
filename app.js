@@ -48,6 +48,7 @@ let toastTimer = null;
 let refreshInFlight = null;
 let realtimeTimer = null;
 let userUpdatesChannel = null;
+let eventStream = null;
 const AUTH_ERRORS = {
   invalid_credentials:'اسم المستخدم أو كلمة المرور غير صحيحة.',
   phone_not_configured:'لا يوجد رقم جوال دولي مفعّل لهذا الحساب. تواصل مع مدير النظام.',
@@ -482,6 +483,8 @@ function publishLiveUpdate(entity) {
 function stopLiveUpdates() {
   if (realtimeTimer) clearInterval(realtimeTimer);
   realtimeTimer = null;
+  if (eventStream) eventStream.close();
+  eventStream = null;
   if (userUpdatesChannel) userUpdatesChannel.close();
   userUpdatesChannel = null;
 }
@@ -494,6 +497,16 @@ function startLiveUpdates() {
     userUpdatesChannel.onmessage = function() {
       if (currentUser) refresh().catch(function() {});
     };
+  }
+  // EventSource is enabled only for the same Render origin. It uses the
+  // HttpOnly session cookie, never exposes an access token in a URL, and
+  // causes every connected device to refresh immediately after user changes.
+  if (!API_BASE_URL || new URL(API_BASE_URL || location.origin, location.origin).origin === location.origin) {
+    eventStream = new EventSource((API_BASE_URL || '') + '/api/events');
+    eventStream.onmessage = function() {
+      if (currentUser) refresh().catch(function() {});
+    };
+    eventStream.onerror = function() { /* EventSource reconnects automatically. */ };
   }
   // Same-browser updates are immediate. The short visible-page refresh keeps
   // separate devices aligned with the central service without sending secrets.

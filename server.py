@@ -5,8 +5,10 @@ import hashlib
 import hmac
 import json
 import os
+import queue
 import secrets
 import sqlite3
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -21,6 +23,8 @@ ALLOWED_ORIGIN = os.environ.get('LIMS_ALLOWED_ORIGIN', '').rstrip('/')
 SESSIONS = {}
 OTP_REQUESTS = {}
 OTP_RESEND_SECONDS = 60
+EVENT_SUBSCRIBERS = set()
+EVENT_SUBSCRIBERS_LOCK = threading.Lock()
 
 PROJECT_STATUSES = {'مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل', 'مفتوح'}
 WORK_ORDER_STATUSES = {'مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'}
@@ -222,6 +226,19 @@ def twilio_verify_request(endpoint, fields):
         return json.loads(response.read())
 
 
+def publish_event(entity, operation, entity_id):
+    """Notify connected same-origin sessions without transmitting record data."""
+    event = {'entity': entity, 'operation': operation, 'id': entity_id}
+    with EVENT_SUBSCRIBERS_LOCK:
+        subscribers = list(EVENT_SUBSCRIBERS)
+    for subscriber in subscribers:
+        try:
+            subscriber.put_nowait(event)
+        except queue.Full:
+            # A slow browser will receive the next update or use its normal refresh.
+            pass
+
+
 def start_otp_challenge(connection, login_id, password, channel='sms'):
     """Validate the first factor, then request a time-limited OTP challenge."""
     if channel not in ('sms', 'call', 'whatsapp'):
@@ -269,13 +286,15 @@ class H(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Credentials', 'true')
             self.send_header('Vary', 'Origin')
 
-    def send_json(self, data, code=200):
+    def send_json(self, data, code=200, extra_headers=None):
         body = json.dumps(data, ensure_ascii=False).encode('utf-8')
         self.send_response(code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_cors_headers()
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -314,6 +333,34 @@ class H(BaseHTTPRequestHandler):
             self.send_json({'error': 'ليس لديك الصلاحية المطلوبة'}, 403)
             return False
         return True
+
+    def stream_events(self):
+        subscriber = queue.Queue(maxsize=20)
+        with EVENT_SUBSCRIBERS_LOCK:
+            EVENT_SUBSCRIBERS.add(subscriber)
+        try:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Connection', 'keep-alive')
+            self.send_header('X-Accel-Buffering', 'no')
+            self.end_headers()
+            self.wfile.write(b'retry: 5000\n\n')
+            self.wfile.flush()
+            # Reconnect after a bounded interval to avoid holding a worker forever.
+            for _ in range(3):
+                try:
+                    event = subscriber.get(timeout=20)
+                    message = 'data: ' + json.dumps(event, ensure_ascii=False) + '\n\n'
+                except queue.Empty:
+                    message = ': keepalive\n\n'
+                self.wfile.write(message.encode('utf-8'))
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            with EVENT_SUBSCRIBERS_LOCK:
+                EVENT_SUBSCRIBERS.discard(subscriber)
 
     def project_rows(self, connection):
         query = '''
@@ -408,6 +455,11 @@ class H(BaseHTTPRequestHandler):
 
         connection = db()
         try:
+            if path == '/api/events':
+                if not self.require_permission(user, 'dashboard'):
+                    return
+                return self.stream_events()
+
             if path == '/api/users':
                 if not self.require_permission(user, 'users'):
                     return
@@ -558,7 +610,10 @@ class H(BaseHTTPRequestHandler):
             audit(connection, user['id'], 'OTP_VERIFIED', 'user', user['id'], 'Twilio Verify approved')
             connection.commit()
             connection.close()
-            return self.send_json({'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}})
+            return self.send_json(
+                {'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}},
+                extra_headers={'Set-Cookie': 'LIMS_SESSION=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict'}
+            )
 
         if path == '/api/login':
             return self.send_json({'error': 'استخدم /api/auth/login لبدء التحقق برمز OTP'}, 410)
@@ -607,6 +662,7 @@ class H(BaseHTTPRequestHandler):
                     'phone': phone, 'active': True
                 })
                 connection.commit()
+                publish_event('user', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id, 'sync': 'queued'})
 
             if path == '/api/users/update':
@@ -638,6 +694,7 @@ class H(BaseHTTPRequestHandler):
                     'role': role, 'phone': phone, 'active': bool(active)
                 })
                 connection.commit()
+                publish_event('user', 'update', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id, 'sync': 'queued'})
 
             if path == '/api/projects':
