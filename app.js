@@ -45,6 +45,9 @@ let fieldTests = [];
 let fieldLat = null;
 let fieldLng = null;
 let toastTimer = null;
+let refreshInFlight = null;
+let realtimeTimer = null;
+let userUpdatesChannel = null;
 const AUTH_ERRORS = {
   invalid_credentials:'اسم المستخدم أو كلمة المرور غير صحيحة.',
   phone_not_configured:'لا يوجد رقم جوال دولي مفعّل لهذا الحساب. تواصل مع مدير النظام.',
@@ -273,7 +276,7 @@ function staticApi(path, options) {
     const password = String(body.password || '');
     if (!username || !String(body.full_name || '').trim() || password.length < 12) throw new Error('أكمل بيانات المستخدم واجعل كلمة المرور 12 حرفاً على الأقل');
     if (data.users.some(function(item) { return item.username === username; })) throw new Error('اسم المستخدم مستخدم بالفعل');
-    const id = localId(data.users); data.users.push({id:id,username:username,password:password,full_name:String(body.full_name).trim(),role:body.role || 'technician',phone:String(body.phone || '').trim(),active:1,created_at:new Date().toLocaleString('ar-SA')}); localAudit(data,'إضافة مستخدم','user',username); saveLocal(data); return {ok:true,id:id};
+    const id = localId(data.users); data.users.push({id:id,username:username,password:password,full_name:String(body.full_name).trim(),role:body.role || 'technician',phone:String(body.phone || '').trim(),active:1,created_at:new Date().toLocaleString('ar-SA')}); localQueue(data,'user',id,'create'); localAudit(data,'إضافة مستخدم','user',username); saveLocal(data); return {ok:true,id:id,sync:'queued'};
   }
   if (path === '/api/users/update') {
     const user = data.users.find(function(item) { return item.id === Number(body.id); }); if (!user) throw new Error('المستخدم غير موجود');
@@ -282,7 +285,7 @@ function staticApi(path, options) {
     if (password && password.length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
     user.full_name = String(body.full_name).trim(); user.role = body.role || user.role; user.phone = String(body.phone || '').trim(); user.active = body.active ? 1 : 0;
     if (password) user.password = password;
-    localAudit(data,'تعديل مستخدم','user',user.username); saveLocal(data); return {ok:true};
+    localQueue(data,'user',user.id,'update'); localAudit(data,'تعديل مستخدم','user',user.username); saveLocal(data); return {ok:true,id:user.id,sync:'queued'};
   }
   throw new Error('المسار غير مدعوم في العرض الثابت');
 }
@@ -413,10 +416,11 @@ async function completeLogin(result) {
   $('app').classList.remove('hidden');
   $('currentUser').textContent = result.user.full_name + ' — ' + (ROLE_NAMES[result.user.role] || result.user.role);
   $('usersNav').classList.toggle('hidden', result.user.role !== 'admin');
-  await loadCatalog(); await refresh(); navigate('dashboard');
+  await loadCatalog(); await refresh(); startLiveUpdates(); navigate('dashboard');
 }
 
 async function logout() {
+  stopLiveUpdates();
   try { await api('/api/logout', {method:'POST'}); } catch (error) {}
   centralAccessToken = ''; sessionStorage.removeItem('asas_lims_access_token'); location.reload();
 }
@@ -454,17 +458,48 @@ async function loadCatalog() {
 }
 
 async function refresh() {
-  dashboard = await api('/api/dashboard');
-  renderDashboard();
-  renderProjects();
-  renderWorkOrders();
-  renderClients();
-  renderSamples();
-  renderTests();
-  renderReports();
-  renderEquipment();
-  renderAudit();
-  if (currentUser && currentUser.role === 'admin') await renderUsers();
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async function() {
+    dashboard = await api('/api/dashboard');
+    renderDashboard();
+    renderProjects();
+    renderWorkOrders();
+    renderClients();
+    renderSamples();
+    renderTests();
+    renderReports();
+    renderEquipment();
+    renderAudit();
+    if (currentUser && currentUser.role === 'admin') await renderUsers();
+  })();
+  try { return await refreshInFlight; } finally { refreshInFlight = null; }
+}
+
+function publishLiveUpdate(entity) {
+  if (userUpdatesChannel) userUpdatesChannel.postMessage({entity:entity,at:Date.now()});
+}
+
+function stopLiveUpdates() {
+  if (realtimeTimer) clearInterval(realtimeTimer);
+  realtimeTimer = null;
+  if (userUpdatesChannel) userUpdatesChannel.close();
+  userUpdatesChannel = null;
+}
+
+function startLiveUpdates() {
+  stopLiveUpdates();
+  if (STATIC_MODE) return;
+  if ('BroadcastChannel' in window) {
+    userUpdatesChannel = new BroadcastChannel('asas-lims-central-updates');
+    userUpdatesChannel.onmessage = function() {
+      if (currentUser) refresh().catch(function() {});
+    };
+  }
+  // Same-browser updates are immediate. The short visible-page refresh keeps
+  // separate devices aligned with the central service without sending secrets.
+  realtimeTimer = setInterval(function() {
+    if (currentUser && !document.hidden) refresh().catch(function() {});
+  }, 12000);
 }
 
 function renderDashboard() {
@@ -475,7 +510,8 @@ function renderDashboard() {
   $('metricReports').textContent = dashboard.counts.reports || 0;
   $('metricReview').textContent = (dashboard.alerts.awaiting_review || []).length;
   $('metricSync').textContent = (dashboard.counts.sync_queue || 0);
-  $('syncIndicator').textContent = 'المزامنة: ' + (dashboard.counts.sync_queue || 0) + ' عملية بانتظار الربط المركزي';
+  const pending = dashboard.counts.sync_queue || 0;
+  $('syncIndicator').textContent = 'المزامنة المباشرة: متصلة' + (pending ? ' · ' + pending + ' عملية مسجلة' : '');
   const priorities = [];
   (dashboard.alerts.overdue_work_orders || []).forEach(function(item) { priorities.push('<div class="priority-item overdue"><strong>أمر متأخر: ' + esc(item.order_no) + ' — ' + esc(item.title) + '</strong><small>' + esc(item.project_code) + ' · استحقاق ' + esc(item.due_date) + '</small></div>'); });
   (dashboard.alerts.blocked_projects || []).forEach(function(item) { priorities.push('<div class="priority-item blocked"><strong>مشروع متوقف: ' + esc(item.code) + ' — ' + esc(item.name) + '</strong><small>الأولوية ' + esc(item.priority) + (item.due_date ? ' · الاستحقاق ' + esc(item.due_date) : '') + '</small></div>'); });
@@ -718,7 +754,7 @@ async function submitTest(form) {
 
 function openUserForm(user) {
   const value = user || {};
-  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال الدولي<input name="phone" inputmode="tel" placeholder="+9665XXXXXXXX" value="' + esc(value.phone || '') + '"></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور ' + (user ? '(اتركها فارغة للإبقاء)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">لتحقق SMS أدخل رقم الجوال الدولي، وكلمة المرور لا تقل عن 12 حرفاً.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ المستخدم</button></div></form>');
+  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><p>يُحفظ التغيير في الخادم المركزي فورًا ويظهر للمستخدمين المتصلين.</p><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال الدولي<input class="phone-input" name="phone" dir="ltr" inputmode="tel" autocomplete="tel" placeholder="+9665XXXXXXXX" value="' + esc(value.phone || '') + '"></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور ' + (user ? '(اتركها فارغة للإبقاء)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">جاهز للحفظ والمزامنة الفورية. رقم الجوال اختياري، وإذا أُدخل يجب أن يكون دوليًا.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button id="saveUserButton" class="btn primary" type="submit">حفظ ومزامنة المستخدم</button></div></form>');
 }
 
 async function submitSimple(form, path) {
@@ -730,9 +766,25 @@ async function submitSimple(form, path) {
     if (!data.id && String(data.password || '').length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
     if (data.id && data.password && String(data.password).length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
   }
-  const result = await api(path,{method:'POST',body:JSON.stringify(data)});
+  const isUserSave = path.indexOf('/api/users/') === 0;
+  const saveButton = isUserSave ? form.querySelector('#saveUserButton') : null;
+  const formMessage = isUserSave ? form.querySelector('#userFormMessage') : null;
+  if (saveButton) { saveButton.disabled = true; saveButton.textContent = 'جارٍ الحفظ والمزامنة…'; }
+  if (formMessage) formMessage.textContent = 'جارٍ حفظ التغيير في الخادم المركزي…';
+  let result;
+  try {
+    result = await api(path,{method:'POST',body:JSON.stringify(data)});
+  } finally {
+    if (saveButton) { saveButton.disabled = false; saveButton.textContent = 'حفظ ومزامنة المستخدم'; }
+  }
   closeModal(); await refresh();
-  showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ');
+  if (isUserSave) {
+    publishLiveUpdate('users');
+    showToast(data.id ? 'تم تعديل المستخدم ومزامنته فورًا' : 'تمت إضافة المستخدم وتفعيله ومزامنته فورًا');
+    return;
+  }
+  publishLiveUpdate('operations');
+  showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ والمزامنة');
 }
 
 async function changeProjectStatus(id, status) {
@@ -935,6 +987,12 @@ function bindEvents() {
 
 function init() {
   bindEvents();
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden && currentUser) refresh().catch(function() {});
+  });
+  window.addEventListener('online', function() {
+    if (currentUser) refresh().catch(function() {});
+  });
   if (STATIC_MODE && !localDB().users.length) $('staticSetup').classList.remove('hidden');
 }
 

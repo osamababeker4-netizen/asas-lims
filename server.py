@@ -600,8 +600,14 @@ class H(BaseHTTPRequestHandler):
                 connection.execute('insert into users(username,password_hash,full_name,role,phone,active) values(?,?,?,?,?,1)', (username, hp(password), full_name, role, phone))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 audit(connection, user['id'], 'إضافة مستخدم', 'user', entity_id, username)
+                # Do not enqueue passwords or their hashes: the queue contains only
+                # the account metadata needed by an authorized sync consumer.
+                queue_sync(connection, 'user', entity_id, 'create', {
+                    'username': username, 'full_name': full_name, 'role': role,
+                    'phone': phone, 'active': True
+                })
                 connection.commit()
-                return self.send_json({'ok': True, 'id': entity_id})
+                return self.send_json({'ok': True, 'id': entity_id, 'sync': 'queued'})
 
             if path == '/api/users/update':
                 if not self.require_permission(user, 'users'):
@@ -626,8 +632,13 @@ class H(BaseHTTPRequestHandler):
                 if password:
                     connection.execute('update users set password_hash=? where id=?', (hp(password), entity_id))
                 audit(connection, user['id'], 'تعديل مستخدم', 'user', entity_id, target['username'])
+                queue_sync(connection, 'user', entity_id, 'update', {
+                    'username': target['username'],
+                    'full_name': str(data.get('full_name', target['full_name'])).strip(),
+                    'role': role, 'phone': phone, 'active': bool(active)
+                })
                 connection.commit()
-                return self.send_json({'ok': True})
+                return self.send_json({'ok': True, 'id': entity_id, 'sync': 'queued'})
 
             if path == '/api/projects':
                 if not self.require_permission(user, 'projects'):

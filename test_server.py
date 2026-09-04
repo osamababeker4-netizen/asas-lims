@@ -181,6 +181,11 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(saved['full_name'], 'مستخدم مختبر محدّث')
             self.assertEqual(saved['role'], 'manager')
             self.assertEqual(saved['active'], 1)
+            connection = self.server.db()
+            user_sync = connection.execute("select entity,entity_id,operation,payload_json from sync_queue where entity='user' order by id").fetchall()
+            connection.close()
+            self.assertEqual([(row['entity'], row['entity_id'], row['operation']) for row in user_sync], [('user', created['id'], 'create'), ('user', created['id'], 'update')])
+            self.assertNotIn('password', user_sync[-1]['payload_json'].lower())
         finally:
             httpd.shutdown()
             httpd.server_close()
