@@ -40,6 +40,25 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIsNotNone(admin)
         self.assertIn(':', admin['password_hash'])
 
+    def test_pwa_assets_are_served_by_the_central_service(self):
+        self.server.init()
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        try:
+            for path, marker in (('/sw.js', 'CACHE_NAME'), ('/manifest.webmanifest', 'أساس LIMS'), ('/runtime-config.js', 'LIMS_API_BASE_URL')):
+                client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+                client.request('GET', path)
+                response = client.getresponse()
+                body = response.read().decode('utf-8')
+                client.close()
+                self.assertEqual(response.status, 200)
+                self.assertIn(marker, body)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(timeout=5)
+
     def test_migrates_a_legacy_projects_table_without_dropping_it(self):
         connection = sqlite3.connect(self.db_path)
         connection.execute("create table projects(id integer primary key, code text unique not null, name text not null, client_id integer, location text, status text not null default 'مفتوح', created_at text)")

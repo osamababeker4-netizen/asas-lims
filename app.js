@@ -299,6 +299,18 @@ async function api(path, options) {
   const response = await fetch(API_BASE_URL + path, Object.assign({}, opts, {credentials:'include', headers:headers}));
   let payload = {};
   try { payload = await response.json(); } catch (error) { throw new Error('استجابة غير صالحة من الخادم'); }
+  if (response.status === 401 && currentUser) {
+    stopLiveUpdates();
+    centralAccessToken = '';
+    sessionStorage.removeItem('asas_lims_access_token');
+    currentUser = null;
+    $('app').classList.add('hidden');
+    $('login').classList.remove('hidden');
+    $('loginForm').classList.remove('hidden');
+    $('otpForm').classList.add('hidden');
+    $('loginPassword').value = '';
+    $('loginMessage').textContent = 'انتهت جلسة الحماية. سجّل الدخول مجددًا ثم أضف أو عدّل المستخدم.';
+  }
   if (!response.ok) throw new Error(AUTH_ERRORS[payload.error] || payload.error || 'تعذر تنفيذ العملية');
   return payload;
 }

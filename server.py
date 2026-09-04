@@ -444,6 +444,9 @@ class H(BaseHTTPRequestHandler):
             '/': ('index.html', 'text/html; charset=utf-8'),
             '/style.css': ('style.css', 'text/css; charset=utf-8'),
             '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
+            '/runtime-config.js': ('runtime-config.js', 'application/javascript; charset=utf-8'),
+            '/sw.js': ('sw.js', 'application/javascript; charset=utf-8'),
+            '/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
             '/logo.jpg': ('logo.jpg', 'image/jpeg')
         }
         if path in static_files:
