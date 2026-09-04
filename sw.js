@@ -1,4 +1,4 @@
-const CACHE_NAME = 'asas-lims-pwa-v7-2-1';
+const CACHE_NAME = 'asas-lims-pwa-v7-2-3';
 const APP_SHELL = [
   './',
   './index.html',
