@@ -408,6 +408,12 @@ class H(BaseHTTPRequestHandler):
             'overdue_work_orders': q("select w.id,w.order_no,w.title,w.due_date,p.code project_code from work_orders w join projects p on p.id=w.project_id where w.due_date is not null and w.due_date < date('now') and w.status != 'مكتمل' order by w.due_date"),
             'awaiting_review': q("select id,code,name,'project' entity from projects where status='قيد المراجعة' union all select id,license_no,'زيارة ميدانية','field_visit' entity from field_visits where status='قيد المراجعة' order by id desc")
         }
+        counts['whatsapp_drafts'] = connection.execute(
+            "select count(*) from whatsapp_drafts where status='draft'"
+        ).fetchone()[0]
+        counts['whatsapp_ready'] = connection.execute(
+            "select count(*) from whatsapp_drafts where status='ready'"
+        ).fetchone()[0]
         return {
             'counts': counts,
             'projects': projects,
@@ -432,7 +438,6 @@ class H(BaseHTTPRequestHandler):
                     else "where d.recipient_user_id=%d order by d.id desc limit 100" % int(user['id'])
                 ))
         }
-
     def project_workspace(self, connection, project_id):
         project = connection.execute('''
             select p.*,c.name client_name,u.full_name manager_name
@@ -789,6 +794,7 @@ class H(BaseHTTPRequestHandler):
                 queue_sync(connection, 'project', entity_id, 'create', {'code': code, 'name': name, 'status': status})
                 audit(connection, user['id'], 'إضافة مشروع', 'project', entity_id, code + ' - ' + name)
                 connection.commit()
+                publish_event('project', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id, 'code': code})
 
             if path == '/api/projects/update':
@@ -815,6 +821,7 @@ class H(BaseHTTPRequestHandler):
                 queue_sync(connection, 'project', entity_id, 'update', {'code': project['code'], 'name': name, 'progress': progress})
                 audit(connection, user['id'], 'تعديل مشروع', 'project', entity_id, project['code'])
                 connection.commit()
+                publish_event('project', 'update', entity_id)
                 return self.send_json({'ok': True})
 
             if path == '/api/projects/status':
@@ -840,6 +847,7 @@ class H(BaseHTTPRequestHandler):
                 queue_sync(connection, 'project', entity_id, 'status', {'code': project['code'], 'status': status})
                 audit(connection, user['id'], 'تغيير حالة مشروع', 'project', entity_id, project['code'] + ' → ' + status)
                 connection.commit()
+                publish_event('project', 'status', entity_id)
                 return self.send_json({'ok': True})
 
             if path == '/api/work-orders':
@@ -873,6 +881,7 @@ class H(BaseHTTPRequestHandler):
                 )
                 audit(connection, user['id'], 'إضافة أمر عمل', 'work_order', entity_id, order_no + ' - ' + title)
                 connection.commit()
+                publish_event('work_order', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id, 'order_no': order_no})
 
             if path == '/api/field/status':
@@ -894,6 +903,7 @@ class H(BaseHTTPRequestHandler):
                     connection.execute('update field_visits set status=? where id=?', (status, entity_id))
                 audit(connection, user['id'], 'تغيير حالة زيارة ميدانية', 'field_visit', entity_id, status)
                 connection.commit()
+                publish_event('field_visit', 'status', entity_id)
                 return self.send_json({'ok': True})
 
             if path == '/api/field/visits':
@@ -919,6 +929,7 @@ class H(BaseHTTPRequestHandler):
                         license=license_no, location=data.get('location') or 'غير محدد', status=status))
                 audit(connection, user['id'], 'إضافة زيارة ميدانية', 'field_visit', entity_id, license_no)
                 connection.commit()
+                publish_event('field_visit', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id})
 
             if path == '/api/clients':
@@ -931,6 +942,7 @@ class H(BaseHTTPRequestHandler):
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 audit(connection, user['id'], 'إضافة عميل', 'client', entity_id, name)
                 connection.commit()
+                publish_event('client', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id})
 
             if path == '/api/samples':
@@ -960,6 +972,7 @@ class H(BaseHTTPRequestHandler):
                 )
                 audit(connection, user['id'], 'إضافة عينة وخطة اختبارات تلقائية', 'sample', entity_id, sample_no + ' (' + str(len(planned)) + ' اختباراً)')
                 connection.commit()
+                publish_event('sample', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id, 'planned_count': len(planned)})
 
             if path == '/api/equipment':
@@ -975,6 +988,7 @@ class H(BaseHTTPRequestHandler):
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 audit(connection, user['id'], 'إضافة جهاز', 'equipment', entity_id, name)
                 connection.commit()
+                publish_event('equipment', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id})
 
             if path == '/api/tests/proctor':
@@ -1016,6 +1030,7 @@ class H(BaseHTTPRequestHandler):
                     '🔬 تم تسجيل نتيجة اختبار كمسودة — مختبر أساس\nرقم الاختبار: {no}\nالاختبار: {name}\nالتقرير: {report}\nلا تُنشر النتائج خارج النظام قبل الاعتماد.'.format(no=test_no, name=catalog['name_ar'], report=report_no))
                 audit(connection, user['id'], 'إضافة اختبار', 'test', test_id, test_no + ' - ' + catalog['name_ar'])
                 connection.commit()
+                publish_event('test', 'create', test_id)
                 return self.send_json({'ok': True, 'test_id': test_id, 'report_no': report_no})
 
             if path == '/api/reports/status':
@@ -1038,6 +1053,7 @@ class H(BaseHTTPRequestHandler):
                     '📄 تحديث تقرير — مختبر أساس\nرقم التقرير: {no}\nالحالة: {status}\nهذه مسودة للمراجعة قبل مشاركتها في مجتمع الشركة.'.format(no=report['report_no'], status=status))
                 audit(connection, user['id'], 'تغيير حالة تقرير', 'report', report_id, status)
                 connection.commit()
+                publish_event('report', 'status', report_id)
                 return self.send_json({'ok': True})
 
             return self.send_json({'error': 'مسار غير معروف'}, 404)
@@ -1074,6 +1090,7 @@ class H(BaseHTTPRequestHandler):
             '🔬 تم تسجيل اختبار بروكتور كمسودة — مختبر أساس\nرقم الاختبار: {no}\nالتقرير: {report}\nلا تُنشر النتائج خارج النظام قبل الاعتماد.'.format(no=test_no, report=report_no))
         audit(connection, user['id'], 'إضافة اختبار', 'test', test_id, test_no + ' - ' + data.get('standard_code'))
         connection.commit()
+        publish_event('test', 'create', test_id)
         return self.send_json({'ok': True, 'test_id': test_id, 'report_no': report_no})
 
 

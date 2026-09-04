@@ -144,6 +144,8 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(board['projects'][0]['work_orders_count'], 1)
             self.assertGreaterEqual(board['counts']['sync_queue'], 2)
+            self.assertEqual(board['counts']['whatsapp_drafts'], 1)
+            self.assertEqual(board['counts']['whatsapp_ready'], 0)
             drafts = [item for item in board['whatsapp_drafts'] if item['related_entity'] == 'work_order']
             self.assertEqual(len(drafts), 1)
             self.assertEqual(drafts[0]['status'], 'draft')

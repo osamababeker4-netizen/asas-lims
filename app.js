@@ -536,8 +536,12 @@ function renderDashboard() {
   $('metricReports').textContent = dashboard.counts.reports || 0;
   $('metricReview').textContent = (dashboard.alerts.awaiting_review || []).length;
   $('metricSync').textContent = (dashboard.counts.sync_queue || 0);
+  $('metricWhatsapp').textContent = dashboard.counts.whatsapp_drafts || 0;
   const pending = dashboard.counts.sync_queue || 0;
-  $('syncIndicator').textContent = 'المزامنة المباشرة: متصلة' + (pending ? ' · ' + pending + ' عملية مسجلة' : '');
+  const drafts = dashboard.counts.whatsapp_drafts || 0;
+  $('syncIndicator').textContent = 'المزامنة المباشرة: متصلة' +
+    (pending ? ' · ' + pending + ' عملية مسجلة' : '') +
+    (drafts ? ' · ' + drafts + ' مسودة بانتظار المراجعة' : '');
   const priorities = [];
   (dashboard.alerts.overdue_work_orders || []).forEach(function(item) { priorities.push('<div class="priority-item overdue"><strong>أمر متأخر: ' + esc(item.order_no) + ' — ' + esc(item.title) + '</strong><small>' + esc(item.project_code) + ' · استحقاق ' + esc(item.due_date) + '</small></div>'); });
   (dashboard.alerts.blocked_projects || []).forEach(function(item) { priorities.push('<div class="priority-item blocked"><strong>مشروع متوقف: ' + esc(item.code) + ' — ' + esc(item.name) + '</strong><small>الأولوية ' + esc(item.priority) + (item.due_date ? ' · الاستحقاق ' + esc(item.due_date) : '') + '</small></div>'); });
