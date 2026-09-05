@@ -137,6 +137,7 @@ class LimsDb(ctx: Context) : SQLiteOpenHelper(ctx, "lims_asas_v5.db", null, 6) {
             )
         }
     }
+    fun setUserActive(id:Int,active:Boolean){writableDatabase.execSQL("UPDATE users SET active=? WHERE id=? AND username<>'admin'",arrayOf(if(active)1 else 0,id))}
     fun deleteUser(id:Int){writableDatabase.execSQL("DELETE FROM users WHERE id=? AND username<>'admin'",arrayOf(id))}
     fun updateUserPhone(username:String,phone:String){writableDatabase.execSQL("UPDATE users SET phone=? WHERE username=?",arrayOf(phone,username))}
     fun completeInitialSetup(password:String,phone:String){val salt=SecurityUtil.salt();writableDatabase.execSQL("UPDATE users SET password_hash=?,salt=?,phone=? WHERE username='admin'",arrayOf(SecurityUtil.hash(password,salt),salt,phone));setSetting("initial_setup_required","0")}
@@ -148,6 +149,13 @@ class LimsDb(ctx: Context) : SQLiteOpenHelper(ctx, "lims_asas_v5.db", null, 6) {
     fun addProject(n:String,l:String,client:Int?=null,consultant:String="",contractor:String=""){val code="PR-"+System.currentTimeMillis().toString().takeLast(7);writableDatabase.execSQL("INSERT INTO projects(code,name,location,client_id,consultant,contractor,status,created_at) VALUES(?,?,?,?,?,?,?,?)",arrayOf(code,n,l,client,consultant,contractor,"نشط",now))}
     private fun enqueue(entity:String,id:String,op:String,payload:JSONObject){writableDatabase.insert("sync_queue",null,android.content.ContentValues().apply{put("entity",entity);put("entity_id",id);put("operation",op);put("payload",payload.toString());put("status","PENDING");put("created_at",now)})}
     fun addSample(no:String,m:String,s:String,project:Int?=null,gps:String=""){writableDatabase.execSQL("INSERT OR REPLACE INTO samples(sample_no,project_id,material,source,gps,status,created_at) VALUES(?,?,?,?,?,'مستلمة',?)",arrayOf(no,project,m,s,gps,now));enqueue("sample",no,"UPSERT",JSONObject().put("sampleNo",no).put("material",m).put("source",s).put("projectId",project).put("gps",gps).put("status","مستلمة"))}
+    /** Image bytes remain on the field device until a persistent central-media service is configured. */
+    fun addAttachment(entity:String,entityId:String,fileName:String,filePath:String,sha256:String,userId:Int){
+        writableDatabase.execSQL("INSERT INTO attachments(entity,entity_id,file_name,file_path,sha256,uploaded_by,created_at) VALUES(?,?,?,?,?,?,?)",arrayOf(entity,entityId,fileName,filePath,sha256,userId,now))
+        audit(userId,"ATTACH","$entity.photo",entityId,fileName)
+    }
+    fun attachmentRows(entity:String,entityId:String)=query("SELECT file_name,file_path,created_at FROM attachments WHERE entity='${entity.replace("'","''")}' AND entity_id='${entityId.replace("'","''")}' ORDER BY id DESC")
+    fun attachmentCount(entity:String,entityId:String)=readableDatabase.rawQuery("SELECT COUNT(*) FROM attachments WHERE entity=? AND entity_id=?",arrayOf(entity,entityId)).use{it.moveToFirst();it.getInt(0)}
     fun addTest(code:String,sample:String,result:String,userId:Int=0,raw:String="",decision:String="غير محدد"){val t=writableDatabase.insert("tests",null,android.content.ContentValues().apply{put("code",code);put("sample_no",sample);put("technician_id",userId);put("result",result);put("raw_data",raw);put("decision",decision);put("status","Submitted");put("created_at",now);put("updated_at",now)});val rn="AST-R-"+System.currentTimeMillis().toString().takeLast(8);val rid=writableDatabase.insert("reports",null,android.content.ContentValues().apply{put("report_no",rn);put("test_code",code);put("sample_no",sample);put("result",result);put("status","Draft");put("created_at",now)});audit(userId,"CREATE","TEST",t.toString(),code+" / "+sample);enqueue("test",t.toString(),"CREATE",JSONObject().put("code",code).put("sampleNo",sample).put("result",result).put("rawData",raw).put("decision",decision).put("technicianId",userId));rid}
     fun getReport(no:String)=query("SELECT report_no,test_code,sample_no,result,status,created_at,approved_at FROM reports WHERE report_no='${no.replace("'","''")}' LIMIT 1").firstOrNull()
     fun reportRows()=query("SELECT report_no,test_code,sample_no,result,status,created_at,approved_at FROM reports ORDER BY id DESC")

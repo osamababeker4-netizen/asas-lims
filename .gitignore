@@ -8,6 +8,9 @@ storage/
 # Android/Gradle generated output (including nested field application builds)
 **/.gradle/
 **/build/
+**/local.properties
+release/
+**/release/*
 *.apk
 *.aab
 **/release-signing.properties

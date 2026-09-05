@@ -1,7 +1,13 @@
 package sa.asas.lims
 
 import android.app.*
+import android.Manifest
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Bundle
+import android.os.Looper
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.content.Intent
@@ -12,9 +18,16 @@ import android.view.*
 import android.widget.*
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.FileOutputStream
+import java.security.MessageDigest
+import java.util.Locale
 
 class MainActivity : Activity() {
-    private companion object { const val DEFAULT_CENTRAL_API="https://asas-lims-api.onrender.com" }
+    private companion object {
+        const val DEFAULT_CENTRAL_API="https://asas-lims-api.onrender.com"
+        const val LOCATION_REQUEST=4101
+        const val PHOTO_REQUEST=4102
+    }
     private lateinit var db:LimsDb
     private lateinit var root:LinearLayout
     private var currentUserId=0
@@ -22,6 +35,9 @@ class MainActivity : Activity() {
     private var currentRole="user"
     private var backAction:(()->Unit)?=null
     @Volatile private var autoSyncRunning=false
+    private var pendingGpsField:EditText?=null
+    private var pendingPhotoEntity:String?=null
+    private var pendingPhotoEntityId:String?=null
 
     override fun onBackPressed(){ backAction?.invoke() ?: super.onBackPressed() }
     override fun onCreate(b:Bundle?){super.onCreate(b);db=LimsDb(this);showLogin()}
@@ -84,7 +100,7 @@ class MainActivity : Activity() {
 
     private fun showLogin(){
         if(db.getSetting("initial_setup_required")=="1"){showInitialSetup();return}
-        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.3.0",28f,true));root.addView(tv("نظام إدارة المختبر — النسخة النهائية الموحدة",16f))
+        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.4.1",28f,true));root.addView(tv("نظام إدارة المختبر — النسخة النهائية الموحدة",16f))
         val u=inp("اسم المستخدم أو رقم الجوال الدولي");u.inputType=InputType.TYPE_CLASS_TEXT;val p=inp("كلمة المرور");p.inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         root.addView(u);root.addView(p);root.addView(btn("دخول"){
             val username=u.text.toString().trim();val password=p.text.toString()
@@ -137,7 +153,7 @@ class MainActivity : Activity() {
         autoSyncRunning=true; Thread { SyncClient(this,db).upload(api,token); autoSyncRunning=false }.start()
     }
     private fun showDashboard(){
-        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.3.0",28f,true));root.addView(tv("المستخدم: $currentUser   |   الصلاحية: $currentRole",15f))
+        backAction=null;root=base();root.addView(logo());root.addView(tv("مختبر أساس LIMS V7.4.1",28f,true));root.addView(tv("المستخدم: $currentUser   |   الصلاحية: $currentRole",15f))
         val c=db.counts();root.addView(tv("المشاريع ${c[0]}   | العينات ${c[1]}   | الاختبارات ${c[2]}   | التقارير ${c[3]}   | NCR ${c[4]}   | رخص الحفريات ${db.excavationCount()}",16f,true))
         root.addView(tv("━━ الإدارة والتكامل ━━",19f,true));root.addView(btn("📊 لوحة القيادة والتحليلات"){analytics()});root.addView(btn("👤 المستخدمون والصلاحيات"){users()});root.addView(btn("📝 سجل التدقيق Audit Trail"){audit()});root.addView(btn("⚙ الإعدادات والأمان"){settings()})
         root.addView(tv("━━ إدارة الأعمال والعملاء ━━",19f,true));root.addView(btn("👥 العملاء"){clients()});root.addView(btn("🏗 المشاريع والمواقع"){projects()});root.addView(btn("💰 عروض الأسعار"){quotes()});root.addView(btn("📑 العقود"){contracts()});root.addView(btn("📨 طلبات العملاء"){requests()});root.addView(btn("🧾 أوامر العمل"){workOrders()});root.addView(btn("💵 الفواتير"){invoices()});root.addView(btn("⚠ شكاوى العملاء"){complaints()})
@@ -162,21 +178,32 @@ class MainActivity : Activity() {
         val phone=inp("الجوال الدولي")
         val role=userRoleSpinner()
         root.addView(username);root.addView(password);root.addView(fullName);root.addView(phone);root.addView(tv("الدور"));root.addView(role)
-        root.addView(btn("+ إضافة مستخدم وحفظ"){
+        root.addView(btn("➕ إضافة مستخدم رسمي"){
             try {
                 if(username.text.isBlank()||fullName.text.isBlank()||phone.text.isBlank()) throw Exception("أكمل البيانات")
                 if(password.text.length<12) throw Exception("كلمة المرور يجب ألا تقل عن 12 حرفاً")
                 db.addUser(username.text.toString().trim(),password.text.toString(),fullName.text.toString().trim(),role.selectedItem.toString(),phone.text.toString().trim())
                 db.audit(currentUserId,"CREATE","USER",username.text.toString().trim(),"New local user")
-                toast("تمت إضافة المستخدم وحفظه")
+                toast("تمت إضافة المستخدم وتفعيل حسابه")
                 users()
             } catch(e:Exception){toast("تعذر الإضافة: ${e.message}")}
         })
         root.addView(tv("المستخدمون الحاليون",18f,true))
         db.userRows().forEach{ row ->
             val id=row[0]?.toIntOrNull() ?: return@forEach
-            root.addView(tv("• ${row[1]} | ${row[2]} | ${row[3]} | ${row[4]} | ${if(row[5]=="1")"فعال" else "موقوف"}"))
-            root.addView(btn("✎ تعديل ${row[1]}"){editUser(row)})
+            val isActive=row[5]=="1"
+            root.addView(tv("• ${row[1]} | ${row[2]} | ${row[3]} | ${row[4]} | ${if(isActive)"فعال" else "موقوف"}"))
+            root.addView(btn("✎ تعديل بيانات ${row[1]}"){editUser(row)})
+            if(row[1]!="admin") root.addView(btn(if(isActive) "⏸ إيقاف حساب ${row[1]}" else "✓ تفعيل حساب ${row[1]}"){
+                val action=if(isActive) "إيقاف" else "تفعيل"
+                AlertDialog.Builder(this).setTitle("$action حساب المستخدم").setMessage("هل تريد $action حساب ${row[1]}؟")
+                    .setNegativeButton("إلغاء",null).setPositiveButton(action){_,_->
+                        db.setUserActive(id,!isActive)
+                        db.audit(currentUserId,if(isActive)"DEACTIVATE" else "ACTIVATE","USER",id.toString(),"${row[1]} account $action")
+                        toast("تم $action الحساب")
+                        users()
+                    }.show()
+            })
             if(row[1]!="admin") root.addView(btn("🗑 حذف ${row[1]}"){
                 AlertDialog.Builder(this).setTitle("حذف المستخدم").setMessage("تأكيد حذف ${row[1]}؟")
                     .setNegativeButton("إلغاء",null).setPositiveButton("حذف"){_,_->
@@ -194,14 +221,18 @@ class MainActivity : Activity() {
         val phone=inp("الجوال الدولي",row[4] ?: "")
         val role=userRoleSpinner(row[3] ?: "technician")
         val password=inp("كلمة مرور جديدة (اتركها فارغة للإبقاء)");password.inputType=0x81
-        val active=CheckBox(this).apply{text="الحساب نشط";isChecked=row[5]=="1"}
+        val isSystemAdmin=row[1]=="admin"
+        val active=CheckBox(this).apply{text="الحساب نشط";isChecked=row[5]=="1";isEnabled=!isSystemAdmin}
+        if(isSystemAdmin){role.isEnabled=false;root.addView(tv("حساب المدير الأساسي محمي: لا يمكن تغيير دوره أو إيقافه.",14f,true))}
         root.addView(fullName);root.addView(phone);root.addView(tv("الدور"));root.addView(role);root.addView(password);root.addView(active)
         root.addView(btn("حفظ تعديل المستخدم"){
             try {
                 if(fullName.text.isBlank()||phone.text.isBlank()) throw Exception("أكمل الاسم ورقم الجوال")
                 if(password.text.isNotBlank()&&password.text.length<12) throw Exception("كلمة المرور يجب ألا تقل عن 12 حرفاً")
                 if(id==currentUserId&&!active.isChecked) throw Exception("لا يمكنك إيقاف حسابك الحالي")
-                db.updateUser(id,fullName.text.toString().trim(),role.selectedItem.toString(),phone.text.toString().trim(),active.isChecked,password.text.toString())
+                val finalRole=if(isSystemAdmin) "admin" else role.selectedItem.toString()
+                val finalActive=if(isSystemAdmin) true else active.isChecked
+                db.updateUser(id,fullName.text.toString().trim(),finalRole,phone.text.toString().trim(),finalActive,password.text.toString())
                 db.audit(currentUserId,"UPDATE","USER",id.toString(),"Local user updated")
                 toast("تم تعديل المستخدم وحفظه")
                 users()
@@ -219,7 +250,7 @@ class MainActivity : Activity() {
     private fun invoices(){header("الفواتير");val no=inp("رقم الفاتورة");val amount=inp("المبلغ قبل الضريبة");root.addView(no);root.addView(amount);root.addView(btn("+ إنشاء فاتورة VAT"){val a=amount.text.toString().toDoubleOrNull()?:0.0;val vat=a*.15;val total=a+vat;if(no.text.isNotBlank()){db.writableDatabase.execSQL("INSERT INTO invoices(invoice_no,amount,vat,total,status,created_at) VALUES(?,?,?,?,?,?)",arrayOf(no.text.toString(),a,vat,total,"Draft",System.currentTimeMillis().toString()));invoices()}});db.query("SELECT invoice_no,amount,vat,total,status FROM invoices ORDER BY id DESC").forEach{root.addView(tv("• ${it.joinToString(" | ")}"))};mount()}
     private fun complaints(){header("شكاوى العملاء");val d=inp("وصف الشكوى");root.addView(d);root.addView(btn("+ تسجيل شكوى"){if(d.text.isNotBlank()){val no="CMP-"+System.currentTimeMillis().toString().takeLast(8);db.writableDatabase.execSQL("INSERT INTO complaints(complaint_no,description,status,created_at) VALUES(?,?,?,?)",arrayOf(no,d.text.toString(),"Open",System.currentTimeMillis().toString()));complaints()}});db.query("SELECT complaint_no,description,status,created_at FROM complaints ORDER BY id DESC").forEach{root.addView(tv("• ${it.joinToString(" | ")}"))};mount()}
 
-    private fun samples(){header("العينات والتتبع");val no=inp("كود العينة");val m=inp("المادة","تربة");val s=inp("مصدر العينة");val gps=inp("GPS / إحداثيات");root.addView(no);root.addView(m);root.addView(s);root.addView(gps);root.addView(btn("+ تسجيل عينة"){if(no.text.isNotBlank()){db.addSample(no.text.toString(),m.text.toString(),s.text.toString(),null,gps.text.toString());db.audit(currentUserId,"CREATE","SAMPLE",no.text.toString(),m.text.toString());samples()}});db.samplesRows().forEach{r->root.addView(tv("• ${r[0]} | ${r[1]} | ${r[2]} | ${r[3]} | تخزين: ${r[4]} | GPS: ${r[5]}"));root.addView(btn("▣ QR — ${r[0]}"){showQr("كود العينة",r[0]?:"")})};mount()}
+    private fun samples(){header("العينات والتتبع");val no=inp("كود العينة");val m=inp("المادة","تربة");val s=inp("مصدر العينة");val gps=inp("GPS / إحداثيات");root.addView(no);root.addView(m);root.addView(s);root.addView(gps);root.addView(btn("📍 تحديد موقعي الآن"){captureLocation(gps)});root.addView(btn("+ تسجيل عينة"){if(no.text.isNotBlank()){db.addSample(no.text.toString(),m.text.toString(),s.text.toString(),null,gps.text.toString());db.audit(currentUserId,"CREATE","SAMPLE",no.text.toString(),m.text.toString());samples()}});db.samplesRows().forEach{r->val sampleNo=r[0]?:"";val photoCount=db.attachmentCount("sample",sampleNo);root.addView(tv("• $sampleNo | ${r[1]} | ${r[2]} | ${r[3]} | تخزين: ${r[4]} | GPS: ${r[5]} | صور: $photoCount"));root.addView(btn("🖼 إضافة صورة من الاستديو — $sampleNo"){chooseGalleryPhoto("sample",sampleNo)});root.addView(btn("▣ QR — $sampleNo"){showQr("كود العينة",sampleNo)})};mount()}
 
     private fun tests(){header("دليل الاختبارات والحسابات");val cats=listOf("التربة","الخرسانة","الاسفلت","أخرى");cats.forEach{cat->root.addView(tv("━━ $cat ━━",19f,true));db.testCatalog().filter{it[2]==cat}.forEach{t->root.addView(btn("${t[0]} — ${t[1]} [${t[4]}]"){testForm(t[0],t[1])})}};mount()}
     private fun testForm(code:String,name:String){header("$code — $name",{tests()});val sample=inp("كود العينة");root.addView(sample);when(code){"ASTM D1557","ASTM D698"->proctor(sample,code);"ASTM D2216"->moisture(sample);"ASTM D4318"->atterberg(sample);"ASTM D1883"->cbr(sample);else->generic(sample,code,name)};mount()}
@@ -270,6 +301,7 @@ class MainActivity : Activity() {
         val idx=listOf(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,16,15)
         idx.forEachIndexed { i,k -> root.addView(tv("${labels[i]}\n${r[k] ?: "—"}",16f)) }
         root.addView(btn("📍 فتح الموقع في الخرائط"){val gps=r[14].orEmpty();if(gps.isBlank()){toast("لا توجد إحداثيات مسجلة")}else{try{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("geo:$gps?q=$gps")))}catch(_:Exception){toast("تعذر فتح الخرائط")}}})
+        root.addView(btn("🖼 إضافة صورة من الاستديو (${db.attachmentCount("excavation_license",no)})"){chooseGalleryPhoto("excavation_license",no)})
         root.addView(btn("🔄 تعديل بيانات التصريح"){excavationForm(r)})
         root.addView(btn("🏛 فتح منصة بلدي"){openBalady()})
         mount()
@@ -280,6 +312,7 @@ class MainActivity : Activity() {
         fun value(i:Int)=existing?.getOrNull(i).orEmpty()
         val no=inp("رقم التصريح *",value(0)); val wo=inp("رقم أمر العمل",value(1)); val project=inp("اسم المشروع",value(2)); val service=inp("الجهة الخدمية",value(3)); val municipality=inp("الأمانة / البلدية",value(4)); val district=inp("الحي",value(5)); val contractor=inp("المقاول الرئيسي",value(6)); val consultant=inp("الاستشاري الرئيسي",value(7)); val start=inp("تاريخ بدء العمل",value(8)); val end=inp("تاريخ انتهاء التصريح",value(9)); val type=inp("نوع التصريح",value(10)); val status=inp("حالة التصريح",value(11)); val excStatus=inp("حالة الحفرية",value(12)); val location=inp("الموقع",value(13)); val gps=inp("الإحداثيات GPS",value(14)); val notes=inp("ملاحظات",value(15))
         listOf(no,wo,project,service,municipality,district,contractor,consultant,start,end,type,status,excStatus,location,gps,notes).forEach{root.addView(it)}
+        root.addView(btn("📍 تحديد موقعي الآن"){captureLocation(gps)})
         root.addView(btn("💾 حفظ"){if(no.text.isBlank()){toast("رقم التصريح مطلوب");return@btn};try{db.upsertExcavationLicense(no.text.toString().trim(),wo.text.toString(),project.text.toString(),service.text.toString(),municipality.text.toString(),district.text.toString(),contractor.text.toString(),consultant.text.toString(),start.text.toString(),end.text.toString(),type.text.toString(),status.text.toString(),excStatus.text.toString(),location.text.toString(),gps.text.toString(),notes.text.toString(),currentUserId);toast("تم حفظ تصريح بلدي");excavationDetail(no.text.toString().trim())}catch(e:Exception){toast("تعذر الحفظ: ${e.message}")}})
         root.addView(btn("🏛 فتح بلدي الرسمي"){openBalady()})
         mount()
@@ -325,6 +358,80 @@ class MainActivity : Activity() {
     }
     private fun backup(){val f=FileExport.export(this,db.exportSql());alert("نسخة احتياطية","تم إنشاء Backup:\n${f.absolutePath}\n\nللاعتماد النهائي يجب حفظ نسخة دورية على خادم مركزي وموقع احتياطي منفصل.")}
     private fun testSettings(){if(currentRole!="admin"&&currentRole!="reviewer"){toast("غير مصرح");return};header("إعدادات الاختبارات وحدود القبول");val code=inp("كود الاختبار");val min=inp("الحد الأدنى");val max=inp("الحد الأعلى");val unit=inp("الوحدة");root.addView(code);root.addView(min);root.addView(max);root.addView(unit);root.addView(btn("+ حفظ حدود القبول"){val a=min.text.toString().toDoubleOrNull();val b=max.text.toString().toDoubleOrNull();if(code.text.isNotBlank()&&a!=null&&b!=null){db.writableDatabase.execSQL("INSERT INTO result_limits(test_code,min_value,max_value,unit,version,active) VALUES(?,?,?,?,?,1)",arrayOf(code.text.toString(),a,b,unit.text.toString(),"Current"));toast("تم الحفظ")}});mount()}
+
+    /** Requests the least location access needed, only after the technician taps the button. */
+    private fun captureLocation(target:EditText){
+        pendingGpsField=target
+        if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION),LOCATION_REQUEST)
+            return
+        }
+        requestCurrentLocation()
+    }
+    private fun requestCurrentLocation(){
+        val target=pendingGpsField ?: return
+        val manager=getSystemService(LOCATION_SERVICE) as LocationManager
+        val provider=when {
+            manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+            manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+            else -> { toast("فعّل خدمة الموقع GPS أو الشبكة ثم حاول مجدداً"); return }
+        }
+        val last=try { manager.getLastKnownLocation(provider) } catch(_:SecurityException) { null }
+        if(last!=null){
+            target.setText(formatCoordinates(last)); toast("تمت قراءة آخر إحداثيات متاحة"); return
+        }
+        toast("جارٍ تحديد الموقع…")
+        try {
+            manager.requestSingleUpdate(provider,object:LocationListener{
+                override fun onLocationChanged(location:Location){ pendingGpsField?.setText(formatCoordinates(location)); toast("تم حفظ الإحداثيات في الحقل") }
+            },Looper.getMainLooper())
+        } catch(_:SecurityException){ toast("تعذر الوصول إلى الموقع؛ تحقق من الإذن") }
+    }
+    private fun formatCoordinates(location:Location)=String.format(Locale.US,"%.6f,%.6f",location.latitude,location.longitude)
+    override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray){
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+        if(requestCode==LOCATION_REQUEST){
+            if(grantResults.any{it==PackageManager.PERMISSION_GRANTED}) requestCurrentLocation()
+            else toast("لم يتم منح إذن الموقع؛ يمكنك إدخال الإحداثيات يدوياً")
+        }
+    }
+
+    /** Selects an image from the gallery and copies it into app-private field evidence storage. */
+    private fun chooseGalleryPhoto(entity:String,entityId:String){
+        pendingPhotoEntity=entity; pendingPhotoEntityId=entityId
+        val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply{
+            addCategory(Intent.CATEGORY_OPENABLE); type="image/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        startActivityForResult(Intent.createChooser(intent,"اختر صورة من الاستديو"),PHOTO_REQUEST)
+    }
+    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){
+        super.onActivityResult(requestCode,resultCode,data)
+        if(requestCode!=PHOTO_REQUEST || resultCode!=RESULT_OK) return
+        val uri=data?.data ?: return
+        val entity=pendingPhotoEntity ?: return
+        val entityId=pendingPhotoEntityId ?: return
+        try{
+            data.flags.and(Intent.FLAG_GRANT_READ_URI_PERMISSION).takeIf{it!=0}?.let{ contentResolver.takePersistableUriPermission(uri,it) }
+            val directory=File(filesDir,"field-photos").apply{mkdirs()}
+            val fileName="${entity}_${entityId.replace(Regex("[^A-Za-z0-9_-]"),"_")}_${System.currentTimeMillis()}.jpg"
+            val destination=File(directory,fileName)
+            val hash=MessageDigest.getInstance("SHA-256")
+            contentResolver.openInputStream(uri)?.use{input->FileOutputStream(destination).use{output->
+                val buffer=ByteArray(8 * 1024)
+                while(true){
+                    val read=input.read(buffer)
+                    if(read < 0) break
+                    output.write(buffer,0,read)
+                    hash.update(buffer,0,read)
+                }
+            }} ?: throw IllegalStateException("تعذر قراءة الصورة")
+            val digest=hash.digest().joinToString(""){"%02x".format(it)}
+            db.addAttachment(entity,entityId,fileName,destination.absolutePath,digest,currentUserId)
+            toast("تم حفظ الصورة محلياً وربطها بالسجل")
+        } catch(e:Exception){ toast("تعذر حفظ الصورة: ${e.message ?: "خطأ غير معروف"}") }
+        finally { pendingPhotoEntity=null; pendingPhotoEntityId=null }
+    }
 
     private fun showQr(title:String,value:String){val image=ImageView(this).apply{setImageBitmap(QrCodeUtil.create(value,720));adjustViewBounds=true};AlertDialog.Builder(this).setTitle("QR — $title").setView(image).setMessage(value).setPositiveButton("موافق",null).show()}
     private fun exportReportPdf(no:String){val row=db.getReport(no)?:return;val f=ReportExport.createPdf(this,row);toast("تم إنشاء PDF: ${f.name}")}
