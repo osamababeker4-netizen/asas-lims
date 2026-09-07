@@ -122,10 +122,7 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(status, 410)
             status, login, _ = request('POST', '/api/auth/login', {'username': 'admin', 'password': self.bootstrap_password})
             self.assertEqual(status, 200)
-            self.assertTrue(login['challenge'])
-            status, verified, _ = request('POST', '/api/auth/verify', {'username': 'admin', 'otp': '123456'})
-            self.assertEqual(status, 200)
-            token = verified['token']
+            token = login['token']
 
             status, client, _ = request('POST', '/api/clients', {'name': 'عميل الاختبار'}, token)
             self.assertEqual(status, 200)
@@ -182,11 +179,9 @@ class SchemaMigrationTests(unittest.TestCase):
         try:
             self.server.twilio_verify_ready = lambda: True
             self.server.twilio_verify_request = lambda endpoint, fields: {'status': 'approved'}
-            status, _, _ = request('POST', '/api/auth/login', {'username': 'admin', 'password': self.bootstrap_password})
+            status, login, _ = request('POST', '/api/auth/login', {'username': 'admin', 'password': self.bootstrap_password})
             self.assertEqual(status, 200)
-            status, verified, _ = request('POST', '/api/auth/verify', {'username': 'admin', 'otp': '123456'})
-            self.assertEqual(status, 200)
-            token = verified['token']
+            token = login['token']
 
             status, created, _ = request('POST', '/api/users/create', {
                 'username': 'lab.user', 'full_name': 'مستخدم المختبر', 'password': 'Secure-password-123', 'role': 'technician'
@@ -252,15 +247,6 @@ class SchemaMigrationTests(unittest.TestCase):
             response.read()
             connection.close()
 
-            connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
-            body = json.dumps({'username': 'admin', 'otp': '123456'}).encode('utf-8')
-            connection.request('POST', '/api/auth/verify', body, {'Origin': origin, 'Content-Type': 'application/json'})
-            response = connection.getresponse()
-            self.assertEqual(response.status, 200)
-            self.assertEqual(response.getheader('Access-Control-Allow-Origin'), origin)
-            self.assertIsNotNone(response.getheader('Set-Cookie'))
-            response.read()
-            connection.close()
         finally:
             httpd.shutdown()
             httpd.server_close()

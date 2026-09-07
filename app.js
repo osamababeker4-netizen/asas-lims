@@ -310,7 +310,6 @@ async function api(path, options) {
     $('app').classList.add('hidden');
     $('login').classList.remove('hidden');
     $('loginForm').classList.remove('hidden');
-    $('otpForm').classList.add('hidden');
     $('loginPassword').value = '';
     $('loginMessage').textContent = 'انتهت جلسة الحماية. سجّل الدخول مجددًا ثم أضف أو عدّل المستخدم.';
   }
@@ -361,26 +360,17 @@ function navigate(page) {
   if (page === 'field') loadFieldRecent();
 }
 
-async function login(event, channel) {
+async function login(event) {
   event.preventDefault();
   try {
     const username = $('loginUsername').value.trim();
     const password = $('loginPassword').value;
     if (STATIC_MODE) return await completeLogin(await api('/api/login', {method:'POST',body:JSON.stringify({username:username,password:password})}));
-    channel = channel || $('loginForm').dataset.otpChannel || 'sms';
-    const result = await api('/api/auth/login', {method:'POST',body:JSON.stringify({username:username,password:password,channel:channel})});
-    pendingOtpLogin = {username:username};
-    delete $('loginForm').dataset.otpChannel;
+    const result = await api('/api/auth/login', {method:'POST',body:JSON.stringify({username:username,password:password})});
+    centralAccessToken = result.token;
+    sessionStorage.setItem('asas_lims_access_token', centralAccessToken);
     $('loginPassword').value = '';
-    $('loginForm').classList.add('hidden');
-    $('otpForm').classList.remove('hidden');
-    setOtpResendCooldown(60);
-    $('loginOtp').focus();
-    $('loginMessage').textContent = channel === 'call'
-      ? 'سنتصل بالرقم المسجل لإملاء رمز التحقق.'
-      : channel === 'whatsapp'
-        ? 'تم إرسال رمز التحقق عبر WhatsApp إلى الرقم المسجل.'
-        : 'تم إرسال رمز التحقق إلى ' + (result.user.phone || 'رقمك المسجل') + '.';
+    await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone}});
   } catch (error) {
     $('loginMessage').textContent = error.message;
   }
@@ -963,21 +953,6 @@ async function setFieldStatus(token) {
 
 function bindEvents() {
   $('loginForm').addEventListener('submit',login);
-  $('loginViaWhatsapp').addEventListener('click', function() { login({preventDefault:function(){}}, 'whatsapp'); });
-  $('loginViaVoice').addEventListener('click', function() { login({preventDefault:function(){}}, 'call'); });
-  $('otpForm').addEventListener('submit',verifyOtpLogin);
-  $('resendOtp').addEventListener('click',function() {
-    if (!pendingOtpLogin) return;
-    $('loginUsername').value = pendingOtpLogin.username;
-    $('loginMessage').textContent = 'لإعادة الإرسال، أدخل كلمة المرور مرة أخرى.';
-    $('loginForm').classList.remove('hidden'); $('otpForm').classList.add('hidden'); $('loginPassword').focus();
-  });
-  $('voiceOtp').addEventListener('click',function() {
-    chooseOtpChannel('call', 'لإرسال الرمز عبر اتصال صوتي، أدخل كلمة المرور مرة أخرى.');
-  });
-  $('whatsappOtp').addEventListener('click',function() {
-    chooseOtpChannel('whatsapp', 'لإرسال الرمز عبر WhatsApp، أدخل كلمة المرور مرة أخرى.');
-  });
   $('logoutBtn').addEventListener('click',logout);
   $('staticSetup').addEventListener('click',bootstrapStaticAdmin);
   $('staticSetupForm').addEventListener('submit',submitStaticAdmin);

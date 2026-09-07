@@ -110,7 +110,16 @@ class MainActivity : Activity() {
                 val result=SyncClient(this,db).requestCentralOtp(centralApi(),username,password)
                 runOnUiThread {
                     when {
-                        result.user!=null -> showCentralOtp(centralApi(),result.user)
+                        result.user!=null && !result.token.isNullOrBlank() -> {
+                            val verified=result.user
+                            db.setSetting("central_api",centralApi())
+                            getSharedPreferences("central_sync",MODE_PRIVATE).edit().putString("access_token",result.token).putString("central_user",verified.username).apply()
+                            currentUserId=db.userIdByUsername(verified.username)
+                            currentUser=verified.name.ifBlank { verified.username }
+                            currentRole=verified.role.ifBlank { "user" }
+                            db.audit(currentUserId,"LOGIN","USER",verified.username,"Central password authenticated sign-in")
+                            showDashboard()
+                        }
                         result.unavailable && signInLocally(username,password) -> Unit
                         result.unavailable -> toast("تعذر الاتصال بالخادم، ولم تتطابق بيانات الدخول المحلي")
                         else -> toast(result.message)
@@ -118,7 +127,7 @@ class MainActivity : Activity() {
                 }
             }.start()
         })
-        root.addView(tv("يتم التحقق أولاً من الحساب المركزي ثم إرسال رمز تحقق حقيقي. عند انقطاع الاتصال فقط يمكن استخدام الحساب المحلي المحفوظ على الجهاز.",13f))
+        root.addView(tv("يتم تسجيل الدخول بالحساب المركزي وكلمة المرور. عند انقطاع الاتصال فقط يمكن استخدام الحساب المحلي المحفوظ على الجهاز.",13f))
         mount(); autoSyncIfConfigured()
     }
     private fun showCentralOtp(api:String, account:SyncClient.CentralUser){

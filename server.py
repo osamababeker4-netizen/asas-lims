@@ -300,6 +300,17 @@ def start_otp_challenge(connection, login_id, password, channel='sms'):
     return user, None, 200, None
 
 
+def password_login(connection, login_id, password):
+    user = connection.execute('select * from users where (username=? or phone=?) and active=1', (login_id, login_id)).fetchone()
+    if not user or not checkpw(password, user['password_hash']):
+        return None, None, 'invalid_credentials'
+    token = secrets.token_urlsafe(32)
+    SESSIONS[token] = dict(user)
+    audit(connection, user['id'], 'PASSWORD_LOGIN', 'user', user['id'], 'Password authenticated sign-in')
+    connection.commit()
+    return user, token, None
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         return
@@ -623,18 +634,17 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json({'ok': False, 'error': 'invalid_request'}, 400)
             connection = db()
             username = str(data.get('username', '')).strip()
-            channel = str(data.get('channel', 'sms')).strip().lower()
-            user, error, status, retry_after = start_otp_challenge(connection, username, str(data.get('password', '')), channel)
-            connection.close()
+            user, token, error = password_login(connection, username, str(data.get('password', '')))
             if error:
-                payload = {'ok': False, 'error': error}
-                if retry_after:
-                    payload['retryAfter'] = retry_after
-                return self.send_json(payload, status)
+                connection.close()
+                return self.send_json({'ok': False, 'error': error}, 401)
             phone = str(user['phone'] or '').strip()
-            return self.send_json({'ok': True, 'challenge': True, 'expiresIn': 600, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}})
+            connection.close()
+            return self.send_json({'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}}, extra_headers={'Set-Cookie': 'LIMS_SESSION=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict'})
 
         if path == '/api/auth/verify':
+            return self.send_json({'ok': False, 'error': 'otp_disabled'}, 410)
+            '''
             try:
                 data = self.body()
             except json.JSONDecodeError:
@@ -669,9 +679,10 @@ class H(BaseHTTPRequestHandler):
                 {'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}},
                 extra_headers={'Set-Cookie': 'LIMS_SESSION=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict'}
             )
+            '''
 
         if path == '/api/login':
-            return self.send_json({'error': 'استخدم /api/auth/login لبدء التحقق برمز OTP'}, 410)
+            return self.send_json({'error': 'استخدم /api/auth/login لتسجيل الدخول بكلمة المرور'}, 410)
 
         if path == '/api/logout':
             authorization = self.headers.get('Authorization', '')

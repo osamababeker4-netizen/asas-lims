@@ -23,16 +23,6 @@
         <label>اسم المستخدم أو رقم الجوال<input id="loginUsername" autocomplete="username tel" inputmode="tel" required placeholder="اسم المستخدم أو +9665XXXXXXXX"></label>
         <label>كلمة المرور<input id="loginPassword" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
         <button class="btn primary" type="submit">تسجيل الدخول</button>
-        <button id="loginViaWhatsapp" class="btn link-btn" type="button">دخول عبر رمز WhatsApp</button>
-        <button id="loginViaVoice" class="btn link-btn" type="button">دخول عبر اتصال صوتي</button>
-      </form>
-      <form id="otpForm" class="form-stack hidden" novalidate>
-        <p class="form-note">أُرسل رمز التحقق إلى رقم الجوال المسجل. أدخله لإكمال تسجيل الدخول.</p>
-        <label>رمز OTP<input id="loginOtp" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required placeholder="6 أرقام"></label>
-        <button class="btn primary" type="submit">تحقق ودخول</button>
-        <button id="resendOtp" class="btn link-btn" type="button">إعادة إرسال الرمز</button>
-        <button id="voiceOtp" class="btn link-btn" type="button">لم يصل SMS؟ أرسل الرمز عبر اتصال صوتي</button>
-        <button id="whatsappOtp" class="btn link-btn" type="button">أرسل الرمز عبر WhatsApp</button>
       </form>
       <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
       <form id="staticSetupForm" class="form-stack hidden" novalidate>

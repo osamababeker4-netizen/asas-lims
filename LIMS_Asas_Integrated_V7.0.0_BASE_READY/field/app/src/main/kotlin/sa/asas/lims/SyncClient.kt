@@ -31,10 +31,10 @@ class SyncClient(private val context: Context, private val db: LimsDb) {
         return CentralUser(username,user.optString("name",username),user.optString("role","user"),user.optString("phone"))
     }
     fun requestCentralOtp(api:String, username:String, password:String):AuthResult = try {
-        val (code,raw)=post(api.trimEnd('/')+"/api/auth/login",JSONObject().put("username",username).put("password",password).put("channel","sms"))
+        val (code,raw)=post(api.trimEnd('/')+"/api/auth/login",JSONObject().put("username",username).put("password",password))
         val j=JSONObject(raw)
         if(code !in 200..299) AuthResult(j.optString("error","تعذر طلب رمز الدخول المركزي"))
-        else AuthResult("تم إرسال رمز التحقق إلى الجوال المسجل",user=centralUser(j))
+        else AuthResult("تم تسجيل الدخول المركزي",j.optString("token").ifBlank { null },centralUser(j))
     } catch(e:Exception){AuthResult("تعذر الاتصال بالخادم المركزي",unavailable=true)}
     fun verifyCentralOtp(api:String, username:String, otp:String):AuthResult = try {
         val (code,raw)=post(api.trimEnd('/')+"/api/auth/verify",JSONObject().put("username",username).put("otp",otp))
