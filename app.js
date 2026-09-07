@@ -811,7 +811,20 @@ async function submitTest(form) {
 
 function openUserForm(user) {
   const value = user || {};
-  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><p>يُحفظ التغيير في الخادم المركزي فورًا ويظهر للمستخدمين المتصلين.</p><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال الدولي<input class="phone-input" name="phone" dir="ltr" inputmode="tel" autocomplete="tel" placeholder="+9665XXXXXXXX" value="' + esc(value.phone || '') + '"></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور ' + (user ? '(اتركها فارغة للإبقاء)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">جاهز للحفظ والمزامنة الفورية. رقم الجوال اختياري، وإذا أُدخل يجب أن يكون دوليًا.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button id="saveUserButton" class="btn primary" type="submit">حفظ ومزامنة المستخدم</button></div></form>');
+  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><p>يُحفظ التغيير في الخادم المركزي فورًا ويظهر للمستخدمين المتصلين.</p><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال الدولي<input class="phone-input" name="phone" dir="ltr" inputmode="tel" autocomplete="tel" placeholder="+9665XXXXXXXX" value="' + esc(value.phone || '') + '"></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور ' + (user ? '(اتركها فارغة للإبقاء)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">جاهز للحفظ والمزامنة الفورية. رقم الجوال اختياري، وإذا أُدخل يجب أن يكون دوليًا.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button id="saveUserButton" class="btn primary" type="button">حفظ ومزامنة المستخدم</button></div></form>');
+  const form = $('userForm');
+  $('saveUserButton').addEventListener('click', function() { saveUserForm(form); });
+}
+
+async function saveUserForm(form) {
+  try {
+    await submitSimple(form, form.elements.id.value ? '/api/users/update' : '/api/users/create');
+  } catch (error) {
+    const message = error && error.message ? error.message : 'تعذر حفظ المستخدم';
+    const formMessage = form.querySelector('#userFormMessage');
+    if (formMessage) formMessage.textContent = message;
+    showToast(message, true);
+  }
 }
 
 async function submitSimple(form, path) {
@@ -1045,7 +1058,7 @@ function bindEvents() {
       if (form.id === 'equipmentForm') await submitSimple(form,'/api/equipment');
       if (form.id === 'testForm') await submitTest(form);
       if (form.id === 'testAssignmentForm') await submitTestAssignment(form);
-      if (form.id === 'userForm') await submitSimple(form,form.elements.id.value ? '/api/users/update' : '/api/users/create');
+      if (form.id === 'userForm') await saveUserForm(form);
       if (form.id === 'baladyForm') saveBaladyData(form);
     } catch (error) {
       const message = error && error.message ? error.message : 'تعذر حفظ البيانات';
