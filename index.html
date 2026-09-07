@@ -282,11 +282,11 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js"></script>
-  <script src="app.js"></script>
+  <script src="runtime-config.js?v=30e74c6"></script>
+  <script src="app.js?v=30e74c6"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=30e74c6').catch(function () {}); });
     }
   </script>
 </body>
