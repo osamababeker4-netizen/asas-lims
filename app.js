@@ -428,7 +428,10 @@ async function completeLogin(result) {
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
   $('currentUser').textContent = result.user.full_name + ' — ' + (ROLE_NAMES[result.user.role] || result.user.role);
-  $('usersNav').classList.toggle('hidden', result.user.role !== 'admin');
+  // The API authorizes both administrators and managers to manage users.
+  // Keep the navigation aligned with that server-side permission so a
+  // manager is not blocked by a hidden page despite being authorized.
+  $('usersNav').classList.toggle('hidden', ['admin','manager'].indexOf(result.user.role) < 0);
   await loadCatalog(); await refresh(); startLiveUpdates(); navigate('dashboard');
 }
 
