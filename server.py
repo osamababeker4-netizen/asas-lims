@@ -226,6 +226,25 @@ def twilio_verify_request(endpoint, fields):
         return json.loads(response.read())
 
 
+def otp_delivery_error(channel, error):
+    """Map Twilio transport failures to safe, actionable client errors.
+
+    Twilio's response can contain account and destination details.  Those must
+    stay in the provider response, so the API returns only a channel-specific
+    status that lets the sign-in screen offer the appropriate fallback.
+    """
+    status = getattr(error, 'code', None)
+    if status in (401, 403):
+        return 'otp_provider_not_configured'
+    if status == 429:
+        return 'otp_resend_too_soon'
+    if channel == 'whatsapp':
+        return 'otp_whatsapp_unavailable'
+    if channel == 'call':
+        return 'otp_call_unavailable'
+    return 'otp_sms_unavailable'
+
+
 def create_whatsapp_draft(connection, created_by, related_entity, related_id, message, recipient_user_id=None):
     """Store a reviewable message draft; no WhatsApp transport is invoked here."""
     connection.execute(
@@ -270,10 +289,11 @@ def start_otp_challenge(connection, login_id, password, channel='sms'):
         return None, 'otp_resend_too_soon', 429, int(retry_after) + 1
     try:
         twilio_verify_request('Verifications', {'To': phone, 'Channel': channel})
-    except (urllib.error.HTTPError, urllib.error.URLError):
+    except (urllib.error.HTTPError, urllib.error.URLError) as error:
         audit(connection, user['id'], 'OTP_FAILED', 'user', user['id'], 'Twilio Verify request failed')
         connection.commit()
-        return None, 'otp_provider_error', 502, None
+        error_code = otp_delivery_error(channel, error)
+        return None, error_code, 429 if error_code == 'otp_resend_too_soon' else 502, None
     OTP_REQUESTS[request_key] = now
     audit(connection, user['id'], 'OTP_REQUESTED', 'user', user['id'], 'Twilio Verify {} requested'.format(channel))
     connection.commit()

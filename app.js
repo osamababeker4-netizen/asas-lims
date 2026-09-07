@@ -53,7 +53,10 @@ const AUTH_ERRORS = {
   invalid_credentials:'اسم المستخدم أو كلمة المرور غير صحيحة.',
   phone_not_configured:'لا يوجد رقم جوال دولي مفعّل لهذا الحساب. تواصل مع مدير النظام.',
   otp_provider_not_configured:'خدمة رمز التحقق غير مهيأة على الخادم.',
-  otp_provider_error:'تعذر إرسال رمز التحقق حالياً. تحقق من تفعيل قناة WhatsApp ورقم الجوال في Twilio Verify ثم حاول لاحقاً.',
+  otp_provider_error:'تعذر إرسال رمز التحقق حالياً. حاول لاحقاً أو تواصل مع مدير النظام.',
+  otp_whatsapp_unavailable:'تعذر الإرسال عبر WhatsApp. جرّب SMS أو الاتصال الصوتي، أو فعّل WhatsApp Verify في Twilio.',
+  otp_call_unavailable:'تعذر الإرسال عبر الاتصال الصوتي. جرّب SMS أو تحقق من إعدادات Twilio.',
+  otp_sms_unavailable:'تعذر إرسال SMS حالياً. جرّب الاتصال الصوتي أو تواصل مع مدير النظام.',
   invalid_otp_channel:'طريقة التحقق غير مدعومة.',
   invalid_otp:'رمز التحقق غير صحيح أو منتهي الصلاحية.',
   otp_resend_too_soon:'تم إرسال رمز مؤخراً. انتظر قليلاً ثم أعد المحاولة.'
