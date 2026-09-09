@@ -10,18 +10,18 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=8-0-0">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
       <img src="logo.jpg" class="login-logo" alt="شعار مختبر أساس">
-      <p class="eyebrow">ASAS LIMS · V7.4.1 FINAL</p>
+      <p class="eyebrow">ASAS LIMS · V8.0.0</p>
       <h1>منصة أساس لإدارة المختبر</h1>
       <p class="muted">إدارة المشاريع، أوامر العمل، العينات، الاختبارات والتقارير في واجهة عربية موحّدة.</p>
       <form id="loginForm" class="form-stack">
-        <label>اسم المستخدم أو رقم الجوال<input id="loginUsername" autocomplete="username tel" inputmode="tel" required placeholder="اسم المستخدم أو +9665XXXXXXXX"></label>
-        <label>كلمة المرور<input id="loginPassword" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
+        <label>اسم المستخدم أو رقم الجوال<input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="اسم المستخدم أو +9665XXXXXXXX"></label>
+        <label>كلمة المرور<input id="loginPassword" name="password" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
         <button class="btn primary" type="submit">تسجيل الدخول</button>
       </form>
       <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
@@ -256,6 +256,7 @@
         </article>
         <div class="company-facts" aria-label="حقائق مختبر أساس"><article><strong>15+</strong><span>سنة من الخبرة في الاختبارات والاستشارات</span></article><article><strong>5</strong><span>فروع تغطي مناطق المملكة</span></article><article><strong>7</strong><span>مجالات اختبار هندسية رئيسية</span></article></div>
         <article class="panel company-accreditation"><span class="section-kicker">الاعتماد</span><h3>مختبر أساس معتمد من المركز السعودي للاعتماد SAAC</h3><p>وفق معيار ISO/IEC 17025:2017، كما ورد في الملف التعريفي للشركة لعام 2026. يشمل مجال العمل اختبارات التربة ومواد البناء وخدمات مراقبة الجودة.</p><a class="btn secondary" href="company-profile.pdf" target="_blank" rel="noopener">فتح الملف التعريفي للشركة PDF</a></article>
+        <section class="panel company-certificates" aria-labelledby="certificatesTitle"><h3 id="certificatesTitle" data-en="Accreditations and certificates">الاعتمادات والشهادات</h3><p data-en="Documents reproduced from the company profile dated 8 September 2026. Refer to each original for its scope, conditions and validity dates.">وثائق من الملف التعريفي للشركة بتاريخ 8 سبتمبر 2026. يُرجع إلى كل وثيقة أصلية لمعرفة نطاقها وشروطها وتواريخ صلاحيتها.</p><div class="certificate-grid"><a class="certificate-card" href="company-profile.pdf#page=15" target="_blank" rel="noopener"><strong>ISO/IEC 17025:2017 — SAAC</strong><span data-en="Laboratory accreditation and testing scope">اعتماد المختبر ونطاق الاختبارات</span><small data-en="View document · page 15">عرض الوثيقة · صفحة 15</small></a><a class="certificate-card" href="company-profile.pdf#page=27" target="_blank" rel="noopener"><strong>ISO 9001:2015</strong><span data-en="Quality management system">نظام إدارة الجودة</span><small data-en="View document · page 27">عرض الوثيقة · صفحة 27</small></a><a class="certificate-card" href="company-profile.pdf#page=26" target="_blank" rel="noopener"><strong>ISO 14001:2015</strong><span data-en="Environmental management system">نظام الإدارة البيئية</span><small data-en="View document · page 26">عرض الوثيقة · صفحة 26</small></a><a class="certificate-card" href="company-profile.pdf#page=29" target="_blank" rel="noopener"><strong>NRRC</strong><span data-en="Radiation source operating licences — Makkah and Madinah">تراخيص تشغيل المصادر الإشعاعية — مكة والمدينة</span><small data-en="View document · page 29">عرض الوثيقة · صفحة 29</small></a><a class="certificate-card" href="company-profile.pdf#page=28" target="_blank" rel="noopener"><strong>RSO</strong><span data-en="Radiation Safety Officer certificate">شهادة مسؤول الحماية من الإشعاع</span><small data-en="View document · page 28">عرض الوثيقة · صفحة 28</small></a><a class="certificate-card" href="company-profile.pdf#page=22" target="_blank" rel="noopener"><strong>MODON</strong><span data-en="MODON approval">اعتماد هيئة مدن</span><small data-en="View document · page 22">عرض الوثيقة · صفحة 22</small></a><a class="certificate-card" href="company-profile.pdf#page=23" target="_blank" rel="noopener"><strong>Municipality</strong><span data-en="Municipality approval certificate">شهادة اعتماد الأمانة</span><small data-en="View document · page 23">عرض الوثيقة · صفحة 23</small></a><a class="certificate-card" href="company-profile.pdf#page=16" target="_blank" rel="noopener"><strong>Registration</strong><span data-en="Branch registrations — Makkah, Madinah, Jeddah and Riyadh">تسجيل الفروع — مكة والمدينة وجدة والرياض</span><small data-en="View document · page 16">عرض الوثيقة · صفحة 16</small></a><a class="certificate-card" href="company-profile.pdf#page=18" target="_blank" rel="noopener"><strong>Saudization</strong><span data-en="Saudization certificate">شهادة التوطين</span><small data-en="View document · page 18">عرض الوثيقة · صفحة 18</small></a><a class="certificate-card" href="company-profile.pdf#page=19" target="_blank" rel="noopener"><strong>Business</strong><span data-en="Business activity licences">تراخيص النشاط التجاري</span><small data-en="View document · page 19">عرض الوثيقة · صفحة 19</small></a><a class="certificate-card" href="company-profile.pdf#page=24" target="_blank" rel="noopener"><strong>Qualification</strong><span data-en="Qualification and geotechnical studies certificates">شهادات التأهيل والدراسات الجيوتقنية</span><small data-en="View document · page 24">عرض الوثيقة · صفحة 24</small></a></div><p data-en="Project qualification letters may include conditions; they do not constitute unconditional approval for every project.">قد تتضمن خطابات التأهيل للمشاريع شروطًا؛ ولا تمثل اعتمادًا غير مشروط لكل مشروع.</p></section><section class="panel company-profile-viewer"><h3 data-en="Full company profile · 66 pages">الملف التعريفي الكامل · 66 صفحة</h3><div class="heading-actions"><a class="btn primary" href="company-profile.pdf" target="_blank" rel="noopener" data-en="Open full profile">فتح البروفايل الكامل</a><a class="btn secondary" href="company-profile.pdf" download="ASAS-Company-Profile-2026.pdf" data-en="Download PDF">تنزيل PDF</a></div><details><summary data-en="Preview profile here">عرض البروفايل داخل النظام</summary><iframe loading="lazy" src="company-profile.pdf#view=FitH" title="ASAS company profile — 66 pages"></iframe></details></section>
         <section class="service-flow" aria-labelledby="serviceFlowTitle">
           <div class="flow-heading"><span class="section-kicker">تدفق العمل</span><h3 id="serviceFlowTitle">من الدراسة الأولية إلى التقرير المعتمد</h3><p>مسار موحد داخل النظام يعكس طريقة العمل المنشورة لدى أساس ويجعل حالة كل مشروع واضحة للفريق.</p></div>
           <ol class="flow-steps">
@@ -313,11 +314,11 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=30e74c6"></script>
-  <script src="app-password.js?v=7-5-4-login-fix"></script>
+  <script src="runtime-config.js?v=8-0-0"></script>
+  <script src="app-password.js?v=8-0-0"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=7-5-4-login-fix').catch(function () {}); });
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=8-0-0').catch(function () {}); });
     }
   </script>
 </body>
