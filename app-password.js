@@ -362,7 +362,7 @@ function navigate(page) {
   target.classList.add('active');
   document.querySelectorAll('.nav-link[data-page]').forEach(function(button) { button.classList.toggle('active', button.dataset.page === page); });
   const nav = document.querySelector('.nav-link[data-page="' + page + '"]');
-  setText($('pageTitle'), nav ? nav.textContent.trim() : 'أساس LIMS');
+  setText($('pageTitle'), nav ? ((uiTextMemory.get(nav.firstChild) || {}).ar || nav.textContent).trim() : 'أساس LIMS');
   setText($('pageKicker'), page === 'projects' ? 'تنفيذ ومتابعة' : 'إدارة المختبر');
   $('sidebar').classList.remove('open');
   if (page === 'field') loadFieldRecent();
