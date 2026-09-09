@@ -212,7 +212,7 @@
       </section>
 
       <section id="equipment" class="page">
-        <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2><p>أضف جهازاً واحداً أو استورد كل الأجهزة والمعايرات من ملف Excel/CSV دفعة واحدة.</p></div><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div>
+        <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2><p>أضف جهازاً واحداً أو استورد كل الأجهزة والمعايرات من ملف Excel/CSV دفعة واحدة.</p></div><div class="heading-actions"><button class="btn secondary" data-attachment-panel="equipment" type="button">رفع مرفق</button><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div></div>
         <article class="panel equipment-import-panel"><div class="panel-heading"><div><h3>استيراد الأجهزة والمعايرات</h3><p class="muted">نزّل القالب، املأ صفاً لكل جهاز في Excel، ثم احفظه CSV وارفعه هنا.</p></div><button class="text-btn" data-quality-template="equipment" type="button">تنزيل قالب Excel</button></div><div class="equipment-import-actions"><input id="equipmentImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="equipment" type="button">استيراد كل الأجهزة</button></div><p class="form-note">الحقول: اسم الجهاز، الرقم التسلسلي، الشركة، الموديل، آخر/القادمة للمعايرة، الشهادة والملاحظات.</p></article>
         <div class="panel table-panel"><table><thead><tr><th>الجهاز</th><th>الرقم التسلسلي</th><th>آخر معايرة</th><th>القادمة</th><th>الشهادة</th><th>الحالة</th></tr></thead><tbody id="equipmentTable"></tbody></table></div>
       </section>
