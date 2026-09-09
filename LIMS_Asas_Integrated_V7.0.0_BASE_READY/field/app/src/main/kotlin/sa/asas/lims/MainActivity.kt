@@ -157,7 +157,7 @@ class MainActivity : Activity() {
     private fun showInitialSetup(){backAction=null;root=base();root.addView(logo());root.addView(tv("تهيئة مختبر أساس",26f,true));root.addView(tv("أنشئ كلمة مرور مدير النظام ورقم الجوال قبل أول استخدام.",15f));val pass=inp("كلمة مرور المدير (12 حرفاً على الأقل)");pass.inputType=0x81;val confirm=inp("تأكيد كلمة المرور");confirm.inputType=0x81;val phone=inp("رقم الجوال");root.addView(pass);root.addView(confirm);root.addView(phone);root.addView(btn("إنهاء التهيئة"){val p=pass.text.toString();if(p.length<12||p!=confirm.text.toString()||phone.text.trim().length<8){toast("تحقق من كلمة المرور ورقم الجوال");return@btn};db.completeInitialSetup(p,phone.text.toString().trim());toast("اكتملت التهيئة؛ سجّل الدخول الآن");showLogin()});mount()}
 
     private fun autoSyncIfConfigured(){
-        val prefs=getSharedPreferences("central_sync",MODE_PRIVATE); val api=db.getSetting("central_api"); val token=prefs.getString("access_token","").orEmpty()
+        val prefs=getSharedPreferences("central_sync",MODE_PRIVATE); val api=centralApi(); val token=prefs.getString("access_token","").orEmpty()
         if(autoSyncRunning || api.isBlank() || token.isBlank() || db.pendingSyncRows().isEmpty()) return
         autoSyncRunning=true; Thread { SyncClient(this,db).upload(api,token); autoSyncRunning=false }.start()
     }
@@ -278,7 +278,7 @@ class MainActivity : Activity() {
     private fun reports(){header("التقارير والمراجعة والاعتماد");db.reportRows().forEach{r->root.addView(tv("${r[0]} | ${r[1]} | عينة ${r[2]} | ${r[3]} | الحالة: ${r[4]}"));root.addView(btn("📄 PDF"){exportReportPdf(r[0]?:"")});root.addView(btn("📤 مشاركة PDF"){shareReportPdf(r[0]?:"")});if(currentRole=="reviewer"||currentRole=="admin"){root.addView(btn("✓ مراجعة ${r[0]}"){db.reviewReport(r[0]?:"",currentUserId);reports()});root.addView(btn("✓ اعتماد نهائي ${r[0]}"){db.approveReport(r[0]?:"",currentUserId);reports()})}};mount()}
 
     private fun audit(){if(currentRole!="admin"&&currentRole!="reviewer"){toast("غير مصرح");return};header("Audit Trail");db.auditRows().forEach{root.addView(tv("${it[5]} | ${it[0]} | ${it[1]} | ${it[2]}:${it[3]}\n${it[4]}"))};mount()}
-    private fun settings(){if(currentRole!="admin"){toast("للمدير فقط");return};header("الإعدادات والأمان");val org=inp("اسم المنشأة",db.getSetting("organization"));val api=inp("Central API URL",db.getSetting("central_api"));val sms=inp("SMS Provider",db.getSetting("sms_provider"));root.addView(org);root.addView(api);root.addView(sms);root.addView(btn("حفظ الإعدادات"){db.setSetting("organization",org.text.toString());db.setSetting("central_api",api.text.toString());db.setSetting("sms_provider",sms.text.toString());db.audit(currentUserId,"UPDATE","SETTINGS","","Security/integration settings updated");toast("تم الحفظ")});root.addView(tv("الأمان: كلمات المرور مخزنة بتجزئة SHA-256 مع Salt، OTP مخزن كتجزئة ومحدد بمدة 5 دقائق، وAudit Trail يسجل العمليات.",13f));mount()}
+    private fun settings(){if(currentRole!="admin"){toast("للمدير فقط");return};header("الإعدادات والأمان");val org=inp("اسم المنشأة",db.getSetting("organization"));val api=inp("Central API URL",centralApi());val sms=inp("SMS Provider",db.getSetting("sms_provider"));root.addView(org);root.addView(api);root.addView(sms);root.addView(btn("حفظ الإعدادات"){db.setSetting("organization",org.text.toString());db.setSetting("central_api",api.text.toString());db.setSetting("sms_provider",sms.text.toString());db.audit(currentUserId,"UPDATE","SETTINGS","","Security/integration settings updated");toast("تم الحفظ")});root.addView(tv("الأمان: كلمات المرور مخزنة بتجزئة SHA-256 مع Salt، OTP مخزن كتجزئة ومحدد بمدة 5 دقائق، وAudit Trail يسجل العمليات.",13f));mount()}
     private fun excavationLicenses(){
         header("⛏ بلدي — رخص الحفريات", {showDashboard()})
         root.addView(tv("إدارة ومتابعة تصاريح أعمال البنية التحتية",21f,true))
@@ -341,7 +341,7 @@ class MainActivity : Activity() {
 
     private fun sync(){
         header("المزامنة المركزية")
-        val api=inp("عنوان الخادم (مثال: http://192.168.1.10:8080)",db.getSetting("central_api"));root.addView(api)
+        val api=inp("عنوان الخادم المركزي",centralApi());root.addView(api)
         val prefs=getSharedPreferences("central_sync",MODE_PRIVATE)
         val token=inp("رمز وصول مركزي Bearer",prefs.getString("access_token","") ?: "");root.addView(token)
         val centralUser=inp("اسم المستخدم أو الجوال المركزي",prefs.getString("central_user",currentUser) ?: currentUser);root.addView(centralUser)

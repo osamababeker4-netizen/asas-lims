@@ -92,7 +92,7 @@ class LimsDb(ctx: Context) : SQLiteOpenHelper(ctx, "lims_asas_v5.db", null, 6) {
         listOf("LAB-01|مختبر رئيسي|18-25°C|100","STORE-A|مخزن العينات A|18-25°C|500").forEach { s -> val p=s.split("|"); d.execSQL("INSERT INTO storage_locations(code,name,temperature,capacity) VALUES(?,?,?,?)",arrayOf(p[0],p[1],p[2],p[3])) }
         d.execSQL("INSERT INTO settings(key,value) VALUES('organization','مختبر أساس')")
         d.execSQL("INSERT INTO settings(key,value) VALUES('sms_provider','NOT_CONFIGURED')")
-        d.execSQL("INSERT INTO settings(key,value) VALUES('central_api','')")
+        d.execSQL("INSERT INTO settings(key,value) VALUES('central_api','https://asas-lims-api.onrender.com')")
         d.execSQL("INSERT INTO settings(key,value) VALUES('initial_setup_required','1')")
         d.execSQL("INSERT OR IGNORE INTO excavation_licenses(license_no,work_order_no,project_name,service_entity,municipality,district,contractor,consultant,start_at,end_at,permit_type,permit_status,excavation_status,location,gps,notes,source,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", arrayOf("480224898026","0890163418","مشروع تنفيذ خدمات المياه والصرف الصحي من خلال تنفيذ التوصيلات المنزلية بمنطقة القصيم إيصال الثاني","شركة المياه الوطنية","بلدية الرس","الشهداء","شركة سعد بن فهد الحربي للمقاولات","بيت الخبرة للاستشارات الهندسية","2026/07/23 23:30:00","2026/09/05 23:30:00","إصدار تصريح حفرية توصيلة مباني مفردة","معدل","تم التمديد","","","بيانات مرجعية تم إدخالها من التصريح الذي تمت معاينته في منصة بلدي","بلدي",1,now,now))
     }
