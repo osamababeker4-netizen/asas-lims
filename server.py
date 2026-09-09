@@ -552,7 +552,8 @@ class H(BaseHTTPRequestHandler):
             '/runtime-config.js': ('runtime-config.js', 'application/javascript; charset=utf-8'),
             '/sw.js': ('sw.js', 'application/javascript; charset=utf-8'),
             '/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
-            '/logo.jpg': ('logo.jpg', 'image/jpeg')
+            '/logo.jpg': ('logo.jpg', 'image/jpeg'),
+            '/company-profile.pdf': ('company-profile.pdf', 'application/pdf')
         }
         if path in static_files:
             return self.static(*static_files[path])
