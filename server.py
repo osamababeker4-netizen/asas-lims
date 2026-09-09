@@ -18,6 +18,7 @@ import urllib.request
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
+QUALITY_UPLOADS = os.path.join(BASE, 'uploads', 'quality')
 PORT = int(os.environ.get('PORT', os.environ.get('LIMS_PORT', '8080')))
 ALLOWED_ORIGIN = os.environ.get('LIMS_ALLOWED_ORIGIN', '').rstrip('/')
 SESSIONS = {}
@@ -552,6 +553,16 @@ class H(BaseHTTPRequestHandler):
                     'staff': [dict(row) for row in connection.execute('select * from quality_staff order by active desc,full_name').fetchall()]
                 })
 
+            if path.startswith('/api/quality/files/'):
+                if not self.require_permission(user, 'quality'):
+                    return
+                filename = os.path.basename(path)
+                target = os.path.join(QUALITY_UPLOADS, filename)
+                if not filename or not os.path.isfile(target):
+                    return self.send_json({'error': 'الملف غير موجود'}, 404)
+                content_type = 'application/pdf' if filename.endswith('.pdf') else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' if filename.endswith('.docx') else 'application/msword'
+                return self.static(os.path.relpath(target, BASE), content_type)
+
             if path == '/api/dashboard':
                 if not self.require_permission(user, 'dashboard'):
                     return
@@ -1047,7 +1058,25 @@ class H(BaseHTTPRequestHandler):
                 title = str(data.get('title', '')).strip()
                 if category not in {'procedure', 'worksheet', 'admin_form'} or not code or not title:
                     return self.send_json({'error': 'بيانات وثيقة الجودة غير مكتملة'}, 400)
-                connection.execute('insert into quality_documents(category,code,title,revision,status,owner,document_ref,notes) values(?,?,?,?,?,?,?,?)', (category, code, title, data.get('revision'), data.get('status') or 'ساري', data.get('owner'), data.get('document_ref'), data.get('notes')))
+                document_ref = str(data.get('document_ref') or '').strip()
+                file_data = str(data.get('file_base64') or '')
+                file_name = os.path.basename(str(data.get('file_name') or ''))
+                if file_data:
+                    extension = os.path.splitext(file_name)[1].lower()
+                    if extension not in {'.pdf', '.doc', '.docx'} or len(file_data) > 14_000_000:
+                        return self.send_json({'error': 'يسمح فقط بملفات PDF أو Word حتى 10MB'}, 400)
+                    try:
+                        content = base64.b64decode(file_data, validate=True)
+                    except ValueError:
+                        return self.send_json({'error': 'ملف مرفوع غير صالح'}, 400)
+                    if len(content) > 10 * 1024 * 1024:
+                        return self.send_json({'error': 'حجم الملف يتجاوز 10MB'}, 400)
+                    os.makedirs(QUALITY_UPLOADS, exist_ok=True)
+                    stored_name = secrets.token_urlsafe(18) + extension
+                    with open(os.path.join(QUALITY_UPLOADS, stored_name), 'wb') as uploaded:
+                        uploaded.write(content)
+                    document_ref = '/api/quality/files/' + stored_name
+                connection.execute('insert into quality_documents(category,code,title,revision,status,owner,document_ref,notes) values(?,?,?,?,?,?,?,?)', (category, code, title, data.get('revision'), data.get('status') or 'ساري', data.get('owner'), document_ref, data.get('notes')))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 audit(connection, user['id'], 'إضافة وثيقة جودة', 'quality_document', entity_id, code)
                 connection.commit(); publish_event('quality_document', 'create', entity_id)
