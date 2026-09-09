@@ -39,6 +39,8 @@ let catalog = [];
 let dashboard = null;
 let qualityData = {documents:[],proficiency:[],staff:[]};
 let currentUser = null;
+const UI_EN = {'لوحة القيادة':'Dashboard','البرنامج الميداني':'Field Program','إدارة المشاريع':'Projects','أوامر العمل':'Work Orders','العملاء':'Clients','العينات':'Samples','الاختبارات':'Tests','دليل الاختبارات':'Test Catalog','التقارير':'Reports','الجودة والوثائق':'Quality & Documents','عن مختبر أساس':'About ASAS','سجل التدقيق':'Audit Log','المستخدمون والصلاحيات':'Users & Permissions','تسجيل الخروج':'Sign out','تغيير كلمة المرور':'Change password','مشروع جديد':'New project','أمر عمل':'Work order','عميل':'Client','عينة':'Sample','جهاز':'Equipment','بحث':'Search','العربية':'Arabic','English':'English','اعتماد':'Accreditation','فتح الملف التعريفي للشركة PDF':'Open company profile PDF','مختبر أساس معتمد من المركز السعودي للاعتماد SAAC':'ASAS Laboratory is accredited by the Saudi Accreditation Center (SAAC)','المشاريع':'Projects','اختبارات الكفاءة':'Proficiency tests','الأجهزة والمعايرة':'Equipment & Calibration','الإجراءات':'Procedures','أوراق العمل':'Work Sheets','رفع مرفق':'Upload attachment','حفظ':'Save','إلغاء':'Cancel','الموقع الرسمي':'Official website','الملف التعريفي للشركة':'Company profile'};
+function setLanguage(lang) { const english=lang==='en'; document.documentElement.lang=english?'en':'ar';document.documentElement.dir=english?'ltr':'rtl';localStorage.setItem('asas_lims_language',lang);document.querySelectorAll('button,a,h1,h2,h3,span,p,label,th').forEach(function(node){if(!node.dataset.arText)node.dataset.arText=node.textContent.trim();const original=node.dataset.arText;if(english&&UI_EN[original])node.textContent=UI_EN[original];else if(!english&&original)node.textContent=original;}); }
 let centralAccessToken = sessionStorage.getItem('asas_lims_access_token') || '';
 let pendingOtpLogin = null;
 let projectView = 'table';
@@ -1123,6 +1125,8 @@ function bindEvents() {
 
 function init() {
   bindEvents();
+  const languageToggle = $('languageToggle');
+  if (languageToggle) { languageToggle.value = localStorage.getItem('asas_lims_language') || 'ar'; languageToggle.addEventListener('change', function(){ setLanguage(languageToggle.value); }); setLanguage(languageToggle.value); }
   const footerYear = $('footerYear');
   if (footerYear) footerYear.textContent = String(new Date().getFullYear());
   document.addEventListener('visibilitychange', function() {

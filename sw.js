@@ -1,4 +1,4 @@
-const CACHE_NAME = 'asas-lims-pwa-v7-5-1-self-password-change';
+const CACHE_NAME = 'asas-lims-pwa-v7-5-2-profile-brand-language';
 const APP_SHELL = [
   './',
   './index.html',
