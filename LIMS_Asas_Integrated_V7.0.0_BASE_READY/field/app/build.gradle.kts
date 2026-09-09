@@ -21,8 +21,8 @@ android {
         applicationId = "sa.asas.lims"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
-        versionName = "7.4.1"
+        versionCode = 81
+        versionName = "8.1.0"
     }
     if (signingPropertiesFile.exists()) {
         signingConfigs {
@@ -35,6 +35,7 @@ android {
         }
     }
     buildTypes {
+        debug { applicationIdSuffix = ".preview"; versionNameSuffix = "-preview" }
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.findByName("release")
