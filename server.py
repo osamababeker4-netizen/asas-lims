@@ -35,15 +35,15 @@ PRIORITIES = {'منخفضة', 'متوسطة', 'عالية', 'حرجة'}
 ROLE_PERMS = {
     'admin': {'*'},
     'general_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync'},
-    'technical_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync'},
-    'laboratory_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync'},
+    'technical_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'audit', 'sync'},
+    'laboratory_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'audit', 'sync'},
     'quality_manager': {'dashboard', 'equipment', 'quality', 'audit'},
     'quality_officer': {'dashboard', 'quality'},
-    'calibration_officer': {'dashboard', 'equipment', 'quality'},
+    'calibration_officer': {'dashboard', 'quality'},
     'document_controller': {'dashboard', 'quality'},
     'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync'},
-    'quality': {'dashboard', 'equipment', 'quality'},
-    'technician': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment'},
+    'quality': {'dashboard', 'quality'},
+    'technician': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports'},
     'field': {'dashboard', 'field', 'clients', 'projects', 'samples'}
 }
 
