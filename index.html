@@ -57,6 +57,7 @@
         <button class="nav-link" data-page="reports">التقارير</button>
         <button class="nav-link" data-page="whatsapp">مسودات واتساب</button>
         <button class="nav-link" data-page="equipment">الأجهزة والمعايرة</button>
+        <button class="nav-link" data-page="quality" id="qualityNav">الجودة والوثائق</button>
         <button class="nav-link" data-page="company">عن مختبر أساس</button>
         <button class="nav-link" data-page="audit">سجل التدقيق</button>
         <button class="nav-link" data-page="users" id="usersNav">المستخدمون والصلاحيات</button>
@@ -216,6 +217,25 @@
         <div class="panel table-panel"><table><thead><tr><th>الجهاز</th><th>الرقم التسلسلي</th><th>آخر معايرة</th><th>القادمة</th><th>الشهادة</th><th>الحالة</th></tr></thead><tbody id="equipmentTable"></tbody></table></div>
       </section>
 
+      <section id="quality" class="page">
+        <div class="page-heading"><div><p class="eyebrow">قسم مستقل</p><h2>الجودة والوثائق</h2><p>إدارة وثائق الجودة وملفات الكفاءة وسجلات الموظفين، منفصلة عن إجراءات المدير الفني.</p></div></div>
+        <div class="quality-grid">
+          <article class="panel quality-card"><span class="quality-code">QMS-01</span><h3>الإجراءات</h3><p>إجراءات التشغيل والجودة ومراجعاتها وإصداراتها.</p><button class="btn secondary" data-quality-add="procedure" type="button">+ إجراء</button></article>
+          <article class="panel quality-card"><span class="quality-code">QMS-02</span><h3>أوراق العمل</h3><p>نماذج Work Sheet مرتبطة بالاختبارات والتحقق.</p><button class="btn secondary" data-quality-add="worksheet" type="button">+ ورقة عمل</button></article>
+          <article class="panel quality-card"><span class="quality-code">QMS-03</span><h3>نماذج إدارية</h3><p>طلب إجازة، مباشرة عمل، تدريب وسائر النماذج الداخلية.</p><button class="btn secondary" data-quality-add="admin_form" type="button">+ نموذج إداري</button></article>
+        </div>
+        <div class="quality-grid quality-import-grid">
+          <article class="panel"><div class="panel-heading"><h3>الأجهزة والمعايرة</h3><button class="text-btn" data-quality-template="equipment" type="button">تنزيل قالب Excel</button></div><p class="muted">استيراد الأجهزة دفعة واحدة بدلاً من إدخال جهازٍ جهازاً.</p><input id="equipmentImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="equipment" type="button">استيراد الأجهزة</button><p class="form-note">القالب CSV متوافق مع Excel. يتحقق النظام من اسم الجهاز قبل الحفظ.</p></article>
+          <article class="panel"><div class="panel-heading"><h3>مشاركات اختبارات الكفاءة</h3><button class="text-btn" data-quality-template="proficiency" type="button">تنزيل قالب Excel</button></div><p class="muted">توثيق اختبارات الكفاءة ونتائجها وملفات تقاريرها.</p><input id="proficiencyImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="proficiency" type="button">استيراد المشاركات</button></article>
+          <article class="panel"><div class="panel-heading"><h3>سجلات الموظفين</h3><button class="text-btn" data-quality-template="staff" type="button">تنزيل قالب Excel</button></div><p class="muted">مؤهلات وخبرات وسيرة ذاتية للموظفين؛ لا ينشئ الاستيراد حسابات دخول.</p><input id="staffImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="staff" type="button">استيراد الموظفين</button></article>
+        </div>
+        <div class="quality-lists">
+          <article class="panel table-panel"><div class="panel-heading"><h3>وثائق الجودة</h3></div><table><thead><tr><th>التصنيف</th><th>الكود</th><th>العنوان</th><th>الإصدار</th><th>الحالة</th><th>المالك</th></tr></thead><tbody id="qualityDocumentsTable"></tbody></table></article>
+          <article class="panel table-panel"><div class="panel-heading"><h3>اختبارات الكفاءة</h3><button class="text-btn" data-quality-add="proficiency" type="button">+ مشاركة</button></div><table><thead><tr><th>الاختبار</th><th>المادة</th><th>المزود</th><th>التاريخ</th><th>النتيجة</th><th>Z-score</th></tr></thead><tbody id="proficiencyTable"></tbody></table></article>
+          <article class="panel table-panel"><div class="panel-heading"><h3>ملفات الموظفين للجودة</h3><button class="text-btn" data-quality-add="staff" type="button">+ موظف</button></div><table><thead><tr><th>الاسم</th><th>المسمى</th><th>التخصص</th><th>الخبرة</th><th>المؤهل</th><th>الحالة</th></tr></thead><tbody id="qualityStaffTable"></tbody></table></article>
+        </div>
+      </section>
+
       <section id="whatsapp" class="page">
         <div class="page-heading"><div><h2>مسودات مجتمع واتساب</h2><p>تُنشأ تلقائيًا من العمليات المهمة. راجعها ثم انسخها وانشرها يدويًا في مجتمع مختبر أساس.</p></div></div>
         <article class="panel">
@@ -293,10 +313,10 @@
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="runtime-config.js?v=30e74c6"></script>
-  <script src="app-password.js?v=5d3b8c5"></script>
+  <script src="app-password.js?v=quality-7-4-1"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=30e74c6').catch(function () {}); });
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=quality-7-4-1').catch(function () {}); });
     }
   </script>
 </body>

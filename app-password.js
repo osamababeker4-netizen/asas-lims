@@ -8,7 +8,7 @@ const PROJECT_STATUSES = ['مخطط', 'نشط', 'موقوف', 'قيد المرا
 const BOARD_STATUSES = ['مخطط', 'نشط', 'قيد المراجعة', 'موقوف', 'مكتمل'];
 const PRIORITIES = ['منخفضة', 'متوسطة', 'عالية', 'حرجة'];
 const WORK_ORDER_STATUSES = ['مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'];
-const ROLE_NAMES = {admin:'مدير نظام',manager:'مدير',technician:'فني مختبر',field:'مفتش ميداني'};
+const ROLE_NAMES = {admin:'مدير النظام',general_manager:'المدير العام',technical_manager:'المدير الفني',laboratory_manager:'مدير المختبر',quality_manager:'مدير الجودة',quality_officer:'مسؤول الجودة',calibration_officer:'مسؤول المعايرة',document_controller:'مسؤول الوثائق',manager:'مدير',technician:'فني مختبر',field:'مفتش ميداني',quality:'الجودة (قديم)'};
 // الكتالوج الرسمي الموحد: يظهر في الموقع المركزي، ويطابق التطبيق الميداني.
 const OFFICIAL_TEST_CATALOG = Object.freeze({
   'تربة':[
@@ -37,6 +37,7 @@ const TEST_FIELDS = {
 
 let catalog = [];
 let dashboard = null;
+let qualityData = {documents:[],proficiency:[],staff:[]};
 let currentUser = null;
 let centralAccessToken = sessionStorage.getItem('asas_lims_access_token') || '';
 let pendingOtpLogin = null;
@@ -424,7 +425,8 @@ async function completeLogin(result) {
   // The API authorizes both administrators and managers to manage users.
   // Keep the navigation aligned with that server-side permission so a
   // manager is not blocked by a hidden page despite being authorized.
-  $('usersNav').classList.toggle('hidden', ['admin','manager'].indexOf(result.user.role) < 0);
+  $('usersNav').classList.toggle('hidden', ['admin','general_manager','manager'].indexOf(result.user.role) < 0);
+  $('qualityNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(result.user.role) < 0);
   await loadCatalog(); await refresh(); startLiveUpdates(); navigate('dashboard');
 }
 
@@ -480,7 +482,8 @@ async function refresh() {
     renderWhatsappDrafts();
     renderEquipment();
     renderAudit();
-    if (currentUser && currentUser.role === 'admin') await renderUsers();
+    if (currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(currentUser.role) >= 0) await renderQuality();
+    if (currentUser && ['admin','general_manager','manager'].indexOf(currentUser.role) >= 0) await renderUsers();
   })();
   try { return await refreshInFlight; } finally { refreshInFlight = null; }
 }
@@ -719,6 +722,32 @@ function openWorkOrderForm(projectId) {
   const technicians = dashboard ? (dashboard.technicians || []) : [];
   modal('<h2>أمر عمل جديد</h2><p>ينشئ أمراً مرتبطاً بمشروع، مع مسودة واتساب للمكلّف عند اختياره.</p><form id="workOrderForm"><div class="modal-grid"><label>المشروع<select name="project_id" required><option value="">— اختر المشروع —</option>' + optionList(projects,projectId,function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>عنوان أمر العمل<input name="title" required></label><label>الأولوية<select name="priority">' + optionList(PRIORITIES,'متوسطة',function(item){return item;},function(item){return item;}) + '</select></label><label>الحالة<select name="status">' + optionList(WORK_ORDER_STATUSES,'مفتوح',function(item){return item;},function(item){return item;}) + '</select></label><label>تاريخ التنفيذ<input name="scheduled_date" type="date"></label><label>تاريخ الاستحقاق<input name="due_date" type="date"></label><label>الفني المكلّف<select name="assigned_to"><option value="">— غير محدد —</option>' + optionList(technicians,'',function(item){return item.full_name + ' — ' + item.username;},function(item){return item.id;}) + '</select></label><label style="grid-column:1/-1">الوصف<textarea name="description"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ أمر العمل</button></div></form>');
 }
+
+async function renderQuality() {
+  try {
+    qualityData = await api('/api/quality');
+    const categoryNames = {procedure:'إجراء',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
+    $('qualityDocumentsTable').innerHTML = qualityData.documents.map(function(item) { return '<tr><td>' + esc(categoryNames[item.category] || item.category) + '</td><td>' + esc(item.code) + '</td><td>' + esc(item.title) + '</td><td>' + esc(item.revision || '—') + '</td><td>' + statusChip(item.status) + '</td><td>' + esc(item.owner || '—') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد وثائق جودة بعد.</td></tr>';
+    $('proficiencyTable').innerHTML = qualityData.proficiency.map(function(item) { return '<tr><td>' + esc(item.test_name) + '</td><td>' + esc(item.material || '—') + '</td><td>' + esc(item.provider || '—') + '</td><td>' + esc(item.participation_date || '—') + '</td><td>' + esc(item.result || '—') + '</td><td>' + esc(item.z_score || '—') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>';
+    $('qualityStaffTable').innerHTML = qualityData.staff.map(function(item) { return '<tr><td>' + esc(item.full_name) + '</td><td>' + esc(item.job_title || '—') + '</td><td>' + esc(item.specialty || '—') + '</td><td>' + esc(item.experience_years || '—') + '</td><td>' + esc(item.qualification_ref || '—') + '</td><td>' + (item.active ? 'نشط' : 'موقوف') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>';
+  } catch (error) { ['qualityDocumentsTable','proficiencyTable','qualityStaffTable'].forEach(function(id) { if ($(id)) $(id).innerHTML = '<tr><td colspan="6" class="empty">تعذر تحميل بيانات الجودة.</td></tr>'; }); }
+}
+
+function openQualityForm(kind) {
+  const names = {procedure:'إجراء جودة',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
+  if (names[kind]) return modal('<h2>إضافة ' + names[kind] + '</h2><form id="qualityDocumentForm"><input type="hidden" name="category" value="' + kind + '"><div class="modal-grid"><label>الكود<input name="code" required placeholder="QMS-P-001"></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision" placeholder="Rev. 01"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>مالك الوثيقة<input name="owner"></label><label>مرجع الملف أو الرابط<input name="document_ref"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الوثيقة</button></div></form>');
+  if (kind === 'proficiency') return modal('<h2>إضافة مشاركة اختبار كفاءة</h2><form id="proficiencyForm"><div class="modal-grid"><label>اسم الاختبار<input name="test_name" required></label><label>المادة<input name="material"></label><label>المعيار<input name="standard"></label><label>مقدم الخدمة<input name="provider"></label><label>تاريخ المشاركة<input name="participation_date" type="date"></label><label>النتيجة<input name="result"></label><label>Z-score<input name="z_score"></label><label>مرجع التقرير<input name="report_ref"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ المشاركة</button></div></form>');
+  if (kind === 'staff') return modal('<h2>إضافة سجل موظف للجودة</h2><form id="qualityStaffForm"><div class="modal-grid"><label>الاسم الكامل<input name="full_name" required></label><label>المسمى الوظيفي<input name="job_title"></label><label>التخصص<input name="specialty"></label><label>سنوات الخبرة<input name="experience_years" type="number" min="0"></label><label>مرجع المؤهل<input name="qualification_ref"></label><label>مرجع السيرة الذاتية<input name="cv_ref"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ السجل</button></div></form>');
+}
+
+const QUALITY_TEMPLATES = {
+  equipment:['اسم الجهاز,الرقم التسلسلي,الشركة المصنعة,الموديل,آخر معايرة,المعايرة القادمة,رقم الشهادة,ملاحظات','جهاز ضغط,ABC-001,Manufacturer,Model X,2026-01-01,2027-01-01,CAL-001,'],
+  proficiency:['اسم الاختبار,المادة,المعيار,مقدم الخدمة,تاريخ المشاركة,النتيجة,Z-score,مرجع التقرير,ملاحظات','مقاومة الضغط,خرسانة,ASTM C39,اسم الجهة,2026-01-01,مقبول,0.20,PT-001,'],
+  staff:['الاسم الكامل,المسمى الوظيفي,التخصص,سنوات الخبرة,مرجع المؤهل,مرجع السيرة الذاتية,ملاحظات','اسم الموظف,فني مختبر,خرسانة,5,QUAL-001,CV-001,']
+};
+function downloadQualityTemplate(kind) { const blob = new Blob(['\ufeff' + QUALITY_TEMPLATES[kind].join('\n')],{type:'text/csv;charset=utf-8'}); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'ASAS_' + kind + '_template.csv'; link.click(); URL.revokeObjectURL(link.href); }
+function parseCsv(text) { const lines = text.replace(/^\ufeff/,'').split(/\r?\n/).filter(Boolean); const cells = function(line) { return line.match(/(?:^|,)("(?:[^"]|"")*"|[^,]*)/g).map(function(cell) { return cell.replace(/^,/, '').replace(/^"|"$/g,'').replace(/""/g,'"').trim(); }); }; const headers = cells(lines.shift() || ''); return lines.map(function(line) { const values = cells(line); return headers.reduce(function(row,header,index) { row[header] = values[index] || ''; return row; },{}); }); }
+async function importQualityRows(kind) { const file = $(kind + 'Import').files[0]; if (!file) throw new Error('اختر ملف CSV الذي تم تنزيله من النظام أولاً'); const rows = parseCsv(await file.text()); if (!rows.length) throw new Error('الملف لا يحتوي على صفوف بيانات'); const mappings = {equipment:{'اسم الجهاز':'name','الرقم التسلسلي':'serial_no','الشركة المصنعة':'manufacturer','الموديل':'model','آخر معايرة':'last_calibration','المعايرة القادمة':'next_calibration','رقم الشهادة':'certificate_no','ملاحظات':'notes'},proficiency:{'اسم الاختبار':'test_name','المادة':'material','المعيار':'standard','مقدم الخدمة':'provider','تاريخ المشاركة':'participation_date','النتيجة':'result','Z-score':'z_score','مرجع التقرير':'report_ref','ملاحظات':'notes'},staff:{'الاسم الكامل':'full_name','المسمى الوظيفي':'job_title','التخصص':'specialty','سنوات الخبرة':'experience_years','مرجع المؤهل':'qualification_ref','مرجع السيرة الذاتية':'cv_ref','ملاحظات':'notes'}}; const endpoint = {equipment:'/api/equipment',proficiency:'/api/quality/proficiency',staff:'/api/quality/staff'}[kind]; let completed = 0; for (const row of rows) { const payload = {}; Object.keys(mappings[kind]).forEach(function(header) { payload[mappings[kind][header]] = row[header] || ''; }); await api(endpoint,{method:'POST',body:JSON.stringify(payload)}); completed += 1; } await refresh(); showToast('تم استيراد ' + completed + ' سجل بنجاح'); }
 
 function openTestAssignment(testId) {
   const test = (dashboard ? dashboard.tests : []).find(function(item) { return item.id === Number(testId); });
@@ -1020,6 +1049,9 @@ function bindEvents() {
       catch (error) { showToast(error.message,true); }
       return;
     }
+    if (button.dataset.qualityAdd) return openQualityForm(button.dataset.qualityAdd);
+    if (button.dataset.qualityTemplate) return downloadQualityTemplate(button.dataset.qualityTemplate);
+    if (button.dataset.qualityImport) { try { await importQualityRows(button.dataset.qualityImport); } catch (error) { showToast(error.message,true); } return; }
     if (button.dataset.userEdit) {
       const users = JSON.parse($('usersTable').dataset.users || '[]'); const user = users.find(function(item) { return item.id === Number(button.dataset.userEdit); }); if (user) openUserForm(user);
     }
@@ -1037,6 +1069,9 @@ function bindEvents() {
       if (form.id === 'testForm') await submitTest(form);
       if (form.id === 'testAssignmentForm') await submitTestAssignment(form);
       if (form.id === 'userForm') await saveUserForm(form);
+      if (form.id === 'qualityDocumentForm') await submitSimple(form,'/api/quality/documents');
+      if (form.id === 'proficiencyForm') await submitSimple(form,'/api/quality/proficiency');
+      if (form.id === 'qualityStaffForm') await submitSimple(form,'/api/quality/staff');
       if (form.id === 'baladyForm') saveBaladyData(form);
     } catch (error) {
       const message = error && error.message ? error.message : 'تعذر حفظ البيانات';

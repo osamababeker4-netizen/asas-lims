@@ -212,6 +212,47 @@ CREATE TABLE IF NOT EXISTS sync_queue(
  sent_at TEXT
 );
 
+-- Quality records are intentionally separate from technical operations.
+CREATE TABLE IF NOT EXISTS quality_documents(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ category TEXT NOT NULL CHECK(category IN ('procedure','worksheet','admin_form')),
+ code TEXT NOT NULL,
+ title TEXT NOT NULL,
+ revision TEXT,
+ status TEXT NOT NULL DEFAULT 'ساري',
+ owner TEXT,
+ document_ref TEXT,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS proficiency_tests(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ test_name TEXT NOT NULL,
+ material TEXT,
+ standard TEXT,
+ provider TEXT,
+ participation_date TEXT,
+ result TEXT,
+ z_score TEXT,
+ report_ref TEXT,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS quality_staff(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ full_name TEXT NOT NULL,
+ job_title TEXT,
+ specialty TEXT,
+ experience_years TEXT,
+ qualification_ref TEXT,
+ cv_ref TEXT,
+ active INTEGER NOT NULL DEFAULT 1,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Draft-only WhatsApp outbox.  The application never posts to a group or
 -- community automatically: a company administrator reviews and sends each
 -- draft through the official WhatsApp Business channel.

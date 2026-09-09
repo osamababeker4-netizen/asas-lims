@@ -33,7 +33,15 @@ PRIORITIES = {'منخفضة', 'متوسطة', 'عالية', 'حرجة'}
 
 ROLE_PERMS = {
     'admin': {'*'},
-    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'users', 'sync'},
+    'general_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync'},
+    'technical_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync'},
+    'laboratory_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync'},
+    'quality_manager': {'dashboard', 'equipment', 'quality', 'audit'},
+    'quality_officer': {'dashboard', 'quality'},
+    'calibration_officer': {'dashboard', 'equipment', 'quality'},
+    'document_controller': {'dashboard', 'quality'},
+    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync'},
+    'quality': {'dashboard', 'equipment', 'quality'},
     'technician': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment'},
     'field': {'dashboard', 'field', 'clients', 'projects', 'samples'}
 }
@@ -535,6 +543,15 @@ class H(BaseHTTPRequestHandler):
             if path == '/api/catalog':
                 return self.send_json([dict(row) for row in connection.execute('select * from test_catalog where active=1 order by category,name_ar').fetchall()])
 
+            if path == '/api/quality':
+                if not self.require_permission(user, 'quality'):
+                    return
+                return self.send_json({
+                    'documents': [dict(row) for row in connection.execute('select * from quality_documents order by category,code,id desc').fetchall()],
+                    'proficiency': [dict(row) for row in connection.execute('select * from proficiency_tests order by participation_date desc,id desc').fetchall()],
+                    'staff': [dict(row) for row in connection.execute('select * from quality_staff order by active desc,full_name').fetchall()]
+                })
+
             if path == '/api/dashboard':
                 if not self.require_permission(user, 'dashboard'):
                     return
@@ -1020,6 +1037,44 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'إضافة جهاز', 'equipment', entity_id, name)
                 connection.commit()
                 publish_event('equipment', 'create', entity_id)
+                return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/quality/documents':
+                if not self.require_permission(user, 'quality'):
+                    return
+                category = str(data.get('category', '')).strip()
+                code = str(data.get('code', '')).strip()
+                title = str(data.get('title', '')).strip()
+                if category not in {'procedure', 'worksheet', 'admin_form'} or not code or not title:
+                    return self.send_json({'error': 'بيانات وثيقة الجودة غير مكتملة'}, 400)
+                connection.execute('insert into quality_documents(category,code,title,revision,status,owner,document_ref,notes) values(?,?,?,?,?,?,?,?)', (category, code, title, data.get('revision'), data.get('status') or 'ساري', data.get('owner'), data.get('document_ref'), data.get('notes')))
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                audit(connection, user['id'], 'إضافة وثيقة جودة', 'quality_document', entity_id, code)
+                connection.commit(); publish_event('quality_document', 'create', entity_id)
+                return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/quality/proficiency':
+                if not self.require_permission(user, 'quality'):
+                    return
+                test_name = str(data.get('test_name', '')).strip()
+                if not test_name:
+                    return self.send_json({'error': 'اسم اختبار الكفاءة مطلوب'}, 400)
+                connection.execute('insert into proficiency_tests(test_name,material,standard,provider,participation_date,result,z_score,report_ref,notes) values(?,?,?,?,?,?,?,?,?)', (test_name, data.get('material'), data.get('standard'), data.get('provider'), data.get('participation_date'), data.get('result'), data.get('z_score'), data.get('report_ref'), data.get('notes')))
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                audit(connection, user['id'], 'إضافة مشاركة اختبار كفاءة', 'proficiency_test', entity_id, test_name)
+                connection.commit(); publish_event('proficiency_test', 'create', entity_id)
+                return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/quality/staff':
+                if not self.require_permission(user, 'quality'):
+                    return
+                full_name = str(data.get('full_name', '')).strip()
+                if not full_name:
+                    return self.send_json({'error': 'اسم الموظف مطلوب'}, 400)
+                connection.execute('insert into quality_staff(full_name,job_title,specialty,experience_years,qualification_ref,cv_ref,active,notes) values(?,?,?,?,?,?,?,?)', (full_name, data.get('job_title'), data.get('specialty'), data.get('experience_years'), data.get('qualification_ref'), data.get('cv_ref'), 1 if data.get('active', True) else 0, data.get('notes')))
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                audit(connection, user['id'], 'إضافة سجل موظف للجودة', 'quality_staff', entity_id, full_name)
+                connection.commit(); publish_event('quality_staff', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id})
 
             if path == '/api/tests/proctor':
