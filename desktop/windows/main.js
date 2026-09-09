@@ -11,14 +11,16 @@ app.on('second-instance',()=>{if(main){if(main.isMinimized())main.restore();main
 app.whenReady().then(()=>{
  session.defaultSession.setPermissionRequestHandler((webContents,permission,callback)=>{
   if(!trusted(webContents.getURL())||permission!=='geolocation')return callback(false);
-  dialog.showMessageBox(main,{type:'question',message:'Allow ASAS LIMS to use your location? / السماح باستخدام موقعك؟',buttons:['Allow / سماح','Deny / رفض'],defaultId:1,cancelId:1}).then(result=>callback(result.response===0));
+  dialog.showMessageBox(main,{type:'question',message:'Allow ASAS LIMS to use your location?',buttons:['Allow','Deny'],defaultId:1,cancelId:1}).then(result=>callback(result.response===0));
  });
  session.defaultSession.setPermissionCheckHandler((wc,permission,origin)=>permission==='geolocation'&&origin==='https://osamababeker4-netizen.github.io');
- main=new BrowserWindow({width:1380,height:900,minWidth:720,minHeight:520,title:'ASAS LIMS 8.1.0',webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
+ const smoke=process.argv.includes('--smoke-test');
+ main=new BrowserWindow({show:!smoke,width:1380,height:900,minWidth:720,minHeight:520,title:'ASAS LIMS 8.1.0',webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
+ if(smoke){const timeout=setTimeout(()=>app.exit(2),45000);main.webContents.once('did-finish-load',async()=>{try{const ok=await main.webContents.executeJavaScript("typeof require==='undefined' && document.getElementById('loginForm')!==null");clearTimeout(timeout);console.log('ASAS smoke test: '+ok);app.exit(ok?0:1);}catch{app.exit(1);}});}
  main.webContents.on('will-navigate',(event,url)=>{if(!trusted(url)){event.preventDefault();external(url);}});
  main.webContents.setWindowOpenHandler(({url})=>{external(url);return {action:'deny'};});
- main.webContents.on('did-fail-load',(_event,code,_description,_url,isMain)=>{if(isMain&&code!==-3)dialog.showMessageBox(main,{type:'error',message:'Check your internet connection, then use Reload. / تحقق من الاتصال ثم أعد التحميل.'});});
- Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'ASAS LIMS',submenu:[{label:'Home / الرئيسية',click:()=>main.loadURL(HOME)},{label:'Reload / تحديث',accelerator:'CmdOrCtrl+R',click:()=>main.webContents.reloadIgnoringCache()},{label:'Print / طباعة',accelerator:'CmdOrCtrl+P',click:()=>main.webContents.print()},{type:'separator'},{role:'quit'}]},{label:'Edit',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},{label:'View',submenu:[{role:'zoomIn'},{role:'zoomOut'},{role:'resetZoom'},{role:'togglefullscreen'}]}]));
+ main.webContents.on('did-fail-load',(_event,code,_description,_url,isMain)=>{if(isMain&&code!==-3)dialog.showMessageBox(main,{type:'error',message:'Check your internet connection, then use Reload.'});});
+ Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'ASAS LIMS',submenu:[{label:'Home',click:()=>main.loadURL(HOME)},{label:'Reload',accelerator:'CmdOrCtrl+R',click:()=>main.webContents.reloadIgnoringCache()},{label:'Print',accelerator:'CmdOrCtrl+P',click:()=>main.webContents.print()},{type:'separator'},{role:'quit'}]},{label:'Edit',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},{label:'View',submenu:[{role:'zoomIn'},{role:'zoomOut'},{role:'resetZoom'},{role:'togglefullscreen'}]}]));
  main.loadURL(HOME);
 });
 app.on('window-all-closed',()=>app.quit());

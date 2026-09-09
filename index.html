@@ -10,13 +10,13 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=8-0-0">
+  <link rel="stylesheet" href="style.css?v=8-1-0">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
       <img src="logo.jpg" class="login-logo" alt="شعار مختبر أساس">
-      <p class="eyebrow">ASAS LIMS · V8.0.0</p>
+      <p class="eyebrow">ASAS LIMS · V8.1.0</p>
       <h1>منصة أساس لإدارة المختبر</h1>
       <p class="muted">إدارة المشاريع، أوامر العمل، العينات، الاختبارات والتقارير في واجهة عربية موحّدة.</p>
       <form id="loginForm" class="form-stack">
@@ -314,11 +314,12 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=8-0-0"></script>
-  <script src="app-password.js?v=8-0-0"></script>
+  <script src="runtime-config.js?v=8-1-0"></script>
+  <script src="i18n.js?v=8-1-0"></script>
+  <script src="app-password.js?v=8-1-0"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=8-0-0').catch(function () {}); });
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=8-1-0').catch(function () {}); });
     }
   </script>
 </body>

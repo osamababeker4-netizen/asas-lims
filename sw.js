@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v8-0-0';
-const APP_SHELL = ['./','./index.html','./style.css?v=8-0-0','./app-password.js?v=8-0-0','./runtime-config.js?v=8-0-0','./manifest.webmanifest','./logo.jpg'];
+const CACHE_NAME = 'asas-lims-pwa-v8-1-0';
+const APP_SHELL = ['./','./index.html','./style.css?v=8-1-0','./app-password.js?v=8-1-0','./i18n.js?v=8-1-0','./runtime-config.js?v=8-1-0','./manifest.webmanifest','./logo.jpg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
@@ -15,7 +15,7 @@ self.addEventListener('fetch', function(event) {
   if (event.request.method !== 'GET' || url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
   const relative = url.pathname.slice(scope.pathname.length);
   // Never cache API responses, authentication, attachments or the 44 MB PDF.
-  if (!['','index.html','style.css','app-password.js','runtime-config.js','manifest.webmanifest','logo.jpg'].includes(relative)) return;
+  if (!['','index.html','style.css','app-password.js','i18n.js','runtime-config.js','manifest.webmanifest','logo.jpg'].includes(relative)) return;
   event.respondWith((async function() {
     const cache = await caches.open(CACHE_NAME);
     try {

@@ -553,6 +553,7 @@ class H(BaseHTTPRequestHandler):
             '/sw.js': ('sw.js', 'application/javascript; charset=utf-8'),
             '/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
             '/logo.jpg': ('logo.jpg', 'image/jpeg'),
+            '/i18n.js': ('i18n.js', 'application/javascript; charset=utf-8'),
             '/company-profile.pdf': ('company-profile.pdf', 'application/pdf')
         }
         if path in static_files:
