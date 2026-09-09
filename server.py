@@ -104,13 +104,14 @@ RECORD_TYPES = {
     'client': ('clients', 'clients'), 'project': ('projects', 'projects'),
     'work_order': ('work_orders', 'projects'), 'sample': ('samples', 'samples'),
     'test': ('tests', 'tests'), 'report': ('reports', 'reports'),
-    'equipment': ('equipment', 'equipment'), 'user': ('users', 'users')
+    'equipment': ('equipment', 'equipment'), 'user': ('users', 'users'),
+    'catalog': ('test_catalog', 'catalog')
 }
 
 
 def record_allowed(user, entity_type):
     item = RECORD_TYPES.get(entity_type)
-    return bool(item and has_perm(user, item[1]))
+    return bool(item and (has_perm(user, item[1]) or (entity_type == 'catalog' and has_perm(user, 'quality'))))
 
 
 def save_record_file(connection, user, data):
@@ -586,7 +587,9 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json([dict(row) for row in rows])
 
             if path == '/api/catalog':
-                return self.send_json([dict(row) for row in connection.execute('select * from test_catalog where active=1 order by category,name_ar').fetchall()])
+                rows = [dict(row) for row in connection.execute('''select tc.*, cr.astm_attachment_id,cr.worksheet_attachment_id,cr.results_attachment_id
+                    from test_catalog tc left join catalog_resources cr on cr.test_catalog_id=tc.id where tc.active=1 order by tc.category,tc.name_ar''').fetchall()]
+                return self.send_json(rows)
 
             if path == '/api/attachments':
                 entity_type = str(parse_qs(parsed.query).get('entity_type', [''])[0])
@@ -1158,6 +1161,26 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'رفع مرفق سجل', data.get('entity_type'), data.get('entity_id'), data.get('file_name'))
                 connection.commit()
                 return self.send_json({'ok': True, 'id': attachment_id, 'ref': '/api/attachments/files/' + str(attachment_id), 'stored_name': stored_name})
+
+            if path == '/api/catalog/resources':
+                if not self.require_permission(user, 'quality'):
+                    return
+                catalog_id = parse_optional_int(data.get('catalog_id'))
+                resource_type = str(data.get('resource_type') or '')
+                columns = {'astm': 'astm_attachment_id', 'worksheet': 'worksheet_attachment_id', 'results': 'results_attachment_id'}
+                if not catalog_id or resource_type not in columns or not connection.execute('select id from test_catalog where id=?', (catalog_id,)).fetchone():
+                    return self.send_json({'error': 'بيانات الاختبار أو نوع المورد غير صحيح'}, 400)
+                upload_data = dict(data); upload_data['entity_type'] = 'catalog'; upload_data['entity_id'] = catalog_id
+                try:
+                    save_record_file(connection, user, upload_data)
+                except (PermissionError, ValueError) as error:
+                    return self.send_json({'error': str(error)}, 400)
+                attachment_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                column = columns[resource_type]
+                connection.execute('insert into catalog_resources(test_catalog_id,' + column + ') values(?,?) on conflict(test_catalog_id) do update set ' + column + '=excluded.' + column + ',updated_at=CURRENT_TIMESTAMP', (catalog_id, attachment_id))
+                audit(connection, user['id'], 'ربط مورد اختبار', 'test_catalog', catalog_id, resource_type)
+                connection.commit(); publish_event('catalog_resource', 'update', catalog_id)
+                return self.send_json({'ok': True, 'id': attachment_id, 'ref': '/api/attachments/files/' + str(attachment_id)})
 
             if path == '/api/bulk/import':
                 entity_type = str(data.get('entity_type') or '')

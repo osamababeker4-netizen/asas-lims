@@ -265,6 +265,18 @@ CREATE TABLE IF NOT EXISTS quality_staff(
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS catalog_resources(
+ test_catalog_id INTEGER PRIMARY KEY,
+ astm_attachment_id INTEGER,
+ worksheet_attachment_id INTEGER,
+ results_attachment_id INTEGER,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(test_catalog_id) REFERENCES test_catalog(id),
+ FOREIGN KEY(astm_attachment_id) REFERENCES record_attachments(id),
+ FOREIGN KEY(worksheet_attachment_id) REFERENCES record_attachments(id),
+ FOREIGN KEY(results_attachment_id) REFERENCES record_attachments(id)
+);
+
 -- Draft-only WhatsApp outbox.  The application never posts to a group or
 -- community automatically: a company administrator reviews and sends each
 -- draft through the official WhatsApp Business channel.

@@ -632,9 +632,15 @@ function renderWhatsappDrafts() {
 function renderCatalog() {
   const query = $('catalogSearch') ? $('catalogSearch').value.toLowerCase() : '';
   $('catalogTable').innerHTML = catalog.filter(function(item) { return [item.code,item.name_ar,item.name_en,item.standard,item.category].join(' ').toLowerCase().indexOf(query) >= 0; }).map(function(item) {
-    return '<tr><td>' + esc(item.code) + '</td><td>' + esc(item.name_ar) + '<small>' + esc(item.name_en || '') + '</small></td><td>' + esc(item.category) + '</td><td>' + esc(item.standard) + '</td><td>' + esc(item.version || '—') + '</td></tr>';
-  }).join('') || '<tr><td colspan="5" class="empty">لا توجد نتائج.</td></tr>';
+    const fileLink = function(id,label){return id ? '<a class="text-btn" target="_blank" rel="noopener" href="'+esc(API_BASE_URL+'/api/attachments/files/'+id)+'">'+label+'</a>' : '';};
+    const resources = [fileLink(item.astm_attachment_id,'ASTM'),fileLink(item.worksheet_attachment_id,'Work Sheet'),fileLink(item.results_attachment_id,'Excel النتائج')].filter(Boolean).join(' ');
+    const canManage = currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','document_controller','quality'].indexOf(currentUser.role) >= 0;
+    return '<tr><td>' + esc(item.code) + '</td><td>' + esc(item.name_ar) + '<small>' + esc(item.name_en || '') + '</small></td><td>' + esc(item.category) + '</td><td>' + esc(item.standard) + '</td><td>' + esc(item.version || '—') + '</td><td><div class="row-actions">'+(resources || '—')+(canManage ? '<button class="text-btn" data-catalog-resources="'+item.id+'">إدارة الملفات</button>' : '')+'</div></td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty">لا توجد نتائج.</td></tr>';
 }
+
+function openCatalogResources(id) { const item=catalog.find(function(x){return x.id===Number(id);});if(!item)return;modal('<h2>ملفات '+esc(item.code)+'</h2><p>ارفع النسخة المرخّصة من مواصفة ASTM وWork Sheet وExcel النتائج. تظل الملفات متاحة للقراءة والتنزيل حسب الصلاحيات.</p><form id="catalogResourcesForm"><input type="hidden" name="catalog_id" value="'+item.id+'"><div class="modal-grid"><label>مواصفة ASTM (PDF أو Word)<input name="astm" type="file" accept=".pdf,.doc,.docx"></label><label>Work Sheet (PDF أو Word أو Excel)<input name="worksheet" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx"></label><label>Excel الاختبارات والنتائج<input name="results" type="file" accept=".xls,.xlsx,.pdf"></label></div><p class="form-note">الحجم الأقصى لكل ملف 25MB. اترك الحقل فارغًا للإبقاء على الملف الحالي.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الملفات</button></div></form>'); }
+async function submitCatalogResources(form) { const catalogId=form.elements.catalog_id.value; let count=0; for(const type of ['astm','worksheet','results']) { const file=form.elements[type].files[0]; if(!file)continue; if(file.size>25*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 25MB'); const bytes=new Uint8Array(await file.arrayBuffer()); let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/catalog/resources',{method:'POST',body:JSON.stringify({catalog_id:catalogId,resource_type:type,file_name:file.name,file_base64:btoa(binary)})});count++; } if(!count)throw new Error('اختر ملفًا واحدًا على الأقل');closeModal();await refresh();showToast('تم ربط ملفات الاختبار بدليل الجودة'); }
 
 function renderReports() {
   $('reportsTable').innerHTML = (dashboard ? dashboard.reports : []).map(function(report) {
@@ -1066,6 +1072,7 @@ function bindEvents() {
     if (button.dataset.qualityAdd) return openQualityForm(button.dataset.qualityAdd);
     if (button.dataset.qualityTemplate) return downloadQualityTemplate(button.dataset.qualityTemplate);
     if (button.dataset.qualityImport) { try { await importQualityRows(button.dataset.qualityImport); } catch (error) { showToast(error.message,true); } return; }
+    if (button.dataset.catalogResources) return openCatalogResources(button.dataset.catalogResources);
     if (button.dataset.bulkPanel) return openBulkPanel(button.dataset.bulkPanel);
     if (button.dataset.attachmentPanel) return openAttachmentPanel(button.dataset.attachmentPanel);
     if (button.dataset.downloadBulk) return downloadBulkTemplate(button.dataset.downloadBulk);
@@ -1092,6 +1099,7 @@ function bindEvents() {
       if (form.id === 'qualityStaffForm') await submitQualityRecord(form,'/api/quality/staff',['qualification_file','cv_file']);
       if (form.id === 'bulkImportForm') await submitBulkImport(form);
       if (form.id === 'recordAttachmentForm') await submitRecordAttachment(form);
+      if (form.id === 'catalogResourcesForm') await submitCatalogResources(form);
       if (form.id === 'baladyForm') saveBaladyData(form);
     } catch (error) {
       const message = error && error.message ? error.message : 'تعذر حفظ البيانات';
