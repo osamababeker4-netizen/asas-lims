@@ -427,7 +427,7 @@ async function completeLogin(result) {
   // manager is not blocked by a hidden page despite being authorized.
   $('usersNav').classList.toggle('hidden', ['admin','general_manager','manager'].indexOf(result.user.role) < 0);
   $('qualityNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(result.user.role) < 0);
-  $('qualityEquipmentCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager'].indexOf(result.user.role) < 0);
+  $('qualityEquipmentCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','technical_manager','laboratory_manager'].indexOf(result.user.role) < 0);
   await loadCatalog(); await refresh(); startLiveUpdates(); navigate('dashboard');
 }
 
