@@ -1,4 +1,4 @@
-const CACHE_NAME = 'asas-lims-pwa-v7-5-2-profile-brand-language';
+const CACHE_NAME = 'asas-lims-pwa-v7-5-3-safe-language-switch';
 const APP_SHELL = [
   './',
   './index.html',
