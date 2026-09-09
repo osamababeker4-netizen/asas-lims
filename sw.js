@@ -1,4 +1,4 @@
-const CACHE_NAME = 'asas-lims-pwa-v7-4-8-quality-record-files';
+const CACHE_NAME = 'asas-lims-pwa-v7-4-9-dashboard-imports-attachments';
 const APP_SHELL = [
   './',
   './index.html',

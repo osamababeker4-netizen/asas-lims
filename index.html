@@ -93,7 +93,7 @@
       <section id="dashboard" class="page active">
         <div class="page-heading">
           <div><h2>نظرة تشغيلية</h2><p>الأولويات، الأعمال المتأخرة، وحالة سلسلة العينة حتى التقرير.</p></div>
-          <button class="btn primary" data-open-project type="button">+ مشروع جديد</button>
+          <div class="heading-actions"><button class="btn secondary" data-bulk-panel="projects" type="button">Excel / مرفقات</button><button class="btn primary" data-open-project type="button">+ مشروع جديد</button></div>
         </div>
         <div class="metric-grid">
           <article class="metric-card accent-blue"><span>المشاريع النشطة</span><strong id="metricProjects">0</strong></article>
@@ -150,7 +150,7 @@
       <section id="workOrders" class="page">
         <div class="page-heading">
           <div><h2>أوامر العمل</h2><p>أوامر مرتبطة بمشروع محدد، وتتبع حالة التنفيذ والمواعيد والمكلّف.</p></div>
-          <button id="openWorkOrder" class="btn primary" type="button">+ أمر عمل</button>
+          <div class="heading-actions"><button class="btn secondary" data-bulk-panel="work_orders" type="button">Excel / مرفقات</button><button id="openWorkOrder" class="btn primary" type="button">+ أمر عمل</button></div>
         </div>
         <div class="panel table-panel"><table>
           <thead><tr><th>الرقم</th><th>أمر العمل</th><th>المشروع</th><th>المكلّف</th><th>الأولوية</th><th>الاستحقاق</th><th>الحالة</th></tr></thead>
@@ -187,17 +187,17 @@
       </section>
 
       <section id="clients" class="page">
-        <div class="page-heading"><div><h2>العملاء</h2></div><button id="openClient" class="btn primary" type="button">+ عميل</button></div>
+        <div class="page-heading"><div><h2>العملاء</h2></div><div class="heading-actions"><button class="btn secondary" data-bulk-panel="clients" type="button">Excel / مرفقات</button><button id="openClient" class="btn primary" type="button">+ عميل</button></div></div>
         <div class="panel table-panel"><table><thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد</th></tr></thead><tbody id="clientsTable"></tbody></table></div>
       </section>
 
       <section id="samples" class="page">
-        <div class="page-heading"><div><h2>العينات</h2></div><button id="openSample" class="btn primary" type="button">+ عينة</button></div>
+        <div class="page-heading"><div><h2>العينات</h2></div><div class="heading-actions"><button class="btn secondary" data-bulk-panel="samples" type="button">Excel / مرفقات</button><button id="openSample" class="btn primary" type="button">+ عينة</button></div></div>
         <div class="panel table-panel"><table><thead><tr><th>رقم العينة</th><th>المشروع</th><th>المادة</th><th>الخطة الرسمية</th><th>تاريخ الاستلام</th><th>الحالة</th></tr></thead><tbody id="samplesTable"></tbody></table></div>
       </section>
 
       <section id="tests" class="page">
-        <div class="page-heading"><div><h2>الاختبارات</h2></div><button id="openTest" class="btn primary" type="button">+ اختبار</button></div>
+        <div class="page-heading"><div><h2>الاختبارات</h2></div><div class="heading-actions"><button class="btn secondary" data-attachment-panel="test" type="button">رفع مرفق</button><button id="openTest" class="btn primary" type="button">+ اختبار</button></div></div>
         <div class="panel table-panel"><table><thead><tr><th>رقم الاختبار</th><th>العينة</th><th>الاختبار</th><th>المعيار</th><th>الفني</th><th>النتيجة</th><th>الحالة</th><th></th></tr></thead><tbody id="testsTable"></tbody></table></div>
       </section>
 
@@ -207,7 +207,7 @@
       </section>
 
       <section id="reports" class="page">
-        <div class="page-heading"><div><h2>التقارير</h2><p>دورة التقرير محفوظة: مسودة ← مراجعة ← اعتماد.</p></div></div>
+        <div class="page-heading"><div><h2>التقارير</h2><p>دورة التقرير محفوظة: مسودة ← مراجعة ← اعتماد.</p></div><button class="btn secondary" data-attachment-panel="report" type="button">رفع مرفق</button></div>
         <div class="panel table-panel"><table><thead><tr><th>التقرير</th><th>العينة / الاختبار</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead><tbody id="reportsTable"></tbody></table></div>
       </section>
 
@@ -291,7 +291,7 @@
       </section>
 
       <section id="users" class="page">
-        <div class="page-heading"><div><h2>المستخدمون والصلاحيات</h2><p>متاحة لمدير النظام والمدير المخوّل.</p></div><button id="openUser" class="btn primary" type="button">+ مستخدم</button></div>
+        <div class="page-heading"><div><h2>المستخدمون والصلاحيات</h2><p>متاحة لمدير النظام والمدير المخوّل.</p></div><div class="heading-actions"><button class="btn secondary" data-attachment-panel="user" type="button">رفع مرفق</button><button id="openUser" class="btn primary" type="button">+ مستخدم</button></div></div>
         <div class="panel table-panel"><table><thead><tr><th>اسم المستخدم</th><th>الاسم</th><th>الدور</th><th>الحالة</th><th>تاريخ الإنشاء</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
       </section>
 

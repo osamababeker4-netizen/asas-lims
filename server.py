@@ -19,6 +19,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.path.join(BASE, 'uploads', 'quality')
+RECORD_UPLOADS = os.path.join(BASE, 'uploads', 'records')
 PORT = int(os.environ.get('PORT', os.environ.get('LIMS_PORT', '8080')))
 ALLOWED_ORIGIN = os.environ.get('LIMS_ALLOWED_ORIGIN', '').rstrip('/')
 SESSIONS = {}
@@ -97,6 +98,49 @@ def parse_optional_int(value):
 
 def normalize_priority(value):
     return value if value in PRIORITIES else 'متوسطة'
+
+
+RECORD_TYPES = {
+    'client': ('clients', 'clients'), 'project': ('projects', 'projects'),
+    'work_order': ('work_orders', 'projects'), 'sample': ('samples', 'samples'),
+    'test': ('tests', 'tests'), 'report': ('reports', 'reports'),
+    'equipment': ('equipment', 'equipment'), 'user': ('users', 'users')
+}
+
+
+def record_allowed(user, entity_type):
+    item = RECORD_TYPES.get(entity_type)
+    return bool(item and has_perm(user, item[1]))
+
+
+def save_record_file(connection, user, data):
+    entity_type = str(data.get('entity_type') or '')
+    if not record_allowed(user, entity_type):
+        raise PermissionError('لا تملك صلاحية هذا السجل')
+    entity_id = parse_optional_int(data.get('entity_id'))
+    table = RECORD_TYPES[entity_type][0]
+    if not entity_id or not connection.execute('select id from ' + table + ' where id=?', (entity_id,)).fetchone():
+        raise ValueError('السجل المحدد غير موجود')
+    original_name = os.path.basename(str(data.get('file_name') or ''))
+    extension = os.path.splitext(original_name)[1].lower()
+    encoded = str(data.get('file_base64') or '')
+    if not encoded or extension not in {'.pdf', '.doc', '.docx', '.xls', '.xlsx'}:
+        raise ValueError('يسمح فقط بملفات PDF أو Word أو Excel')
+    if len(encoded) > 35_000_000:
+        raise ValueError('حجم الملف يتجاوز 25MB')
+    try:
+        content = base64.b64decode(encoded, validate=True)
+    except ValueError:
+        raise ValueError('ملف مرفوع غير صالح')
+    if len(content) > 25 * 1024 * 1024:
+        raise ValueError('حجم الملف يتجاوز 25MB')
+    os.makedirs(RECORD_UPLOADS, exist_ok=True)
+    stored_name = secrets.token_urlsafe(18) + extension
+    with open(os.path.join(RECORD_UPLOADS, stored_name), 'wb') as uploaded:
+        uploaded.write(content)
+    connection.execute('insert into record_attachments(entity_type,entity_id,original_name,stored_name,uploaded_by) values(?,?,?,?,?)',
+                       (entity_type, entity_id, original_name, stored_name, user['id']))
+    return stored_name
 
 
 def migrate_schema(connection):
@@ -543,6 +587,27 @@ class H(BaseHTTPRequestHandler):
 
             if path == '/api/catalog':
                 return self.send_json([dict(row) for row in connection.execute('select * from test_catalog where active=1 order by category,name_ar').fetchall()])
+
+            if path == '/api/attachments':
+                entity_type = str(parse_qs(parsed.query).get('entity_type', [''])[0])
+                entity_id = parse_optional_int(parse_qs(parsed.query).get('entity_id', [''])[0])
+                if not record_allowed(user, entity_type):
+                    return self.send_json({'error': 'غير مصرح'}, 403)
+                return self.send_json([dict(row) for row in connection.execute(
+                    'select id,original_name,created_at from record_attachments where entity_type=? and entity_id=? order by id desc',
+                    (entity_type, entity_id)).fetchall()])
+
+            if path.startswith('/api/attachments/files/'):
+                attachment_id = parse_optional_int(path.rsplit('/', 1)[-1])
+                row = connection.execute('select a.*,u.role from record_attachments a left join users u on u.id=a.uploaded_by where a.id=?', (attachment_id,)).fetchone()
+                if not row or not record_allowed(user, row['entity_type']):
+                    return self.send_json({'error': 'الملف غير موجود أو غير مصرح'}, 404)
+                target = os.path.join(RECORD_UPLOADS, row['stored_name'])
+                if not os.path.isfile(target):
+                    return self.send_json({'error': 'الملف غير موجود'}, 404)
+                extension = os.path.splitext(row['stored_name'])[1].lower()
+                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+                return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'))
 
             if path == '/api/quality':
                 if not self.require_permission(user, 'quality'):
@@ -1081,6 +1146,64 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'إضافة وثيقة جودة', 'quality_document', entity_id, code)
                 connection.commit(); publish_event('quality_document', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/attachments':
+                try:
+                    stored_name = save_record_file(connection, user, data)
+                except PermissionError as error:
+                    return self.send_json({'error': str(error)}, 403)
+                except ValueError as error:
+                    return self.send_json({'error': str(error)}, 400)
+                attachment_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                audit(connection, user['id'], 'رفع مرفق سجل', data.get('entity_type'), data.get('entity_id'), data.get('file_name'))
+                connection.commit()
+                return self.send_json({'ok': True, 'id': attachment_id, 'ref': '/api/attachments/files/' + str(attachment_id), 'stored_name': stored_name})
+
+            if path == '/api/bulk/import':
+                entity_type = str(data.get('entity_type') or '')
+                rows = data.get('rows') or []
+                required_perm = {'clients':'clients','projects':'projects','work_orders':'projects','samples':'samples'}.get(entity_type)
+                if not required_perm or not self.require_permission(user, required_perm):
+                    return
+                if not isinstance(rows, list) or not rows or len(rows) > 500:
+                    return self.send_json({'error': 'ارفع من 1 إلى 500 صف في كل مرة'}, 400)
+                imported, skipped = 0, []
+                for number, row in enumerate(rows, 2):
+                    if not isinstance(row, dict):
+                        skipped.append(number); continue
+                    try:
+                        if entity_type == 'clients':
+                            name = str(row.get('الاسم') or row.get('name') or '').strip()
+                            if not name: raise ValueError()
+                            connection.execute('insert into clients(name,phone,email) values(?,?,?)', (name, row.get('الهاتف') or row.get('phone'), row.get('البريد') or row.get('email')))
+                        elif entity_type == 'projects':
+                            name = str(row.get('اسم المشروع') or row.get('name') or '').strip()
+                            if not name: raise ValueError()
+                            client_name = str(row.get('العميل') or row.get('client') or '').strip()
+                            client_id = None
+                            if client_name:
+                                client = connection.execute('select id from clients where name=?', (client_name,)).fetchone()
+                                if not client:
+                                    connection.execute('insert into clients(name) values(?)', (client_name,)); client_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                                else: client_id = client['id']
+                            connection.execute('insert into projects(code,name,client_id,location,priority,description,start_date,due_date,progress,updated_at) values(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+                                (nextno(connection,'PR-','projects'), name, client_id, row.get('الموقع') or row.get('location'), normalize_priority(row.get('الأولوية') or row.get('priority')), row.get('الوصف') or row.get('description'), row.get('البداية') or row.get('start_date'), row.get('الاستحقاق') or row.get('due_date'), int(row.get('التقدم') or row.get('progress') or 0)))
+                        elif entity_type == 'work_orders':
+                            title = str(row.get('أمر العمل') or row.get('title') or '').strip(); project_id = parse_optional_int(row.get('معرف المشروع') or row.get('project_id'))
+                            if not title or not project_id or not connection.execute('select id from projects where id=?', (project_id,)).fetchone(): raise ValueError()
+                            connection.execute('insert into work_orders(order_no,project_id,title,description,priority,scheduled_date,due_date,created_by,updated_at) values(?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+                                (nextno(connection,'WO-','work_orders'),project_id,title,row.get('الوصف') or row.get('description'),normalize_priority(row.get('الأولوية') or row.get('priority')),row.get('الموعد') or row.get('scheduled_date'),row.get('الاستحقاق') or row.get('due_date'),user['id']))
+                        else:
+                            material = str(row.get('المادة') or row.get('material') or '').strip(); project_id = parse_optional_int(row.get('معرف المشروع') or row.get('project_id'))
+                            if not material: raise ValueError()
+                            connection.execute('insert into samples(sample_no,project_id,material,source,received_date,notes) values(?,?,?,?,?,?)',
+                                (nextno(connection,'SMP-','samples'),project_id,material,row.get('المصدر') or row.get('source'),row.get('تاريخ الاستلام') or row.get('received_date') or time.strftime('%Y-%m-%d'),row.get('ملاحظات') or row.get('notes')))
+                        imported += 1
+                    except (ValueError, TypeError, sqlite3.Error):
+                        skipped.append(number)
+                audit(connection, user['id'], 'استيراد جماعي', entity_type, 0, str(imported) + ' صف')
+                connection.commit(); publish_event(entity_type, 'bulk_import', 0)
+                return self.send_json({'ok': True, 'imported': imported, 'skipped': skipped})
 
             if path == '/api/quality/files':
                 if not self.require_permission(user, 'quality'):

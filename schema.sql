@@ -194,6 +194,18 @@ CREATE TABLE IF NOT EXISTS audit_log(
  FOREIGN KEY(user_id) REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS record_attachments(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ entity_type TEXT NOT NULL,
+ entity_id INTEGER NOT NULL,
+ original_name TEXT NOT NULL,
+ stored_name TEXT NOT NULL UNIQUE,
+ uploaded_by INTEGER,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(uploaded_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_record_attachments_entity ON record_attachments(entity_type,entity_id);
+
 CREATE TABLE IF NOT EXISTS settings(
  key TEXT PRIMARY KEY,
  value TEXT
