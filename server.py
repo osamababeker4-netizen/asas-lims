@@ -1063,14 +1063,14 @@ class H(BaseHTTPRequestHandler):
                 file_name = os.path.basename(str(data.get('file_name') or ''))
                 if file_data:
                     extension = os.path.splitext(file_name)[1].lower()
-                    if extension not in {'.pdf', '.doc', '.docx'} or len(file_data) > 14_000_000:
-                        return self.send_json({'error': 'يسمح فقط بملفات PDF أو Word حتى 10MB'}, 400)
+                    if extension not in {'.pdf', '.doc', '.docx'} or len(file_data) > 35_000_000:
+                        return self.send_json({'error': 'يسمح فقط بملفات PDF أو Word حتى 25MB'}, 400)
                     try:
                         content = base64.b64decode(file_data, validate=True)
                     except ValueError:
                         return self.send_json({'error': 'ملف مرفوع غير صالح'}, 400)
-                    if len(content) > 10 * 1024 * 1024:
-                        return self.send_json({'error': 'حجم الملف يتجاوز 10MB'}, 400)
+                    if len(content) > 25 * 1024 * 1024:
+                        return self.send_json({'error': 'حجم الملف يتجاوز 25MB'}, 400)
                     os.makedirs(QUALITY_UPLOADS, exist_ok=True)
                     stored_name = secrets.token_urlsafe(18) + extension
                     with open(os.path.join(QUALITY_UPLOADS, stored_name), 'wb') as uploaded:
@@ -1088,14 +1088,14 @@ class H(BaseHTTPRequestHandler):
                 file_data = str(data.get('file_base64') or '')
                 file_name = os.path.basename(str(data.get('file_name') or ''))
                 extension = os.path.splitext(file_name)[1].lower()
-                if not file_data or extension not in {'.pdf', '.doc', '.docx'} or len(file_data) > 14_000_000:
-                    return self.send_json({'error': 'يسمح فقط بملفات PDF أو Word حتى 10MB'}, 400)
+                if not file_data or extension not in {'.pdf', '.doc', '.docx'} or len(file_data) > 35_000_000:
+                    return self.send_json({'error': 'يسمح فقط بملفات PDF أو Word حتى 25MB'}, 400)
                 try:
                     content = base64.b64decode(file_data, validate=True)
                 except ValueError:
                     return self.send_json({'error': 'ملف مرفوع غير صالح'}, 400)
-                if len(content) > 10 * 1024 * 1024:
-                    return self.send_json({'error': 'حجم الملف يتجاوز 10MB'}, 400)
+                if len(content) > 25 * 1024 * 1024:
+                    return self.send_json({'error': 'حجم الملف يتجاوز 25MB'}, 400)
                 os.makedirs(QUALITY_UPLOADS, exist_ok=True)
                 stored_name = secrets.token_urlsafe(18) + extension
                 with open(os.path.join(QUALITY_UPLOADS, stored_name), 'wb') as uploaded:
