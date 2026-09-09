@@ -1,4 +1,4 @@
-const CACHE_NAME = 'asas-lims-pwa-v7-5-3-safe-language-switch';
+const CACHE_NAME = 'asas-lims-pwa-v7-5-4-network-first-pages';
 const APP_SHELL = [
   './',
   './index.html',
@@ -21,6 +21,10 @@ self.addEventListener('activate', function (event) {
 
 self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(function () { return caches.match('./index.html'); }));
+    return;
+  }
   event.respondWith(caches.match(event.request).then(function (cached) {
     return cached || fetch(event.request).then(function (response) {
       if (response.ok && new URL(event.request.url).origin === self.location.origin) {
