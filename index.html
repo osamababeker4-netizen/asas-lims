@@ -213,7 +213,8 @@
       </section>
 
       <section id="equipment" class="page">
-        <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2></div><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div>
+        <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2><p>أضف جهازاً واحداً أو استورد كل الأجهزة والمعايرات من ملف Excel/CSV دفعة واحدة.</p></div><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div>
+        <article class="panel equipment-import-panel"><div class="panel-heading"><div><h3>استيراد الأجهزة والمعايرات</h3><p class="muted">نزّل القالب، املأ صفاً لكل جهاز في Excel، ثم احفظه CSV وارفعه هنا.</p></div><button class="text-btn" data-quality-template="equipment" type="button">تنزيل قالب Excel</button></div><div class="equipment-import-actions"><input id="equipmentImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="equipment" type="button">استيراد كل الأجهزة</button></div><p class="form-note">الحقول: اسم الجهاز، الرقم التسلسلي، الشركة، الموديل، آخر/القادمة للمعايرة، الشهادة والملاحظات.</p></article>
         <div class="panel table-panel"><table><thead><tr><th>الجهاز</th><th>الرقم التسلسلي</th><th>آخر معايرة</th><th>القادمة</th><th>الشهادة</th><th>الحالة</th></tr></thead><tbody id="equipmentTable"></tbody></table></div>
       </section>
 
@@ -225,7 +226,6 @@
           <article class="panel quality-card"><span class="quality-code">QMS-03</span><h3>نماذج إدارية</h3><p>طلب إجازة، مباشرة عمل، تدريب وسائر النماذج الداخلية.</p><button class="btn secondary" data-quality-add="admin_form" type="button">+ نموذج إداري</button></article>
         </div>
         <div class="quality-grid quality-import-grid">
-          <article class="panel"><div class="panel-heading"><h3>الأجهزة والمعايرة</h3><button class="text-btn" data-quality-template="equipment" type="button">تنزيل قالب Excel</button></div><p class="muted">استيراد الأجهزة دفعة واحدة بدلاً من إدخال جهازٍ جهازاً.</p><input id="equipmentImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="equipment" type="button">استيراد الأجهزة</button><p class="form-note">القالب CSV متوافق مع Excel. يتحقق النظام من اسم الجهاز قبل الحفظ.</p></article>
           <article class="panel"><div class="panel-heading"><h3>مشاركات اختبارات الكفاءة</h3><button class="text-btn" data-quality-template="proficiency" type="button">تنزيل قالب Excel</button></div><p class="muted">توثيق اختبارات الكفاءة ونتائجها وملفات تقاريرها.</p><input id="proficiencyImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="proficiency" type="button">استيراد المشاركات</button></article>
           <article class="panel"><div class="panel-heading"><h3>سجلات الموظفين</h3><button class="text-btn" data-quality-template="staff" type="button">تنزيل قالب Excel</button></div><p class="muted">مؤهلات وخبرات وسيرة ذاتية للموظفين؛ لا ينشئ الاستيراد حسابات دخول.</p><input id="staffImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="staff" type="button">استيراد الموظفين</button></article>
         </div>
