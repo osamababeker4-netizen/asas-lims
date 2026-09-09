@@ -800,6 +800,22 @@ class H(BaseHTTPRequestHandler):
 
         connection = db()
         try:
+            if path == '/api/auth/change-password':
+                current_password = str(data.get('current_password') or '')
+                new_password = str(data.get('new_password') or '')
+                confirm_password = str(data.get('confirm_password') or '')
+                account = connection.execute('select id,password_hash from users where id=? and active=1', (user['id'],)).fetchone()
+                if not account or not checkpw(current_password, account['password_hash']):
+                    return self.send_json({'error': 'كلمة المرور الحالية غير صحيحة'}, 400)
+                if len(new_password) < 12:
+                    return self.send_json({'error': 'كلمة المرور الجديدة يجب ألا تقل عن 12 حرفاً'}, 400)
+                if new_password != confirm_password:
+                    return self.send_json({'error': 'تأكيد كلمة المرور غير مطابق'}, 400)
+                connection.execute('update users set password_hash=? where id=?', (hp(new_password), user['id']))
+                audit(connection, user['id'], 'تغيير كلمة المرور الذاتية', 'user', user['id'], user['username'])
+                connection.commit()
+                return self.send_json({'ok': True})
+
             if path == '/api/users/create':
                 if not self.require_permission(user, 'users'):
                     return

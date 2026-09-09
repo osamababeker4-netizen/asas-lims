@@ -206,6 +206,13 @@ function staticApi(path, options) {
     currentUser = null;
     return {ok:true};
   }
+  if (path === '/api/auth/change-password') {
+    const user = data.users.find(function(item) { return item.id === currentUser.id; });
+    if (!user || user.password !== String(body.current_password || '')) throw new Error('كلمة المرور الحالية غير صحيحة');
+    if (String(body.new_password || '').length < 12) throw new Error('كلمة المرور الجديدة يجب ألا تقل عن 12 حرفاً');
+    if (body.new_password !== body.confirm_password) throw new Error('تأكيد كلمة المرور غير مطابق');
+    user.password = body.new_password; localAudit(data,'تغيير كلمة المرور الذاتية','user',user.id,user.username); saveLocal(data); return {ok:true};
+  }
   if (!currentUser) throw new Error('غير مسجل الدخول');
   if (path === '/api/catalog') return data.catalog;
   if (path === '/api/dashboard') return localDashboard(data);
@@ -885,6 +892,8 @@ async function submitSimple(form, path) {
   publishLiveUpdate('operations');
   showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ والمزامنة');
 }
+function openChangePassword() { modal('<h2>تغيير كلمة المرور</h2><p>هذا التغيير يخص حسابك المسجّل فقط.</p><form id="changePasswordForm"><div class="modal-grid"><label>كلمة المرور الحالية<input name="current_password" type="password" autocomplete="current-password" required></label><label>كلمة المرور الجديدة<input name="new_password" type="password" autocomplete="new-password" minlength="12" required></label><label>تأكيد كلمة المرور الجديدة<input name="confirm_password" type="password" autocomplete="new-password" minlength="12" required></label></div><p class="form-note">الحد الأدنى 12 حرفًا.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تغيير كلمة المرور</button></div></form>'); }
+async function submitChangePassword(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(data)});closeModal();showToast('تم تغيير كلمة المرور لحسابك'); }
 async function submitQualityDocument(form) { const data = {}; new FormData(form).forEach(function(value,key) { if (key !== 'quality_file') data[key] = value; }); const file = form.elements.quality_file.files[0]; if (file) { if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 8192)); data.file_name = file.name; data.file_base64 = btoa(binary); } await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم حفظ وثيقة الجودة'); }
 async function uploadQualityFile(file) { if (!file) return ''; if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset=0; offset<bytes.length; offset+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192)); const result = await api('/api/quality/files',{method:'POST',body:JSON.stringify({file_name:file.name,file_base64:btoa(binary)})}); return result.ref; }
 async function submitQualityRecord(form,path,files) { const data={}; new FormData(form).forEach(function(value,key){if(files.indexOf(key)<0)data[key]=value;}); for(const item of files){const ref=await uploadQualityFile(form.elements[item].files[0]); if(ref)data[item === 'quality_file' ? 'report_ref' : item === 'qualification_file' ? 'qualification_ref' : 'cv_ref']=ref;} await api(path,{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم الحفظ'); }
@@ -1003,6 +1012,7 @@ async function setFieldStatus(token) {
 function bindEvents() {
   $('loginForm').addEventListener('submit',login);
   $('logoutBtn').addEventListener('click',logout);
+  $('changePassword').addEventListener('click',openChangePassword);
   $('staticSetup').addEventListener('click',bootstrapStaticAdmin);
   $('staticSetupForm').addEventListener('submit',submitStaticAdmin);
   $('menuBtn').addEventListener('click',function() { $('sidebar').classList.toggle('open'); });
@@ -1100,6 +1110,7 @@ function bindEvents() {
       if (form.id === 'bulkImportForm') await submitBulkImport(form);
       if (form.id === 'recordAttachmentForm') await submitRecordAttachment(form);
       if (form.id === 'catalogResourcesForm') await submitCatalogResources(form);
+      if (form.id === 'changePasswordForm') await submitChangePassword(form);
       if (form.id === 'baladyForm') saveBaladyData(form);
     } catch (error) {
       const message = error && error.message ? error.message : 'تعذر حفظ البيانات';

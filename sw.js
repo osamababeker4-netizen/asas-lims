@@ -1,4 +1,4 @@
-const CACHE_NAME = 'asas-lims-pwa-v7-5-0-catalog-quality-resources';
+const CACHE_NAME = 'asas-lims-pwa-v7-5-1-self-password-change';
 const APP_SHELL = [
   './',
   './index.html',
