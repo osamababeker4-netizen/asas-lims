@@ -7,7 +7,6 @@ import json
 import os
 import queue
 import secrets
-import re
 import sqlite3
 import threading
 import time
@@ -19,14 +18,8 @@ import urllib.request
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
-QUALITY_UPLOADS = os.path.join(BASE, 'uploads', 'quality')
-RECORD_UPLOADS = os.path.join(BASE, 'uploads', 'records')
 PORT = int(os.environ.get('PORT', os.environ.get('LIMS_PORT', '8080')))
 ALLOWED_ORIGIN = os.environ.get('LIMS_ALLOWED_ORIGIN', '').rstrip('/')
-BALADY_API_BASE_URL = os.environ.get('BALADY_API_BASE_URL', '').strip()
-BALADY_API_TOKEN = os.environ.get('BALADY_API_TOKEN', '').strip()
-BALADY_API_KEY = os.environ.get('BALADY_API_KEY', '').strip()
-SAUDI_TIME_ZONE = 'Asia/Riyadh'
 SESSIONS = {}
 OTP_REQUESTS = {}
 OTP_RESEND_SECONDS = 60
@@ -40,16 +33,8 @@ PRIORITIES = {'منخفضة', 'متوسطة', 'عالية', 'حرجة'}
 
 ROLE_PERMS = {
     'admin': {'*'},
-    'general_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync'},
-    'technical_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync'},
-    'laboratory_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync'},
-    'quality_manager': {'dashboard', 'equipment', 'quality', 'audit'},
-    'quality_officer': {'dashboard', 'quality'},
-    'calibration_officer': {'dashboard', 'quality'},
-    'document_controller': {'dashboard', 'quality'},
-    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync'},
-    'quality': {'dashboard', 'quality'},
-    'technician': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports'},
+    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'users', 'sync'},
+    'technician': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment'},
     'field': {'dashboard', 'field', 'clients', 'projects', 'samples'}
 }
 
@@ -91,47 +76,6 @@ def rowdict(row):
     return dict(row) if row else None
 
 
-def _find_value(payload, aliases):
-    wanted = {str(alias).lower().replace('_', '').replace('-', '') for alias in aliases}
-    stack = [payload]
-    while stack:
-        current = stack.pop(0)
-        if isinstance(current, dict):
-            for key, value in current.items():
-                normalized = str(key).lower().replace('_', '').replace('-', '')
-                if normalized in wanted and value not in (None, '') and not isinstance(value, (dict, list)):
-                    return value
-                if isinstance(value, (dict, list)):
-                    stack.append(value)
-        elif isinstance(current, list):
-            stack.extend(current)
-    return ''
-
-
-def fetch_balady_permit(license_no):
-    if not BALADY_API_BASE_URL or not (BALADY_API_TOKEN or BALADY_API_KEY):
-        raise RuntimeError('تكامل بلدي غير مهيأ: أضف عنوان API الرسمي ورمز التفويض في إعدادات الخادم')
-    encoded = urlencode({'license': license_no})
-    url = BALADY_API_BASE_URL.replace('{license}', urlencode({'v': license_no})[2:]) if '{license}' in BALADY_API_BASE_URL else BALADY_API_BASE_URL + ('&' if '?' in BALADY_API_BASE_URL else '?') + encoded
-    headers = {'Accept': 'application/json', 'User-Agent': 'ASAS-LIMS/8.1'}
-    if BALADY_API_TOKEN:
-        headers['Authorization'] = 'Bearer ' + BALADY_API_TOKEN
-    if BALADY_API_KEY:
-        headers['X-API-Key'] = BALADY_API_KEY
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=20) as response:
-            payload = json.loads(response.read().decode('utf-8'))
-    except urllib.error.HTTPError as error:
-        if error.code in (401, 403):
-            raise PermissionError('رفضت منصة بلدي التفويض؛ تحقق من صلاحية رمز API')
-        if error.code == 404:
-            raise LookupError('لم يتم العثور على رخصة بهذا الرقم في منصة بلدي')
-        raise RuntimeError('تعذر الاتصال بمنصة بلدي حالياً')
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
-        raise RuntimeError('تعذر الاتصال بمنصة بلدي أو قراءة استجابتها')
-    return {'source':'balady','license_no':str(_find_value(payload,['licenseNo','licenseNumber','permitNo','permitNumber','رقم الرخصة']) or license_no),'municipality':_find_value(payload,['municipalityName','amanahName','municipality','الأمانة','البلدية']),'contractor_name':_find_value(payload,['contractorName','contractor','اسم المقاول']),'project_name':_find_value(payload,['projectName','project','اسم المشروع']),'sector_name':_find_value(payload,['sectorName','districtName','sector','القطاع','الحي']),'location':_find_value(payload,['location','address','siteAddress','الموقع','العنوان']),'permit_type':_find_value(payload,['permitType','licenseType','نوع الرخصة','نوع التصريح']),'status':_find_value(payload,['statusName','licenseStatus','permitStatus','الحالة']),'issue_date':_find_value(payload,['issueDate','startDate','تاريخ الإصدار']),'expiry_date':_find_value(payload,['expiryDate','endDate','تاريخ الانتهاء']),'owner_name':_find_value(payload,['ownerName','beneficiaryName','اسم المالك','اسم المستفيد']),'reference_url':_find_value(payload,['referenceUrl','detailsUrl','الرابط']),'details':payload}
-
-
 def nextno(connection, prefix, table):
     return prefix + str(connection.execute('select coalesce(max(id),0)+1 from ' + table).fetchone()[0]).zfill(6)
 
@@ -144,50 +88,6 @@ def parse_optional_int(value):
 
 def normalize_priority(value):
     return value if value in PRIORITIES else 'متوسطة'
-
-
-RECORD_TYPES = {
-    'client': ('clients', 'clients'), 'project': ('projects', 'projects'),
-    'work_order': ('work_orders', 'projects'), 'sample': ('samples', 'samples'),
-    'test': ('tests', 'tests'), 'report': ('reports', 'reports'),
-    'equipment': ('equipment', 'equipment'), 'user': ('users', 'users'),
-    'catalog': ('test_catalog', 'catalog')
-}
-
-
-def record_allowed(user, entity_type):
-    item = RECORD_TYPES.get(entity_type)
-    return bool(item and (has_perm(user, item[1]) or (entity_type == 'catalog' and has_perm(user, 'quality'))))
-
-
-def save_record_file(connection, user, data):
-    entity_type = str(data.get('entity_type') or '')
-    if not record_allowed(user, entity_type):
-        raise PermissionError('لا تملك صلاحية هذا السجل')
-    entity_id = parse_optional_int(data.get('entity_id'))
-    table = RECORD_TYPES[entity_type][0]
-    if not entity_id or not connection.execute('select id from ' + table + ' where id=?', (entity_id,)).fetchone():
-        raise ValueError('السجل المحدد غير موجود')
-    original_name = os.path.basename(str(data.get('file_name') or ''))
-    extension = os.path.splitext(original_name)[1].lower()
-    encoded = str(data.get('file_base64') or '')
-    if not encoded or extension not in {'.pdf', '.doc', '.docx', '.xls', '.xlsx'}:
-        raise ValueError('يسمح فقط بملفات PDF أو Word أو Excel')
-    if len(encoded) > 35_000_000:
-        raise ValueError('حجم الملف يتجاوز 25MB')
-    try:
-        content = base64.b64decode(encoded, validate=True)
-    except ValueError:
-        raise ValueError('ملف مرفوع غير صالح')
-    if len(content) > 25 * 1024 * 1024:
-        raise ValueError('حجم الملف يتجاوز 25MB')
-    os.makedirs(RECORD_UPLOADS, exist_ok=True)
-    stored_name = secrets.token_urlsafe(18) + extension
-    with open(os.path.join(RECORD_UPLOADS, stored_name), 'wb') as uploaded:
-        uploaded.write(content)
-    connection.execute('insert into record_attachments(entity_type,entity_id,original_name,stored_name,uploaded_by) values(?,?,?,?,?)',
-                       (entity_type, entity_id, original_name, stored_name, user['id']))
-    return stored_name
 
 
 def migrate_schema(connection):
@@ -593,16 +493,13 @@ class H(BaseHTTPRequestHandler):
         path = parsed.path
         static_files = {
             '/': ('index.html', 'text/html; charset=utf-8'),
-            '/index.html': ('index.html', 'text/html; charset=utf-8'),
             '/style.css': ('style.css', 'text/css; charset=utf-8'),
             '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
-            '/app-password.js': ('app-password.js', 'application/javascript; charset=utf-8'),
             '/runtime-config.js': ('runtime-config.js', 'application/javascript; charset=utf-8'),
             '/sw.js': ('sw.js', 'application/javascript; charset=utf-8'),
             '/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
             '/logo.jpg': ('logo.jpg', 'image/jpeg'),
-            '/i18n.js': ('i18n.js', 'application/javascript; charset=utf-8'),
-            '/company-profile.pdf': ('company-profile.pdf', 'application/pdf')
+            '/assets/asas-company-profile-2026.pdf': ('assets/asas-company-profile-2026.pdf', 'application/pdf')
         }
         if path in static_files:
             return self.static(*static_files[path])
@@ -637,49 +534,7 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json([dict(row) for row in rows])
 
             if path == '/api/catalog':
-                rows = [dict(row) for row in connection.execute('''select tc.*, cr.astm_attachment_id,cr.worksheet_attachment_id,cr.results_attachment_id
-                    from test_catalog tc left join catalog_resources cr on cr.test_catalog_id=tc.id where tc.active=1 order by tc.category,tc.name_ar''').fetchall()]
-                return self.send_json(rows)
-
-            if path == '/api/attachments':
-                entity_type = str(parse_qs(parsed.query).get('entity_type', [''])[0])
-                entity_id = parse_optional_int(parse_qs(parsed.query).get('entity_id', [''])[0])
-                if not record_allowed(user, entity_type):
-                    return self.send_json({'error': 'غير مصرح'}, 403)
-                return self.send_json([dict(row) for row in connection.execute(
-                    'select id,original_name,created_at from record_attachments where entity_type=? and entity_id=? order by id desc',
-                    (entity_type, entity_id)).fetchall()])
-
-            if path.startswith('/api/attachments/files/'):
-                attachment_id = parse_optional_int(path.rsplit('/', 1)[-1])
-                row = connection.execute('select a.*,u.role from record_attachments a left join users u on u.id=a.uploaded_by where a.id=?', (attachment_id,)).fetchone()
-                if not row or not record_allowed(user, row['entity_type']):
-                    return self.send_json({'error': 'الملف غير موجود أو غير مصرح'}, 404)
-                target = os.path.join(RECORD_UPLOADS, row['stored_name'])
-                if not os.path.isfile(target):
-                    return self.send_json({'error': 'الملف غير موجود'}, 404)
-                extension = os.path.splitext(row['stored_name'])[1].lower()
-                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
-                return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'))
-
-            if path == '/api/quality':
-                if not self.require_permission(user, 'quality'):
-                    return
-                return self.send_json({
-                    'documents': [dict(row) for row in connection.execute('select * from quality_documents order by category,code,id desc').fetchall()],
-                    'proficiency': [dict(row) for row in connection.execute('select * from proficiency_tests order by participation_date desc,id desc').fetchall()],
-                    'staff': [dict(row) for row in connection.execute('select * from quality_staff order by active desc,full_name').fetchall()]
-                })
-
-            if path.startswith('/api/quality/files/'):
-                if not self.require_permission(user, 'quality'):
-                    return
-                filename = os.path.basename(path)
-                target = os.path.join(QUALITY_UPLOADS, filename)
-                if not filename or not os.path.isfile(target):
-                    return self.send_json({'error': 'الملف غير موجود'}, 404)
-                content_type = 'application/pdf' if filename.endswith('.pdf') else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' if filename.endswith('.docx') else 'application/msword'
-                return self.static(os.path.relpath(target, BASE), content_type)
+                return self.send_json([dict(row) for row in connection.execute('select * from test_catalog where active=1 order by category,name_ar').fetchall()])
 
             if path == '/api/dashboard':
                 if not self.require_permission(user, 'dashboard'):
@@ -714,21 +569,6 @@ class H(BaseHTTPRequestHandler):
                     params = (int(project_id),)
                 sql += ' order by w.id desc'
                 return self.send_json([dict(row) for row in connection.execute(sql, params).fetchall()])
-
-            if path == '/api/balady/permit':
-                if not self.require_permission(user, 'field'):
-                    return
-                license_no = parse_qs(parsed.query).get('license', [''])[0].strip()
-                if not license_no:
-                    return self.send_json({'error': 'رقم الرخصة مطلوب'}, 400)
-                try:
-                    return self.send_json(fetch_balady_permit(license_no))
-                except LookupError as error:
-                    return self.send_json({'error': str(error)}, 404)
-                except PermissionError as error:
-                    return self.send_json({'error': str(error)}, 502)
-                except RuntimeError as error:
-                    return self.send_json({'error': str(error)}, 503)
 
             if path == '/api/field/search':
                 if not self.require_permission(user, 'field'):
@@ -865,22 +705,6 @@ class H(BaseHTTPRequestHandler):
 
         connection = db()
         try:
-            if path == '/api/auth/change-password':
-                current_password = str(data.get('current_password') or '')
-                new_password = str(data.get('new_password') or '')
-                confirm_password = str(data.get('confirm_password') or '')
-                account = connection.execute('select id,password_hash from users where id=? and active=1', (user['id'],)).fetchone()
-                if not account or not checkpw(current_password, account['password_hash']):
-                    return self.send_json({'error': 'كلمة المرور الحالية غير صحيحة'}, 400)
-                if len(new_password) < 12:
-                    return self.send_json({'error': 'كلمة المرور الجديدة يجب ألا تقل عن 12 حرفاً'}, 400)
-                if new_password != confirm_password:
-                    return self.send_json({'error': 'تأكيد كلمة المرور غير مطابق'}, 400)
-                connection.execute('update users set password_hash=? where id=?', (hp(new_password), user['id']))
-                audit(connection, user['id'], 'تغيير كلمة المرور الذاتية', 'user', user['id'], user['username'])
-                connection.commit()
-                return self.send_json({'ok': True})
-
             if path == '/api/users/create':
                 if not self.require_permission(user, 'users'):
                     return
@@ -1197,181 +1021,6 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'إضافة جهاز', 'equipment', entity_id, name)
                 connection.commit()
                 publish_event('equipment', 'create', entity_id)
-                return self.send_json({'ok': True, 'id': entity_id})
-
-            if path == '/api/quality/documents':
-                if not self.require_permission(user, 'quality'):
-                    return
-                category = str(data.get('category', '')).strip()
-                code = str(data.get('code', '')).strip()
-                title = str(data.get('title', '')).strip()
-                if category not in {'procedure', 'worksheet', 'admin_form'} or not title:
-                    return self.send_json({'error': 'بيانات وثيقة الجودة غير مكتملة'}, 400)
-                if not code:
-                    numbers = [int(match.group(1)) for row in connection.execute("select code from quality_documents where code like 'AS-RS-QC-%'").fetchall() for match in [re.fullmatch(r'AS-RS-QC-(\d+)', row['code'] or '')] if match]
-                    code = 'AS-RS-QC-' + str((max(numbers) if numbers else 0) + 1).zfill(2)
-                document_ref = str(data.get('document_ref') or '').strip()
-                file_data = str(data.get('file_base64') or '')
-                file_name = os.path.basename(str(data.get('file_name') or ''))
-                if file_data:
-                    extension = os.path.splitext(file_name)[1].lower()
-                    if extension not in {'.pdf', '.doc', '.docx'} or len(file_data) > 35_000_000:
-                        return self.send_json({'error': 'يسمح فقط بملفات PDF أو Word حتى 25MB'}, 400)
-                    try:
-                        content = base64.b64decode(file_data, validate=True)
-                    except ValueError:
-                        return self.send_json({'error': 'ملف مرفوع غير صالح'}, 400)
-                    if len(content) > 25 * 1024 * 1024:
-                        return self.send_json({'error': 'حجم الملف يتجاوز 25MB'}, 400)
-                    os.makedirs(QUALITY_UPLOADS, exist_ok=True)
-                    stored_name = secrets.token_urlsafe(18) + extension
-                    with open(os.path.join(QUALITY_UPLOADS, stored_name), 'wb') as uploaded:
-                        uploaded.write(content)
-                    document_ref = '/api/quality/files/' + stored_name
-                connection.execute('insert into quality_documents(category,code,title,revision,status,owner,document_ref,notes) values(?,?,?,?,?,?,?,?)', (category, code, title, data.get('revision'), data.get('status') or 'ساري', data.get('owner'), document_ref, data.get('notes')))
-                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
-                audit(connection, user['id'], 'إضافة وثيقة جودة', 'quality_document', entity_id, code)
-                connection.commit(); publish_event('quality_document', 'create', entity_id)
-                return self.send_json({'ok': True, 'id': entity_id})
-
-            if path == '/api/quality/documents/update':
-                if not self.require_permission(user, 'quality'): return
-                entity_id = parse_optional_int(data.get('id'))
-                category, code, title = str(data.get('category','')).strip(), str(data.get('code','')).strip(), str(data.get('title','')).strip()
-                if category not in {'procedure','worksheet','admin_form'} or not code or not title or not connection.execute('select id from quality_documents where id=?',(entity_id,)).fetchone(): return self.send_json({'error':'بيانات وثيقة الجودة غير صحيحة'},400)
-                connection.execute('update quality_documents set category=?,code=?,title=?,revision=?,status=? where id=?',(category,code,title,data.get('revision'),data.get('status') or 'ساري',entity_id))
-                audit(connection,user['id'],'تعديل وثيقة جودة','quality_document',entity_id,code);connection.commit();publish_event('quality_document','update',entity_id)
-                return self.send_json({'ok':True,'id':entity_id})
-
-            if path == '/api/quality/documents/delete':
-                if not self.require_permission(user, 'quality'): return
-                entity_id = parse_optional_int(data.get('id')); current=connection.execute('select code from quality_documents where id=?',(entity_id,)).fetchone()
-                if not current: return self.send_json({'error':'وثيقة الجودة غير موجودة'},404)
-                connection.execute('delete from quality_documents where id=?',(entity_id,));audit(connection,user['id'],'حذف وثيقة جودة','quality_document',entity_id,current['code']);connection.commit();publish_event('quality_document','delete',entity_id)
-                return self.send_json({'ok':True})
-
-            if path == '/api/attachments':
-                try:
-                    stored_name = save_record_file(connection, user, data)
-                except PermissionError as error:
-                    return self.send_json({'error': str(error)}, 403)
-                except ValueError as error:
-                    return self.send_json({'error': str(error)}, 400)
-                attachment_id = connection.execute('select last_insert_rowid()').fetchone()[0]
-                audit(connection, user['id'], 'رفع مرفق سجل', data.get('entity_type'), data.get('entity_id'), data.get('file_name'))
-                connection.commit()
-                return self.send_json({'ok': True, 'id': attachment_id, 'ref': '/api/attachments/files/' + str(attachment_id), 'stored_name': stored_name})
-
-            if path == '/api/catalog/resources':
-                if not self.require_permission(user, 'quality'):
-                    return
-                catalog_id = parse_optional_int(data.get('catalog_id'))
-                resource_type = str(data.get('resource_type') or '')
-                columns = {'astm': 'astm_attachment_id', 'worksheet': 'worksheet_attachment_id', 'results': 'results_attachment_id'}
-                if not catalog_id or resource_type not in columns or not connection.execute('select id from test_catalog where id=?', (catalog_id,)).fetchone():
-                    return self.send_json({'error': 'بيانات الاختبار أو نوع المورد غير صحيح'}, 400)
-                upload_data = dict(data); upload_data['entity_type'] = 'catalog'; upload_data['entity_id'] = catalog_id
-                try:
-                    save_record_file(connection, user, upload_data)
-                except (PermissionError, ValueError) as error:
-                    return self.send_json({'error': str(error)}, 400)
-                attachment_id = connection.execute('select last_insert_rowid()').fetchone()[0]
-                column = columns[resource_type]
-                connection.execute('insert into catalog_resources(test_catalog_id,' + column + ') values(?,?) on conflict(test_catalog_id) do update set ' + column + '=excluded.' + column + ',updated_at=CURRENT_TIMESTAMP', (catalog_id, attachment_id))
-                audit(connection, user['id'], 'ربط مورد اختبار', 'test_catalog', catalog_id, resource_type)
-                connection.commit(); publish_event('catalog_resource', 'update', catalog_id)
-                return self.send_json({'ok': True, 'id': attachment_id, 'ref': '/api/attachments/files/' + str(attachment_id)})
-
-            if path == '/api/bulk/import':
-                entity_type = str(data.get('entity_type') or '')
-                rows = data.get('rows') or []
-                required_perm = {'clients':'clients','projects':'projects','work_orders':'projects','samples':'samples'}.get(entity_type)
-                if not required_perm or not self.require_permission(user, required_perm):
-                    return
-                if not isinstance(rows, list) or not rows or len(rows) > 500:
-                    return self.send_json({'error': 'ارفع من 1 إلى 500 صف في كل مرة'}, 400)
-                imported, skipped = 0, []
-                for number, row in enumerate(rows, 2):
-                    if not isinstance(row, dict):
-                        skipped.append(number); continue
-                    try:
-                        if entity_type == 'clients':
-                            name = str(row.get('الاسم') or row.get('name') or '').strip()
-                            if not name: raise ValueError()
-                            connection.execute('insert into clients(name,phone,email) values(?,?,?)', (name, row.get('الهاتف') or row.get('phone'), row.get('البريد') or row.get('email')))
-                        elif entity_type == 'projects':
-                            name = str(row.get('اسم المشروع') or row.get('name') or '').strip()
-                            if not name: raise ValueError()
-                            client_name = str(row.get('العميل') or row.get('client') or '').strip()
-                            client_id = None
-                            if client_name:
-                                client = connection.execute('select id from clients where name=?', (client_name,)).fetchone()
-                                if not client:
-                                    connection.execute('insert into clients(name) values(?)', (client_name,)); client_id = connection.execute('select last_insert_rowid()').fetchone()[0]
-                                else: client_id = client['id']
-                            connection.execute('insert into projects(code,name,client_id,location,priority,description,start_date,due_date,progress,updated_at) values(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
-                                (nextno(connection,'PR-','projects'), name, client_id, row.get('الموقع') or row.get('location'), normalize_priority(row.get('الأولوية') or row.get('priority')), row.get('الوصف') or row.get('description'), row.get('البداية') or row.get('start_date'), row.get('الاستحقاق') or row.get('due_date'), int(row.get('التقدم') or row.get('progress') or 0)))
-                        elif entity_type == 'work_orders':
-                            title = str(row.get('أمر العمل') or row.get('title') or '').strip(); project_id = parse_optional_int(row.get('معرف المشروع') or row.get('project_id'))
-                            if not title or not project_id or not connection.execute('select id from projects where id=?', (project_id,)).fetchone(): raise ValueError()
-                            connection.execute('insert into work_orders(order_no,project_id,title,description,priority,scheduled_date,due_date,created_by,updated_at) values(?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
-                                (nextno(connection,'WO-','work_orders'),project_id,title,row.get('الوصف') or row.get('description'),normalize_priority(row.get('الأولوية') or row.get('priority')),row.get('الموعد') or row.get('scheduled_date'),row.get('الاستحقاق') or row.get('due_date'),user['id']))
-                        else:
-                            material = str(row.get('المادة') or row.get('material') or '').strip(); project_id = parse_optional_int(row.get('معرف المشروع') or row.get('project_id'))
-                            if not material: raise ValueError()
-                            connection.execute('insert into samples(sample_no,project_id,material,source,received_date,notes) values(?,?,?,?,?,?)',
-                                (nextno(connection,'SMP-','samples'),project_id,material,row.get('المصدر') or row.get('source'),row.get('تاريخ الاستلام') or row.get('received_date') or time.strftime('%Y-%m-%d'),row.get('ملاحظات') or row.get('notes')))
-                        imported += 1
-                    except (ValueError, TypeError, sqlite3.Error):
-                        skipped.append(number)
-                audit(connection, user['id'], 'استيراد جماعي', entity_type, 0, str(imported) + ' صف')
-                connection.commit(); publish_event(entity_type, 'bulk_import', 0)
-                return self.send_json({'ok': True, 'imported': imported, 'skipped': skipped})
-
-            if path == '/api/quality/files':
-                if not self.require_permission(user, 'quality'):
-                    return
-                file_data = str(data.get('file_base64') or '')
-                file_name = os.path.basename(str(data.get('file_name') or ''))
-                extension = os.path.splitext(file_name)[1].lower()
-                if not file_data or extension not in {'.pdf', '.doc', '.docx'} or len(file_data) > 35_000_000:
-                    return self.send_json({'error': 'يسمح فقط بملفات PDF أو Word حتى 25MB'}, 400)
-                try:
-                    content = base64.b64decode(file_data, validate=True)
-                except ValueError:
-                    return self.send_json({'error': 'ملف مرفوع غير صالح'}, 400)
-                if len(content) > 25 * 1024 * 1024:
-                    return self.send_json({'error': 'حجم الملف يتجاوز 25MB'}, 400)
-                os.makedirs(QUALITY_UPLOADS, exist_ok=True)
-                stored_name = secrets.token_urlsafe(18) + extension
-                with open(os.path.join(QUALITY_UPLOADS, stored_name), 'wb') as uploaded:
-                    uploaded.write(content)
-                audit(connection, user['id'], 'رفع ملف جودة', 'quality_file', 0, file_name)
-                connection.commit()
-                return self.send_json({'ok': True, 'ref': '/api/quality/files/' + stored_name})
-
-            if path == '/api/quality/proficiency':
-                if not self.require_permission(user, 'quality'):
-                    return
-                test_name = str(data.get('test_name', '')).strip()
-                if not test_name:
-                    return self.send_json({'error': 'اسم اختبار الكفاءة مطلوب'}, 400)
-                connection.execute('insert into proficiency_tests(test_name,material,standard,provider,participation_date,result,z_score,report_ref,notes) values(?,?,?,?,?,?,?,?,?)', (test_name, data.get('material'), data.get('standard'), data.get('provider'), data.get('participation_date'), data.get('result'), data.get('z_score'), data.get('report_ref'), data.get('notes')))
-                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
-                audit(connection, user['id'], 'إضافة مشاركة اختبار كفاءة', 'proficiency_test', entity_id, test_name)
-                connection.commit(); publish_event('proficiency_test', 'create', entity_id)
-                return self.send_json({'ok': True, 'id': entity_id})
-
-            if path == '/api/quality/staff':
-                if not self.require_permission(user, 'quality'):
-                    return
-                full_name = str(data.get('full_name', '')).strip()
-                if not full_name:
-                    return self.send_json({'error': 'اسم الموظف مطلوب'}, 400)
-                connection.execute('insert into quality_staff(full_name,job_title,specialty,experience_years,qualification_ref,cv_ref,active,notes) values(?,?,?,?,?,?,?,?)', (full_name, data.get('job_title'), data.get('specialty'), data.get('experience_years'), data.get('qualification_ref'), data.get('cv_ref'), 1 if data.get('active', True) else 0, data.get('notes')))
-                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
-                audit(connection, user['id'], 'إضافة سجل موظف للجودة', 'quality_staff', entity_id, full_name)
-                connection.commit(); publish_event('quality_staff', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id})
 
             if path == '/api/tests/proctor':

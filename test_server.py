@@ -35,7 +35,7 @@ class SchemaMigrationTests(unittest.TestCase):
         admin = connection.execute("select password_hash from users where username='admin'").fetchone()
         connection.close()
 
-        self.assertTrue({'projects', 'work_orders', 'sync_queue', 'field_visits', 'audit_log', 'quality_documents', 'proficiency_tests', 'quality_staff'}.issubset(tables))
+        self.assertTrue({'projects', 'work_orders', 'sync_queue', 'field_visits', 'audit_log'}.issubset(tables))
         self.assertTrue({'priority', 'description', 'start_date', 'due_date', 'progress', 'reviewed_by', 'approved_by'}.issubset(project_columns))
         self.assertIsNotNone(admin)
         self.assertIn(':', admin['password_hash'])
@@ -54,6 +54,13 @@ class SchemaMigrationTests(unittest.TestCase):
                 client.close()
                 self.assertEqual(response.status, 200)
                 self.assertIn(marker, body)
+            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=10)
+            client.request('GET', '/assets/asas-company-profile-2026.pdf')
+            response = client.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.getheader('Content-Type'), 'application/pdf')
+            self.assertTrue(response.read(5).startswith(b'%PDF'))
+            client.close()
         finally:
             httpd.shutdown()
             httpd.server_close()
@@ -207,48 +214,6 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual([(row['entity'], row['entity_id'], row['operation']) for row in user_sync], [('user', created['id'], 'create'), ('user', created['id'], 'update')])
             self.assertNotIn('password', user_sync[-1]['payload_json'].lower())
         finally:
-            httpd.shutdown()
-            httpd.server_close()
-            worker.join(timeout=5)
-
-    def test_quality_records_api_requires_quality_permission_and_persists_records(self):
-        self.server.init()
-        connection = self.server.db()
-        admin = connection.execute("select * from users where username='admin'").fetchone()
-        connection.close()
-        token = 'quality-admin-token'
-        denied_token = 'quality-denied-token'
-        self.server.SESSIONS[token] = dict(admin)
-        self.server.SESSIONS[denied_token] = {'id': 999, 'username': 'technical', 'role': 'technical_manager'}
-        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
-        worker = threading.Thread(target=httpd.serve_forever)
-        worker.start()
-        port = httpd.server_address[1]
-
-        def request(method, path, payload=None, access_token=None):
-            client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
-            headers = {'Authorization': 'Bearer ' + access_token} if access_token else {}
-            if payload is not None:
-                headers['Content-Type'] = 'application/json'
-            client.request(method, path, json.dumps(payload).encode('utf-8') if payload is not None else None, headers)
-            response = client.getresponse()
-            data = json.loads(response.read().decode('utf-8'))
-            client.close()
-            return response.status, data
-
-        try:
-            self.assertEqual(request('POST', '/api/quality/documents', {'category': 'procedure', 'code': 'QMS-P-001', 'title': 'إجراء الجودة'}, token)[0], 200)
-            self.assertEqual(request('POST', '/api/quality/proficiency', {'test_name': 'مقاومة الضغط', 'material': 'خرسانة'}, token)[0], 200)
-            self.assertEqual(request('POST', '/api/quality/staff', {'full_name': 'موظف الجودة', 'specialty': 'خرسانة'}, token)[0], 200)
-            status, quality = request('GET', '/api/quality', access_token=token)
-            self.assertEqual(status, 200)
-            self.assertEqual(quality['documents'][0]['code'], 'QMS-P-001')
-            self.assertEqual(quality['proficiency'][0]['test_name'], 'مقاومة الضغط')
-            self.assertEqual(quality['staff'][0]['full_name'], 'موظف الجودة')
-            self.assertEqual(request('GET', '/api/quality', access_token=denied_token)[0], 403)
-        finally:
-            self.server.SESSIONS.pop(token, None)
-            self.server.SESSIONS.pop(denied_token, None)
             httpd.shutdown()
             httpd.server_close()
             worker.join(timeout=5)
