@@ -22,6 +22,10 @@ QUALITY_UPLOADS = os.path.join(BASE, 'uploads', 'quality')
 RECORD_UPLOADS = os.path.join(BASE, 'uploads', 'records')
 PORT = int(os.environ.get('PORT', os.environ.get('LIMS_PORT', '8080')))
 ALLOWED_ORIGIN = os.environ.get('LIMS_ALLOWED_ORIGIN', '').rstrip('/')
+BALADY_API_BASE_URL = os.environ.get('BALADY_API_BASE_URL', '').strip()
+BALADY_API_TOKEN = os.environ.get('BALADY_API_TOKEN', '').strip()
+BALADY_API_KEY = os.environ.get('BALADY_API_KEY', '').strip()
+SAUDI_TIME_ZONE = 'Asia/Riyadh'
 SESSIONS = {}
 OTP_REQUESTS = {}
 OTP_RESEND_SECONDS = 60
@@ -84,6 +88,47 @@ def require_role(user, roles):
 
 def rowdict(row):
     return dict(row) if row else None
+
+
+def _find_value(payload, aliases):
+    wanted = {str(alias).lower().replace('_', '').replace('-', '') for alias in aliases}
+    stack = [payload]
+    while stack:
+        current = stack.pop(0)
+        if isinstance(current, dict):
+            for key, value in current.items():
+                normalized = str(key).lower().replace('_', '').replace('-', '')
+                if normalized in wanted and value not in (None, '') and not isinstance(value, (dict, list)):
+                    return value
+                if isinstance(value, (dict, list)):
+                    stack.append(value)
+        elif isinstance(current, list):
+            stack.extend(current)
+    return ''
+
+
+def fetch_balady_permit(license_no):
+    if not BALADY_API_BASE_URL or not (BALADY_API_TOKEN or BALADY_API_KEY):
+        raise RuntimeError('تكامل بلدي غير مهيأ: أضف عنوان API الرسمي ورمز التفويض في إعدادات الخادم')
+    encoded = urlencode({'license': license_no})
+    url = BALADY_API_BASE_URL.replace('{license}', urlencode({'v': license_no})[2:]) if '{license}' in BALADY_API_BASE_URL else BALADY_API_BASE_URL + ('&' if '?' in BALADY_API_BASE_URL else '?') + encoded
+    headers = {'Accept': 'application/json', 'User-Agent': 'ASAS-LIMS/8.1'}
+    if BALADY_API_TOKEN:
+        headers['Authorization'] = 'Bearer ' + BALADY_API_TOKEN
+    if BALADY_API_KEY:
+        headers['X-API-Key'] = BALADY_API_KEY
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=20) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+    except urllib.error.HTTPError as error:
+        if error.code in (401, 403):
+            raise PermissionError('رفضت منصة بلدي التفويض؛ تحقق من صلاحية رمز API')
+        if error.code == 404:
+            raise LookupError('لم يتم العثور على رخصة بهذا الرقم في منصة بلدي')
+        raise RuntimeError('تعذر الاتصال بمنصة بلدي حالياً')
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        raise RuntimeError('تعذر الاتصال بمنصة بلدي أو قراءة استجابتها')
+    return {'source':'balady','license_no':str(_find_value(payload,['licenseNo','licenseNumber','permitNo','permitNumber','رقم الرخصة']) or license_no),'municipality':_find_value(payload,['municipalityName','amanahName','municipality','الأمانة','البلدية']),'contractor_name':_find_value(payload,['contractorName','contractor','اسم المقاول']),'project_name':_find_value(payload,['projectName','project','اسم المشروع']),'sector_name':_find_value(payload,['sectorName','districtName','sector','القطاع','الحي']),'location':_find_value(payload,['location','address','siteAddress','الموقع','العنوان']),'permit_type':_find_value(payload,['permitType','licenseType','نوع الرخصة','نوع التصريح']),'status':_find_value(payload,['statusName','licenseStatus','permitStatus','الحالة']),'issue_date':_find_value(payload,['issueDate','startDate','تاريخ الإصدار']),'expiry_date':_find_value(payload,['expiryDate','endDate','تاريخ الانتهاء']),'owner_name':_find_value(payload,['ownerName','beneficiaryName','اسم المالك','اسم المستفيد']),'reference_url':_find_value(payload,['referenceUrl','detailsUrl','الرابط']),'details':payload}
 
 
 def nextno(connection, prefix, table):
@@ -666,6 +711,21 @@ class H(BaseHTTPRequestHandler):
                     params = (int(project_id),)
                 sql += ' order by w.id desc'
                 return self.send_json([dict(row) for row in connection.execute(sql, params).fetchall()])
+
+            if path == '/api/balady/permit':
+                if not self.require_permission(user, 'field'):
+                    return
+                license_no = parse_qs(parsed.query).get('license', [''])[0].strip()
+                if not license_no:
+                    return self.send_json({'error': 'رقم الرخصة مطلوب'}, 400)
+                try:
+                    return self.send_json(fetch_balady_permit(license_no))
+                except LookupError as error:
+                    return self.send_json({'error': str(error)}, 404)
+                except PermissionError as error:
+                    return self.send_json({'error': str(error)}, 502)
+                except RuntimeError as error:
+                    return self.send_json({'error': str(error)}, 503)
 
             if path == '/api/field/search':
                 if not self.require_permission(user, 'field'):
