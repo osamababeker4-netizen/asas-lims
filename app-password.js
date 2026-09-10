@@ -3,6 +3,12 @@
 const $ = function(id) { return document.getElementById(id); };
 const API_BASE_URL = String(window.LIMS_API_BASE_URL || '').replace(/\/+$/, '');
 const STATIC_MODE = location.hostname.endsWith('github.io') && !API_BASE_URL;
+const SAUDI_TIME_ZONE = 'Asia/Riyadh';
+const SAUDI_LOCALE = 'ar-SA-u-ca-gregory';
+function saudiNow() { return new Date().toLocaleString(SAUDI_LOCALE, {timeZone:SAUDI_TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}); }
+function saudiToday() { const parts=new Intl.DateTimeFormat('en-CA',{timeZone:SAUDI_TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()); const values={}; parts.forEach(function(p){values[p.type]=p.value;}); return values.year+'-'+values.month+'-'+values.day; }
+function saudiDisplay(value) { if (!value) return '—'; const raw=String(value); const normalized=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw) ? raw.replace(' ','T')+'Z' : raw; const date=new Date(normalized); return Number.isNaN(date.getTime()) ? raw : date.toLocaleString(SAUDI_LOCALE,{timeZone:SAUDI_TIME_ZONE,dateStyle:'medium',timeStyle:'medium',hour12:false}); }
+function updateSaudiClock(){ const el=$('saudiClock'); if(el) setText(el,'توقيت السعودية: '+saudiNow()); }
 const STORAGE_KEY = 'asas_lims_v720';
 const PROJECT_STATUSES = ['مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل'];
 const BOARD_STATUSES = ['مخطط', 'نشط', 'قيد المراجعة', 'موقوف', 'مكتمل'];
@@ -83,7 +89,7 @@ function priorityChip(value) {
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return saudiToday();
 }
 
 function localDB() {
@@ -126,11 +132,11 @@ function localId(items) {
 }
 
 function localAudit(data, action, entity, details) {
-  data.audit.unshift({id:localId(data.audit),created_at:new Date().toLocaleString('ar-SA'),full_name:currentUser ? currentUser.full_name : 'محلي',action:action,entity:entity,details:details});
+  data.audit.unshift({id:localId(data.audit),created_at:saudiNow(),full_name:currentUser ? currentUser.full_name : 'محلي',action:action,entity:entity,details:details});
 }
 
 function localQueue(data, entity, entityId, operation) {
-  data.syncQueue.unshift({id:localId(data.syncQueue),entity:entity,entity_id:entityId,operation:operation,status:'queued',attempts:0,created_at:new Date().toLocaleString('ar-SA')});
+  data.syncQueue.unshift({id:localId(data.syncQueue),entity:entity,entity_id:entityId,operation:operation,status:'queued',attempts:0,created_at:saudiNow()});
 }
 
 function localProjectRows(data) {
@@ -219,7 +225,7 @@ function staticApi(path, options) {
   if (path === '/api/projects') {
     if (!options || !options.method || options.method === 'GET') return localProjectRows(data);
     const id = localId(data.projects);
-    const project = Object.assign({id:id,code:'PR-' + String(id).padStart(6,'0'),status:'مخطط',priority:'متوسطة',progress:0,created_at:new Date().toLocaleString('ar-SA')}, body);
+    const project = Object.assign({id:id,code:'PR-' + String(id).padStart(6,'0'),status:'مخطط',priority:'متوسطة',progress:0,created_at:saudiNow()}, body);
     project.client_id = project.client_id ? Number(project.client_id) : null;
     project.manager_id = project.manager_id ? Number(project.manager_id) : null;
     project.progress = Math.min(100,Math.max(0,Number(project.progress) || 0));
@@ -244,7 +250,7 @@ function staticApi(path, options) {
   if (path === '/api/work-orders') {
     if (!options || !options.method || options.method === 'GET') return data.workOrders;
     const id = localId(data.workOrders);
-    const order = Object.assign({id:id,order_no:'WO-' + String(id).padStart(6,'0'),status:'مفتوح',priority:'متوسطة',created_at:new Date().toLocaleString('ar-SA')}, body, {project_id:Number(body.project_id)});
+    const order = Object.assign({id:id,order_no:'WO-' + String(id).padStart(6,'0'),status:'مفتوح',priority:'متوسطة',created_at:saudiNow()}, body, {project_id:Number(body.project_id)});
     data.workOrders.push(order); localQueue(data,'work_order',id,'create'); localAudit(data,'إضافة أمر عمل','work_order',order.order_no + ' - ' + order.title); saveLocal(data); return {ok:true,id:id,order_no:order.order_no};
   }
   if (path === '/api/clients') {
@@ -261,7 +267,7 @@ function staticApi(path, options) {
   if (path === '/api/tests/generic' || path === '/api/tests/proctor') {
     const id = localId(data.tests); const code = body.standard_code || (data.catalog.find(function(item) { return item.id === Number(body.catalog_id); }) || {}).code; const cat = data.catalog.find(function(item) { return item.code === code; }) || {};
     const test = {id:id,test_no:body.test_no || 'TST-' + String(id).padStart(6,'0'),sample_id:Number(body.sample_id),catalog_id:cat.id,status:'مكتمل',results:body.results || {mdd:body.mdd,omc:body.omc},mdd:body.mdd,omc:body.omc};
-    data.tests.push(test); const reportId = localId(data.reports); const report = {id:reportId,report_no:'AST-R-' + String(reportId).padStart(6,'0'),test_id:id,status:'مسودة',issued_at:new Date().toLocaleString('ar-SA')}; data.reports.push(report); localQueue(data,'test',id,'create'); localAudit(data,'إضافة اختبار','test',test.test_no); saveLocal(data); return {ok:true,test_id:id,report_no:report.report_no};
+    data.tests.push(test); const reportId = localId(data.reports); const report = {id:reportId,report_no:'AST-R-' + String(reportId).padStart(6,'0'),test_id:id,status:'مسودة',issued_at:saudiNow()}; data.reports.push(report); localQueue(data,'test',id,'create'); localAudit(data,'إضافة اختبار','test',test.test_no); saveLocal(data); return {ok:true,test_id:id,report_no:report.report_no};
   }
   if (path.indexOf('/api/report/') === 0) {
     const test = data.tests.find(function(item) { return item.id === Number(path.split('/').pop()); }) || {}; const report = data.reports.find(function(item) { return item.test_id === test.id; }) || {}; const cat = data.catalog.find(function(item) { return item.id === test.catalog_id; }) || {}; const sample = data.samples.find(function(item) { return item.id === Number(test.sample_id); }) || {};
@@ -275,7 +281,7 @@ function staticApi(path, options) {
   }
   if (path === '/api/field/recent') return data.visits.slice().reverse().slice(0,30);
   if (path === '/api/field/visits') {
-    const id = localId(data.visits); data.visits.push(Object.assign({id:id,status:'مسودة',created_at:new Date().toLocaleString('ar-SA'),full_name:currentUser.full_name},body,{project_id:body.project_id ? Number(body.project_id) : null,sample_id:body.sample_id ? Number(body.sample_id) : null})); localQueue(data,'field_visit',id,'create'); localAudit(data,'إضافة زيارة ميدانية','field_visit',body.license_no); saveLocal(data); return {ok:true,id:id};
+    const id = localId(data.visits); data.visits.push(Object.assign({id:id,status:'مسودة',created_at:saudiNow(),full_name:currentUser.full_name},body,{project_id:body.project_id ? Number(body.project_id) : null,sample_id:body.sample_id ? Number(body.sample_id) : null})); localQueue(data,'field_visit',id,'create'); localAudit(data,'إضافة زيارة ميدانية','field_visit',body.license_no); saveLocal(data); return {ok:true,id:id};
   }
   if (path === '/api/field/status') {
     const visit = data.visits.find(function(item) { return item.id === Number(body.id); }); if (!visit) throw new Error('الزيارة غير موجودة'); visit.status = body.status; localAudit(data,'تغيير حالة زيارة','field_visit',String(visit.id)); saveLocal(data); return {ok:true};
@@ -288,7 +294,7 @@ function staticApi(path, options) {
     const password = String(body.password || '');
     if (!username || !String(body.full_name || '').trim() || password.length < 12) throw new Error('أكمل بيانات المستخدم واجعل كلمة المرور 12 حرفاً على الأقل');
     if (data.users.some(function(item) { return item.username === username; })) throw new Error('اسم المستخدم مستخدم بالفعل');
-    const id = localId(data.users); data.users.push({id:id,username:username,password:password,full_name:String(body.full_name).trim(),role:body.role || 'technician',phone:String(body.phone || '').trim(),active:1,created_at:new Date().toLocaleString('ar-SA')}); localQueue(data,'user',id,'create'); localAudit(data,'إضافة مستخدم','user',username); saveLocal(data); return {ok:true,id:id,sync:'queued'};
+    const id = localId(data.users); data.users.push({id:id,username:username,password:password,full_name:String(body.full_name).trim(),role:body.role || 'technician',phone:String(body.phone || '').trim(),active:1,created_at:saudiNow()}); localQueue(data,'user',id,'create'); localAudit(data,'إضافة مستخدم','user',username); saveLocal(data); return {ok:true,id:id,sync:'queued'};
   }
   if (path === '/api/users/update') {
     const user = data.users.find(function(item) { return item.id === Number(body.id); }); if (!user) throw new Error('المستخدم غير موجود');
@@ -468,7 +474,7 @@ async function submitStaticAdmin(event) {
   if (data.users.length) return setText($('loginMessage'), 'الحساب المحلي موجود بالفعل. سجّل الدخول.');
   const phone = $('setupPhone').value.trim();
   if (phone && !/^\+\d{8,15}$/.test(phone)) return setText($('loginMessage'), 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX.');
-  data.users.push({id:1,username:username.trim(),password:password,full_name:name.trim(),phone:phone,role:'admin',active:1,created_at:new Date().toLocaleString('ar-SA')});
+  data.users.push({id:1,username:username.trim(),password:password,full_name:name.trim(),phone:phone,role:'admin',active:1,created_at:saudiNow()});
   saveLocal(data);
   $('staticSetupForm').classList.add('hidden');
   $('loginUsername').value = username;
@@ -559,7 +565,7 @@ function renderDashboard() {
   (dashboard.alerts.blocked_projects || []).forEach(function(item) { priorities.push('<div class="priority-item blocked"><strong>مشروع متوقف: ' + esc(item.code) + ' — ' + esc(item.name) + '</strong><small>الأولوية ' + escUI(item.priority) + (item.due_date ? ' · الاستحقاق ' + esc(item.due_date) : '') + '</small></div>'); });
   (dashboard.alerts.awaiting_review || []).forEach(function(item) { priorities.push('<div class="priority-item"><strong>ينتظر المراجعة: ' + esc(item.code || item.name) + '</strong><small>' + esc(item.name || item.entity) + '</small></div>'); });
   setHtml($('priorityList'), priorities.join('') || '<div class="empty">لا توجد أولويات متأخرة أو عوائق حالياً.</div>');
-  setHtml($('activityList'), (dashboard.activity || []).map(function(item) { return '<div class="timeline-item"><strong>' + escUI(item.action) + '</strong><small>' + esc(item.created_at) + ' · ' + esc(item.details || '') + '</small></div>'; }).join('') || '<div class="empty">لا توجد عمليات بعد.</div>');
+  setHtml($('activityList'), (dashboard.activity || []).map(function(item) { return '<div class="timeline-item"><strong>' + escUI(item.action) + '</strong><small>' + esc(saudiDisplay(item.created_at)) + ' · ' + esc(item.details || '') + '</small></div>'; }).join('') || '<div class="empty">لا توجد عمليات بعد.</div>');
   setHtml($('dashboardProjects'), dashboard.projects.slice(0,6).map(function(project) {
     return '<button class="compact-project text-btn" type="button" data-project-open="' + project.id + '"><h4>' + esc(project.code) + ' — ' + esc(project.name) + '</h4><p>' + statusChip(project.status) + ' · ' + esc(project.samples_count) + ' عينة · ' + esc(project.reports_count) + ' تقرير</p></button>';
   }).join('') || '<div class="empty">ابدأ بإضافة مشروع.</div>');
@@ -656,7 +662,7 @@ async function submitCatalogResources(form) { const catalogId=form.elements.cata
 
 function renderReports() {
   setHtml($('reportsTable'), (dashboard ? dashboard.reports : []).map(function(report) {
-    return '<tr><td><strong>' + esc(report.report_no) + '</strong></td><td>' + esc(report.sample_no || '') + '<small>' + escUI(report.name_ar) + ' · ' + esc(report.test_no) + '</small></td><td>' + statusChip(report.status) + '</td><td>' + esc(report.issued_at || '—') + '</td><td><div class="row-actions"><button class="text-btn" data-report-print="' + report.test_id + '" type="button">طباعة</button><button class="text-btn" data-report-review="' + report.id + '" type="button">حالة</button></div></td></tr>';
+    return '<tr><td><strong>' + esc(report.report_no) + '</strong></td><td>' + esc(report.sample_no || '') + '<small>' + escUI(report.name_ar) + ' · ' + esc(report.test_no) + '</small></td><td>' + statusChip(report.status) + '</td><td>' + esc(saudiDisplay(report.issued_at)) + '</td><td><div class="row-actions"><button class="text-btn" data-report-print="' + report.test_id + '" type="button">طباعة</button><button class="text-btn" data-report-review="' + report.id + '" type="button">حالة</button></div></td></tr>';
   }).join('') || '<tr><td colspan="5" class="empty">لا توجد تقارير.</td></tr>');
 }
 
@@ -665,13 +671,13 @@ function renderEquipment() {
 }
 
 function renderAudit() {
-  setHtml($('auditTable'), (dashboard ? dashboard.audit : []).map(function(item) { return '<tr><td>' + esc(item.created_at) + '</td><td>' + esc(item.full_name || '') + '</td><td>' + escUI(item.action) + '</td><td>' + esc(item.entity || '') + '</td><td>' + esc(item.details || '') + '</td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">لا توجد عمليات.</td></tr>');
+  setHtml($('auditTable'), (dashboard ? dashboard.audit : []).map(function(item) { return '<tr><td>' + esc(saudiDisplay(item.created_at)) + '</td><td>' + esc(item.full_name || '') + '</td><td>' + escUI(item.action) + '</td><td>' + esc(item.entity || '') + '</td><td>' + esc(item.details || '') + '</td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">لا توجد عمليات.</td></tr>');
 }
 
 async function renderUsers() {
   try {
     const users = await api('/api/users');
-    setHtml($('usersTable'), users.map(function(user) { return '<tr><td>' + esc(user.username) + '</td><td>' + esc(user.full_name) + '</td><td>' + escUI(ROLE_NAMES[user.role] || user.role) + '</td><td>' + (user.active ? 'نشط' : 'موقوف') + '</td><td>' + esc(user.created_at) + '</td><td><button class="text-btn" data-user-edit="' + user.id + '" type="button">تعديل</button></td></tr>'; }).join(''));
+    setHtml($('usersTable'), users.map(function(user) { return '<tr><td>' + esc(user.username) + '</td><td>' + esc(user.full_name) + '</td><td>' + escUI(ROLE_NAMES[user.role] || user.role) + '</td><td>' + (user.active ? 'نشط' : 'موقوف') + '</td><td>' + esc(saudiDisplay(user.created_at)) + '</td><td><button class="text-btn" data-user-edit="' + user.id + '" type="button">تعديل</button></td></tr>'; }).join(''));
     $('usersTable').dataset.users = JSON.stringify(users);
   } catch (error) {
     setHtml($('usersTable'), '<tr><td colspan="6" class="empty">ليس لديك صلاحية عرض المستخدمين.</td></tr>');
@@ -728,7 +734,7 @@ async function openProjectWorkspace(id) {
     if (name === 'tests') return '<table><thead><tr><th>الاختبار</th><th>العينة</th><th>الاسم</th><th>الحالة</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.test_no) + '</td><td>' + esc(item.sample_no) + '</td><td>' + escUI(item.name_ar) + '</td><td>' + statusChip(item.status) + '</td></tr>'; }).join('') + '</tbody></table>';
     if (name === 'results') return '<table><thead><tr><th>الاختبار</th><th>البند</th><th>القيمة</th><th>الوحدة</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.test_no) + '</td><td>' + esc(item.field_name) + '</td><td>' + esc(item.value) + '</td><td>' + esc(item.unit || '') + '</td></tr>'; }).join('') + '</tbody></table>';
     if (name === 'reports') return '<table><thead><tr><th>التقرير</th><th>الاختبار</th><th>الحالة</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.report_no) + '</td><td>' + escUI(item.name_ar || item.test_no) + '</td><td>' + statusChip(item.status) + '</td></tr>'; }).join('') + '</tbody></table>';
-    return '<table><thead><tr><th>الرخصة</th><th>الموقع</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.license_no) + '</td><td>' + esc(item.location || '') + '</td><td>' + statusChip(item.status) + '</td><td>' + esc(item.created_at) + '</td></tr>'; }).join('') + '</tbody></table>';
+    return '<table><thead><tr><th>الرخصة</th><th>الموقع</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.license_no) + '</td><td>' + esc(item.location || '') + '</td><td>' + statusChip(item.status) + '</td><td>' + esc(saudiDisplay(item.created_at)) + '</td></tr>'; }).join('') + '</tbody></table>';
   }
   const summary = '<div class="workspace-summary"><div><strong>' + space.work_orders.length + '</strong>أوامر العمل</div><div><strong>' + space.samples.length + '</strong>العينات</div><div><strong>' + space.tests.length + '</strong>الاختبارات</div><div><strong>' + space.results.length + '</strong>النتائج</div><div><strong>' + space.reports.length + '</strong>التقارير</div></div>';
   const tabButtons = tabs.map(function(tab,index) { return '<button type="button" class="' + (index === 0 ? 'active' : '') + '" data-workspace-tab="' + tab[0] + '">' + tab[1] + ' (' + tab[2].length + ')</button>'; }).join('');
@@ -957,22 +963,37 @@ function saveBaladyData(form) {
   closeModal(); showToast('تم حفظ بيانات بلدي مع الزيارة الميدانية');
 }
 
+function fillPermitFields(permit) {
+  $('fieldContractor').value = permit.contractor_name || '';
+  $('fieldProjectName').value = permit.project_name || '';
+  $('fieldSector').value = permit.sector_name || '';
+  $('fieldLocation').value = permit.location || '';
+  const field=$('field');
+  field.dataset.balady_permit_no=permit.license_no || $('fieldLicense').value;
+  field.dataset.balady_municipality=permit.municipality || '';
+  field.dataset.balady_permit_type=permit.permit_type || '';
+  field.dataset.balady_permit_status=permit.status || '';
+  field.dataset.balady_reference_url=permit.reference_url || '';
+}
+function showBaladyPermit(permit) {
+  const details=permit.details || {};
+  const rows=Object.keys(details).filter(function(key){return details[key] !== null && details[key] !== '' && typeof details[key] !== 'object';}).map(function(key){return '<div><strong>'+escUI(key)+'</strong><span>'+esc(details[key])+'</span></div>';}).join('');
+  modal('<h2>تفاصيل رخصة بلدي</h2><div class="stack-list"><div><strong>رقم الرخصة</strong><span>'+esc(permit.license_no || '')+'</span></div><div><strong>الأمانة / البلدية</strong><span>'+esc(permit.municipality || '')+'</span></div><div><strong>المقاول</strong><span>'+esc(permit.contractor_name || '')+'</span></div><div><strong>المشروع</strong><span>'+esc(permit.project_name || '')+'</span></div><div><strong>نوع التصريح</strong><span>'+esc(permit.permit_type || '')+'</span></div><div><strong>الحالة</strong><span>'+escUI(permit.status || '')+'</span></div>'+rows+'</div><div class="modal-actions"><button class="btn primary" type="button" data-modal-close>إغلاق</button></div>');
+}
 async function searchLicense() {
   const license = $('fieldLicense').value.trim();
   if (!license) return showToast('أدخل رقم الرخصة أولاً',true);
+  const button=$('searchLicenseBtn'); button.disabled=true; setText(button,'جارٍ البحث في بلدي…');
   try {
+    if (!STATIC_MODE) {
+      const permit=await api('/api/balady/permit?license='+encodeURIComponent(license));
+      fillPermitFields(permit); showBaladyPermit(permit); showToast('تم جلب بيانات الرخصة من منصة بلدي'); return;
+    }
     const rows = await api('/api/field/search?license=' + encodeURIComponent(license));
-    if (!rows.length) return showToast('لا توجد بيانات سابقة لهذه الرخصة');
-    const visit = rows[0];
-    $('fieldContractor').value = visit.contractor_name || '';
-    $('fieldProjectName').value = visit.project_name || '';
-    $('fieldSector').value = visit.sector_name || '';
-    $('fieldLayer').value = visit.layer_no || '';
-    $('fieldLocation').value = visit.location || '';
-    $('fieldProjectId').value = visit.project_id || '';
-    $('fieldSampleId').value = visit.sample_id || '';
-    showToast('تمت تعبئة بيانات الزيارة السابقة');
+    if (!rows.length) return showToast('الربط المركزي مع بلدي غير متاح في وضع العرض الثابت',true);
+    fillPermitFields(rows[0]); showToast('تمت تعبئة آخر بيانات محفوظة محليًا لهذه الرخصة');
   } catch (error) { showToast(error.message,true); }
+  finally { button.disabled=false; setText(button,'بحث برقم الرخصة'); }
 }
 
 function getLocation() {
@@ -999,7 +1020,7 @@ async function loadFieldRecent() {
   try {
     const rows = await api('/api/field/recent');
     setHtml($('fieldRecent'), rows.map(function(item) {
-      return '<article class="field-item"><strong>' + esc(item.license_no) + ' — ' + esc(item.project_name || '') + '</strong><small>' + esc(item.contractor_name || '') + ' · ' + esc(item.created_at) + '</small><div>' + statusChip(item.status) + '</div><div class="field-item-actions"><button class="btn secondary" data-field-status="' + item.id + '|مرسلة" type="button">إرسال</button><button class="btn secondary" data-field-status="' + item.id + '|قيد المراجعة" type="button">مراجعة</button><button class="btn primary" data-field-status="' + item.id + '|معتمدة" type="button">اعتماد</button><button class="btn danger" data-field-status="' + item.id + '|مرفوضة" type="button">رفض</button></div></article>';
+      return '<article class="field-item"><strong>' + esc(item.license_no) + ' — ' + esc(item.project_name || '') + '</strong><small>' + esc(item.contractor_name || '') + ' · ' + esc(saudiDisplay(item.created_at)) + '</small><div>' + statusChip(item.status) + '</div><div class="field-item-actions"><button class="btn secondary" data-field-status="' + item.id + '|مرسلة" type="button">إرسال</button><button class="btn secondary" data-field-status="' + item.id + '|قيد المراجعة" type="button">مراجعة</button><button class="btn primary" data-field-status="' + item.id + '|معتمدة" type="button">اعتماد</button><button class="btn danger" data-field-status="' + item.id + '|مرفوضة" type="button">رفض</button></div></article>';
     }).join('') || '<div class="empty">لا توجد زيارات ميدانية بعد.</div>');
   } catch (error) { setHtml($('fieldRecent'), '<div class="empty">تعذر تحميل الزيارات.</div>'); }
 }
@@ -1126,6 +1147,7 @@ function init() {
   bindEvents();
   const languageToggle = $('languageToggle');
   if (languageToggle) { languageToggle.value = localStorage.getItem('asas_lims_language') || 'ar'; languageToggle.addEventListener('change', function(){ setLanguage(languageToggle.value); }); setLanguage(languageToggle.value); }
+  updateSaudiClock(); setInterval(updateSaudiClock,1000);
   const footerYear = $('footerYear');
   if (footerYear) setText(footerYear, String(new Date().getFullYear()));
   document.addEventListener('visibilitychange', function() {
