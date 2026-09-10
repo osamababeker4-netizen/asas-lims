@@ -7,6 +7,7 @@ import json
 import os
 import queue
 import secrets
+import re
 import sqlite3
 import threading
 import time
@@ -1202,8 +1203,11 @@ class H(BaseHTTPRequestHandler):
                 category = str(data.get('category', '')).strip()
                 code = str(data.get('code', '')).strip()
                 title = str(data.get('title', '')).strip()
-                if category not in {'procedure', 'worksheet', 'admin_form'} or not code or not title:
+                if category not in {'procedure', 'worksheet', 'admin_form'} or not title:
                     return self.send_json({'error': 'بيانات وثيقة الجودة غير مكتملة'}, 400)
+                if not code:
+                    numbers = [int(match.group(1)) for row in connection.execute("select code from quality_documents where code like 'AS-RS-QC-%'").fetchall() for match in [re.fullmatch(r'AS-RS-QC-(\d+)', row['code'] or '')] if match]
+                    code = 'AS-RS-QC-' + str((max(numbers) if numbers else 0) + 1).zfill(2)
                 document_ref = str(data.get('document_ref') or '').strip()
                 file_data = str(data.get('file_base64') or '')
                 file_name = os.path.basename(str(data.get('file_name') or ''))
@@ -1227,6 +1231,22 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'إضافة وثيقة جودة', 'quality_document', entity_id, code)
                 connection.commit(); publish_event('quality_document', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id})
+
+            if path == '/api/quality/documents/update':
+                if not self.require_permission(user, 'quality'): return
+                entity_id = parse_optional_int(data.get('id'))
+                category, code, title = str(data.get('category','')).strip(), str(data.get('code','')).strip(), str(data.get('title','')).strip()
+                if category not in {'procedure','worksheet','admin_form'} or not code or not title or not connection.execute('select id from quality_documents where id=?',(entity_id,)).fetchone(): return self.send_json({'error':'بيانات وثيقة الجودة غير صحيحة'},400)
+                connection.execute('update quality_documents set category=?,code=?,title=?,revision=?,status=? where id=?',(category,code,title,data.get('revision'),data.get('status') or 'ساري',entity_id))
+                audit(connection,user['id'],'تعديل وثيقة جودة','quality_document',entity_id,code);connection.commit();publish_event('quality_document','update',entity_id)
+                return self.send_json({'ok':True,'id':entity_id})
+
+            if path == '/api/quality/documents/delete':
+                if not self.require_permission(user, 'quality'): return
+                entity_id = parse_optional_int(data.get('id')); current=connection.execute('select code from quality_documents where id=?',(entity_id,)).fetchone()
+                if not current: return self.send_json({'error':'وثيقة الجودة غير موجودة'},404)
+                connection.execute('delete from quality_documents where id=?',(entity_id,));audit(connection,user['id'],'حذف وثيقة جودة','quality_document',entity_id,current['code']);connection.commit();publish_event('quality_document','delete',entity_id)
+                return self.send_json({'ok':True})
 
             if path == '/api/attachments':
                 try:

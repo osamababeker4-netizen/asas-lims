@@ -203,7 +203,7 @@
 
       <section id="catalog" class="page">
         <div class="page-heading"><div><h2>دليل الاختبارات</h2><p>مواصفة ASTM وأوراق العمل وملفات Excel للنتائج مرتبطة بكل اختبار وتدار من قسم الجودة.</p></div></div>
-        <div class="panel table-panel"><label class="search-field">بحث<input id="catalogSearch" type="search" placeholder="ASTM أو اسم الاختبار"></label><table><thead><tr><th>الكود</th><th>الاختبار</th><th>التصنيف</th><th>المعيار</th><th>الإصدار</th><th>المرفقات</th></tr></thead><tbody id="catalogTable"></tbody></table></div>
+        <div class="panel table-panel"><div class="panel-heading"><label class="search-field">بحث<input id="catalogSearch" type="search" placeholder="ASTM أو اسم الاختبار"></label><button class="text-btn" data-catalog-bulk-specs type="button">رفع المواصفات دفعة واحدة</button></div><table><thead><tr><th>الكود</th><th>الاختبار</th><th>التصنيف</th><th>المعيار</th><th>الإصدار</th><th>المرفقات</th></tr></thead><tbody id="catalogTable"></tbody></table></div>
       </section>
 
       <section id="reports" class="page">
@@ -230,7 +230,7 @@
           <article class="panel"><div class="panel-heading"><h3>سجلات الموظفين</h3><button class="text-btn" data-quality-template="staff" type="button">تنزيل قالب Excel</button></div><p class="muted">مؤهلات وخبرات وسيرة ذاتية للموظفين؛ لا ينشئ الاستيراد حسابات دخول.</p><input id="staffImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="staff" type="button">استيراد الموظفين</button></article>
         </div>
         <div class="quality-lists">
-          <article class="panel table-panel"><div class="panel-heading"><h3>وثائق الجودة</h3></div><table><thead><tr><th>التصنيف</th><th>الكود</th><th>العنوان</th><th>الإصدار</th><th>الحالة</th><th>الملف</th></tr></thead><tbody id="qualityDocumentsTable"></tbody></table></article>
+          <article class="panel table-panel"><div class="panel-heading"><h3>وثائق الجودة</h3></div><table><thead><tr><th>التصنيف</th><th>الكود</th><th>العنوان</th><th>الإصدار</th><th>الحالة</th><th>الملف</th><th>الإجراءات</th></tr></thead><tbody id="qualityDocumentsTable"></tbody></table></article>
           <article class="panel table-panel"><div class="panel-heading"><h3>اختبارات الكفاءة</h3><button class="text-btn" data-quality-add="proficiency" type="button">+ مشاركة</button></div><table><thead><tr><th>الاختبار</th><th>المادة</th><th>المزود</th><th>التاريخ</th><th>النتيجة</th><th>Z-score</th></tr></thead><tbody id="proficiencyTable"></tbody></table></article>
           <article class="panel table-panel"><div class="panel-heading"><h3>ملفات الموظفين للجودة</h3><button class="text-btn" data-quality-add="staff" type="button">+ موظف</button></div><table><thead><tr><th>الاسم</th><th>المسمى</th><th>التخصص</th><th>الخبرة</th><th>المؤهل</th><th>الحالة</th></tr></thead><tbody id="qualityStaffTable"></tbody></table></article>
         </div>
@@ -316,10 +316,10 @@
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="runtime-config.js?v=8-1-1"></script>
   <script src="i18n.js?v=8-1-1"></script>
-  <script src="app-password.js?v=8-1-1"></script>
+  <script src="app-password.js?v=8-1-2-quality"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=8-1-1').catch(function () {}); });
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=8-1-2-quality').catch(function () {}); });
     }
   </script>
 </body>
