@@ -240,9 +240,15 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(request('POST', '/api/quality/documents', {'category': 'procedure', 'code': 'QMS-P-001', 'title': 'إجراء الجودة'}, token)[0], 200)
             self.assertEqual(request('POST', '/api/quality/proficiency', {'test_name': 'مقاومة الضغط', 'material': 'خرسانة'}, token)[0], 200)
             self.assertEqual(request('POST', '/api/quality/staff', {'full_name': 'موظف الجودة', 'specialty': 'خرسانة'}, token)[0], 200)
+            document_id = quality_document_id = request('POST', '/api/quality/documents', {'category': 'worksheet', 'title': 'ورقة تلقائية'}, token)[1]['id']
+            generated = request('GET', '/api/quality', access_token=token)[1]['documents']
+            self.assertRegex(next(item['code'] for item in generated if item['id'] == document_id), r'^AS-RS-QC-\d+$')
+            self.assertEqual(request('POST', '/api/quality/documents/update', {'id': document_id, 'category': 'worksheet', 'code': 'AS-RS-QC-99', 'title': 'ورقة معدلة'}, token)[0], 200)
+            self.assertEqual(request('POST', '/api/quality/documents/delete', {'id': document_id}, token)[0], 200)
             status, quality = request('GET', '/api/quality', access_token=token)
             self.assertEqual(status, 200)
             self.assertEqual(quality['documents'][0]['code'], 'QMS-P-001')
+            self.assertEqual(quality_document_id, document_id)
             self.assertEqual(quality['proficiency'][0]['test_name'], 'مقاومة الضغط')
             self.assertEqual(quality['staff'][0]['full_name'], 'موظف الجودة')
             self.assertEqual(request('GET', '/api/quality', access_token=denied_token)[0], 403)

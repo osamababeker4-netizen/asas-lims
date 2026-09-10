@@ -1,4 +1,4 @@
-const CACHE_NAME = 'asas-lims-pwa-v7-5-4-network-first-pages';
+const CACHE_NAME = 'asas-lims-pwa-v7-5-5-quality-documents';
 const APP_SHELL = [
   './',
   './index.html',
