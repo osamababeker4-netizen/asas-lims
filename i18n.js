@@ -221,7 +221,7 @@ const UI_TRANSLATIONS = {
   "القالب + التربة الرطبة": "Mould + wet soil",
   "القص الديناميكي للرابط DSR": "Dynamic shear rheometer (DSR)",
   "القص المباشر": "Direct shear",
-  "القصيم — بريدة": "Qassim — Buraydah",
+  "القصيم — الرس": "Qassim — Ar Rass",
   "القطاع": "Sector",
   "القيمة": "Value",
   "الكتلة المغمورة": "Submerged mass",
