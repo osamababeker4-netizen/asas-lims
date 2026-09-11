@@ -51,6 +51,8 @@ let projectView = 'table';
 let fieldTests = [];
 let fieldLat = null;
 let fieldLng = null;
+let fieldAccuracy = null;
+let fieldPhotos = [];
 let toastTimer = null;
 let refreshInFlight = null;
 let realtimeTimer = null;
@@ -641,17 +643,19 @@ function renderWhatsappDrafts() {
   const drafts = dashboard ? (dashboard.whatsapp_drafts || []) : [];
   const canReview = currentUser && ['admin','manager'].indexOf(currentUser.role) >= 0;
   setHtml($('whatsappDraftsTable'), drafts.map(function(draft) {
-    const action = '<button class="text-btn" data-whatsapp-copy="' + draft.id + '" type="button">نسخ المسودة</button>' +
+    const draftName = draft.draft_name || ('مسودة ' + draft.related_entity + ' #' + (draft.related_id || draft.id));
+    const action = '<button class="text-btn" data-whatsapp-open="' + draft.id + '" type="button">فتح واتساب</button><button class="text-btn" data-whatsapp-copy="' + draft.id + '" type="button">نسخ المسودة</button>' +
+      (canReview ? '<button class="text-btn" data-whatsapp-rename="' + draft.id + '" type="button">تغيير الاسم</button>' : '') +
       (canReview && draft.status === 'draft' ? '<button class="text-btn" data-whatsapp-ready="' + draft.id + '" type="button">اعتماد للمشاركة</button>' : '');
-    return '<tr><td>' + esc(draft.recipient_name || draft.target_name) + '</td><td>' + esc(draft.related_entity) + ' #' + esc(draft.related_id || '') + '</td><td><small>' + esc(draft.message_text) + '</small></td><td>' + statusChip(draft.status === 'ready' ? 'جاهزة للمشاركة' : 'مسودة') + '</td><td><div class="row-actions">' + action + '</div></td></tr>';
-  }).join('') || '<tr><td colspan="5" class="empty">لا توجد مسودات بعد.</td></tr>');
+    return '<tr><td><strong>' + esc(draftName) + '</strong></td><td>' + esc(draft.recipient_name || draft.target_name) + '</td><td>' + esc(draft.related_entity) + ' #' + esc(draft.related_id || '') + '</td><td><small>' + esc(draft.message_text) + '</small></td><td>' + statusChip(draft.status === 'ready' ? 'جاهزة للمشاركة' : 'مسودة') + '</td><td><div class="row-actions">' + action + '</div></td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty">لا توجد مسودات بعد.</td></tr>');
 }
 
 function renderCatalog() {
   const query = $('catalogSearch') ? $('catalogSearch').value.toLowerCase() : '';
   setHtml($('catalogTable'), catalog.filter(function(item) { return [item.code,item.name_ar,item.name_en,item.standard,item.category].join(' ').toLowerCase().indexOf(query) >= 0; }).map(function(item) {
-    const fileLink = function(id,label){return id ? '<a class="text-btn" target="_blank" rel="noopener" href="'+esc(API_BASE_URL+'/api/attachments/files/'+id)+'">'+label+'</a>' : '';};
-    const resources = [fileLink(item.astm_attachment_id,'ASTM'),fileLink(item.worksheet_attachment_id,'Work Sheet'),fileLink(item.results_attachment_id,'Excel النتائج')].filter(Boolean).join(' ');
+    const fileLink = function(id,label){return id ? '<a class="text-btn download-link" target="_blank" rel="noopener" download href="'+esc(API_BASE_URL+'/api/attachments/files/'+id)+'">⬇ '+label+'</a>' : '';};
+    const resources = [fileLink(item.astm_attachment_id,'تنزيل المواصفة PDF'),fileLink(item.worksheet_attachment_id,'تنزيل Work Sheet'),fileLink(item.results_attachment_id,'تنزيل Excel النتائج')].filter(Boolean).join(' ');
     const canManage = currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','document_controller','quality'].indexOf(currentUser.role) >= 0;
     return '<tr><td>' + esc(item.code) + '</td><td>' + escUI(item.name_ar) + '<small>' + esc(item.name_en || '') + '</small></td><td>' + escUI(item.category) + '</td><td>' + esc(item.standard) + '</td><td>' + esc(item.version || '—') + '</td><td><div class="row-actions">'+(resources || '—')+(canManage ? '<button class="text-btn" data-catalog-resources="'+item.id+'">إدارة الملفات</button>' : '')+'</div></td></tr>';
   }).join('') || '<tr><td colspan="6" class="empty">لا توجد نتائج.</td></tr>');
@@ -1002,9 +1006,34 @@ async function searchLicense() {
 function getLocation() {
   if (!navigator.geolocation) return showToast('تحديد الموقع غير متاح في هذا المتصفح',true);
   navigator.geolocation.getCurrentPosition(function(position) {
-    fieldLat = position.coords.latitude; fieldLng = position.coords.longitude;
-    setText($('gpsStatus'), 'تم تحديد الموقع: ' + fieldLat.toFixed(6) + ', ' + fieldLng.toFixed(6));
+    fieldLat = position.coords.latitude; fieldLng = position.coords.longitude; fieldAccuracy = position.coords.accuracy;
+    setText($('gpsStatus'), 'تم تحديد الموقع بدقة ' + Math.round(fieldAccuracy) + ' متر');
+    setText($('fieldLatitude'), fieldLat.toFixed(6)); setText($('fieldLongitude'), fieldLng.toFixed(6)); setText($('fieldAccuracy'), '± ' + Math.round(fieldAccuracy) + ' م');
+    $('fieldMapLink').href = 'https://www.google.com/maps?q=' + encodeURIComponent(fieldLat + ',' + fieldLng);
+    $('coordinatesCard').classList.remove('hidden');
   }, function(error) { showToast('تعذر تحديد الموقع: ' + error.message,true); }, {enableHighAccuracy:true,timeout:10000});
+}
+
+function addFieldPhotos(fileList) {
+  Array.from(fileList || []).forEach(function(file) {
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 12 * 1024 * 1024) return showToast('الصورة ' + file.name + ' تتجاوز 12MB', true);
+    fieldPhotos.push(file);
+  });
+  renderFieldPhotos();
+}
+function renderFieldPhotos() {
+  if (!fieldPhotos.length) return setHtml($('fieldPhotoPreview'), '<span class="muted">لم تُرفق صور بعد</span>');
+  setHtml($('fieldPhotoPreview'), fieldPhotos.map(function(file,index) {
+    return '<figure><img src="' + URL.createObjectURL(file) + '" alt="صورة ميدانية"><figcaption><span>' + esc(file.name) + '</span><button class="text-btn" type="button" data-field-photo-remove="' + index + '">حذف</button></figcaption></figure>';
+  }).join(''));
+}
+async function uploadFieldPhotos(visitId) {
+  for (const file of fieldPhotos) {
+    const bytes = new Uint8Array(await file.arrayBuffer()); let binary = '';
+    for (let i=0;i<bytes.length;i+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+    await api('/api/attachments',{method:'POST',body:JSON.stringify({entity_type:'field_visit',entity_id:visitId,file_name:file.name || ('field-photo-' + Date.now() + '.jpg'),file_base64:btoa(binary)})});
+  }
 }
 
 async function saveFieldVisit() {
@@ -1014,8 +1043,9 @@ async function saveFieldVisit() {
     const result = await api('/api/field/visits',{method:'POST',body:JSON.stringify({
       license_no:license,contractor_name:$('fieldContractor').value,project_name:$('fieldProjectName').value,sector_name:$('fieldSector').value,layer_no:$('fieldLayer').value,location:$('fieldLocation').value,latitude:fieldLat,longitude:fieldLng,project_id:$('fieldProjectId').value || null,sample_id:$('fieldSampleId').value || null,tests:fieldTests.map(syncFieldTestCatalog).filter(function(test) { return test.catalog_id; }),notes:$('fieldNotes').value,status:'مسودة',balady_permit_no:$('field').dataset.balady_permit_no || '',balady_municipality:$('field').dataset.balady_municipality || '',balady_permit_type:$('field').dataset.balady_permit_type || '',balady_permit_status:$('field').dataset.balady_permit_status || '',balady_reference_url:$('field').dataset.balady_reference_url || ''
     })});
-    setText($('fieldMessage'), 'تم حفظ الزيارة رقم ' + result.id);
-    fieldTests = []; renderFieldTests(); await loadFieldRecent(); await refresh();
+    if (fieldPhotos.length) await uploadFieldPhotos(result.id);
+    setText($('fieldMessage'), 'تم حفظ الزيارة رقم ' + result.id + (fieldPhotos.length ? ' مع ' + fieldPhotos.length + ' صورة' : ''));
+    fieldTests = []; fieldPhotos = []; renderFieldTests(); renderFieldPhotos(); await loadFieldRecent(); await refresh();
   } catch (error) { setText($('fieldMessage'), error.message); }
 }
 
@@ -1058,6 +1088,10 @@ function bindEvents() {
   $('openBalady').addEventListener('click',openBaladyWindow);
   $('searchLicenseBtn').addEventListener('click',searchLicense);
   $('getLocationBtn').addEventListener('click',getLocation);
+  $('openFieldCamera').addEventListener('click',function() { $('fieldCameraInput').click(); });
+  $('openFieldGallery').addEventListener('click',function() { $('fieldGalleryInput').click(); });
+  $('fieldCameraInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
+  $('fieldGalleryInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
   $('addFieldTest').addEventListener('click',function() { if (!catalog.length) return showToast('يجري تحميل كتالوج الاختبارات، حاول بعد لحظة',true); if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true); fieldTests.push({catalog_id:'',name:'',standard:'',result:''}); renderFieldTests(); });
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
   document.addEventListener('change',function(event) {
@@ -1099,6 +1133,23 @@ function bindEvents() {
       catch (error) { showToast('تعذر النسخ التلقائي؛ افتح المسودة وانسخ النص يدويًا',true); }
       return;
     }
+    if (button.dataset.whatsappOpen) {
+      const draft = (dashboard.whatsapp_drafts || []).find(function(item) { return item.id === Number(button.dataset.whatsappOpen); });
+      if (!draft) return;
+      const phone = String(draft.recipient_phone || '').replace(/\D/g,'');
+      window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(draft.message_text), '_blank', 'noopener');
+      return;
+    }
+    if (button.dataset.whatsappRename) {
+      const draft = (dashboard.whatsapp_drafts || []).find(function(item) { return item.id === Number(button.dataset.whatsappRename); });
+      if (!draft) return;
+      const name = window.prompt('اكتب اسم المسودة', draft.draft_name || ('مسودة ' + draft.related_entity + ' #' + (draft.related_id || draft.id)));
+      if (!name || !name.trim()) return;
+      try { await api('/api/whatsapp/drafts/' + draft.id + '/rename',{method:'POST',body:JSON.stringify({draft_name:name.trim()})}); await refresh(); showToast('تم تغيير اسم المسودة'); }
+      catch (error) { showToast(error.message,true); }
+      return;
+    }
+    if (button.dataset.fieldPhotoRemove !== undefined) { fieldPhotos.splice(Number(button.dataset.fieldPhotoRemove),1); renderFieldPhotos(); return; }
     if (button.dataset.whatsappReady) {
       try { await api('/api/whatsapp/drafts/' + Number(button.dataset.whatsappReady) + '/ready',{method:'POST',body:'{}'}); await refresh(); showToast('المسودة جاهزة للمشاركة اليدوية في مجتمع واتساب'); }
       catch (error) { showToast(error.message,true); }
