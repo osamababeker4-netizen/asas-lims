@@ -1,4 +1,4 @@
-const CACHE_NAME = 'asas-lims-pwa-v8-0-0';
+const CACHE_NAME = 'asas-lims-pwa-v8-0-1-login';
 const APP_SHELL = [
   './',
   './index.html',
@@ -21,6 +21,14 @@ self.addEventListener('activate', function (event) {
 
 self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).then(function (response) {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then(function (cache) { cache.put('./index.html', copy); });
+      return response;
+    }).catch(function () { return caches.match('./index.html'); }));
+    return;
+  }
   event.respondWith(caches.match(event.request).then(function (cached) {
     return cached || fetch(event.request).then(function (response) {
       if (response.ok && new URL(event.request.url).origin === self.location.origin) {
