@@ -14,6 +14,16 @@ services:
         value: https://osamababeker4-netizen.github.io
       - key: LIMS_BOOTSTRAP_PASSWORD
         sync: false
+      - key: LIMS_TIME_ZONE
+        value: Asia/Riyadh
+      - key: TZ
+        value: Asia/Riyadh
+      - key: BALADY_API_BASE_URL
+        sync: false
+      - key: BALADY_API_TOKEN
+        sync: false
+      - key: BALADY_API_KEY
+        sync: false
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN

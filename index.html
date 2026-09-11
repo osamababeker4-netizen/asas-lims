@@ -10,18 +10,18 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=8-1-1">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
       <img src="logo.jpg" class="login-logo" alt="شعار مختبر أساس">
-      <p class="eyebrow">ASAS LIMS · V8.0.0 FINAL</p>
+      <p class="eyebrow">ASAS LIMS · V8.1.1</p>
       <h1>منصة أساس لإدارة المختبر</h1>
       <p class="muted">إدارة المشاريع، أوامر العمل، العينات، الاختبارات والتقارير في واجهة عربية موحّدة.</p>
       <form id="loginForm" class="form-stack">
-        <label>اسم المستخدم أو رقم الجوال<input id="loginUsername" autocomplete="username tel" inputmode="tel" required placeholder="اسم المستخدم أو +9665XXXXXXXX"></label>
-        <label>كلمة المرور<input id="loginPassword" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
+        <label>اسم المستخدم أو رقم الجوال<input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="اسم المستخدم أو +9665XXXXXXXX"></label>
+        <label>كلمة المرور<input id="loginPassword" name="password" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
         <button class="btn primary" type="submit">تسجيل الدخول</button>
       </form>
       <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
@@ -56,7 +56,7 @@
         <button class="nav-link" data-page="catalog">دليل الاختبارات</button>
         <button class="nav-link" data-page="reports">التقارير</button>
         <button class="nav-link" data-page="whatsapp">مسودات واتساب</button>
-        <button class="nav-link" data-page="equipment">الأجهزة والمعايرة</button>
+        <button class="nav-link" data-page="quality" id="qualityNav">الجودة والوثائق</button>
         <button class="nav-link" data-page="company">عن مختبر أساس</button>
         <button class="nav-link" data-page="audit">سجل التدقيق</button>
         <button class="nav-link" data-page="users" id="usersNav">المستخدمون والصلاحيات</button>
@@ -87,13 +87,13 @@
             <h2 id="pageTitle">لوحة القيادة</h2>
           </div>
         </div>
-        <div class="user-chip"><span id="currentUser">—</span></div>
+        <div class="user-chip"><span id="saudiClock" class="muted">توقيت السعودية: —</span><select id="languageToggle" aria-label="لغة النظام"><option value="ar">العربية</option><option value="en">English</option></select><span id="currentUser">—</span><button id="changePassword" class="text-btn" type="button">تغيير كلمة المرور</button></div>
       </header>
 
       <section id="dashboard" class="page active">
         <div class="page-heading">
           <div><h2>نظرة تشغيلية</h2><p>الأولويات، الأعمال المتأخرة، وحالة سلسلة العينة حتى التقرير.</p></div>
-          <button class="btn primary" data-open-project type="button">+ مشروع جديد</button>
+          <div class="heading-actions"><button class="btn secondary" data-bulk-panel="projects" type="button">Excel / مرفقات</button><button class="btn primary" data-open-project type="button">+ مشروع جديد</button></div>
         </div>
         <div class="metric-grid">
           <article class="metric-card accent-blue"><span>المشاريع النشطة</span><strong id="metricProjects">0</strong></article>
@@ -150,7 +150,7 @@
       <section id="workOrders" class="page">
         <div class="page-heading">
           <div><h2>أوامر العمل</h2><p>أوامر مرتبطة بمشروع محدد، وتتبع حالة التنفيذ والمواعيد والمكلّف.</p></div>
-          <button id="openWorkOrder" class="btn primary" type="button">+ أمر عمل</button>
+          <div class="heading-actions"><button class="btn secondary" data-bulk-panel="work_orders" type="button">Excel / مرفقات</button><button id="openWorkOrder" class="btn primary" type="button">+ أمر عمل</button></div>
         </div>
         <div class="panel table-panel"><table>
           <thead><tr><th>الرقم</th><th>أمر العمل</th><th>المشروع</th><th>المكلّف</th><th>الأولوية</th><th>الاستحقاق</th><th>الحالة</th></tr></thead>
@@ -187,33 +187,53 @@
       </section>
 
       <section id="clients" class="page">
-        <div class="page-heading"><div><h2>العملاء</h2></div><button id="openClient" class="btn primary" type="button">+ عميل</button></div>
+        <div class="page-heading"><div><h2>العملاء</h2></div><div class="heading-actions"><button class="btn secondary" data-bulk-panel="clients" type="button">Excel / مرفقات</button><button id="openClient" class="btn primary" type="button">+ عميل</button></div></div>
         <div class="panel table-panel"><table><thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد</th></tr></thead><tbody id="clientsTable"></tbody></table></div>
       </section>
 
       <section id="samples" class="page">
-        <div class="page-heading"><div><h2>العينات</h2></div><button id="openSample" class="btn primary" type="button">+ عينة</button></div>
+        <div class="page-heading"><div><h2>العينات</h2></div><div class="heading-actions"><button class="btn secondary" data-bulk-panel="samples" type="button">Excel / مرفقات</button><button id="openSample" class="btn primary" type="button">+ عينة</button></div></div>
         <div class="panel table-panel"><table><thead><tr><th>رقم العينة</th><th>المشروع</th><th>المادة</th><th>الخطة الرسمية</th><th>تاريخ الاستلام</th><th>الحالة</th></tr></thead><tbody id="samplesTable"></tbody></table></div>
       </section>
 
       <section id="tests" class="page">
-        <div class="page-heading"><div><h2>الاختبارات</h2></div><button id="openTest" class="btn primary" type="button">+ اختبار</button></div>
+        <div class="page-heading"><div><h2>الاختبارات</h2></div><div class="heading-actions"><button class="btn secondary" data-attachment-panel="test" type="button">رفع مرفق</button><button id="openTest" class="btn primary" type="button">+ اختبار</button></div></div>
         <div class="panel table-panel"><table><thead><tr><th>رقم الاختبار</th><th>العينة</th><th>الاختبار</th><th>المعيار</th><th>الفني</th><th>النتيجة</th><th>الحالة</th><th></th></tr></thead><tbody id="testsTable"></tbody></table></div>
       </section>
 
       <section id="catalog" class="page">
-        <div class="page-heading"><div><h2>دليل الاختبارات</h2></div></div>
-        <div class="panel table-panel"><label class="search-field">بحث<input id="catalogSearch" type="search" placeholder="ASTM أو اسم الاختبار"></label><table><thead><tr><th>الكود</th><th>الاختبار</th><th>التصنيف</th><th>المعيار</th><th>الإصدار</th></tr></thead><tbody id="catalogTable"></tbody></table></div>
+        <div class="page-heading"><div><h2>دليل الاختبارات</h2><p>مواصفة ASTM وأوراق العمل وملفات Excel للنتائج مرتبطة بكل اختبار وتدار من قسم الجودة.</p></div></div>
+        <div class="panel table-panel"><div class="panel-heading"><label class="search-field">بحث<input id="catalogSearch" type="search" placeholder="ASTM أو اسم الاختبار"></label><button class="text-btn" data-catalog-bulk-specs type="button">رفع المواصفات دفعة واحدة</button></div><table><thead><tr><th>الكود</th><th>الاختبار</th><th>التصنيف</th><th>المعيار</th><th>الإصدار</th><th>المرفقات</th></tr></thead><tbody id="catalogTable"></tbody></table></div>
       </section>
 
       <section id="reports" class="page">
-        <div class="page-heading"><div><h2>التقارير</h2><p>دورة التقرير محفوظة: مسودة ← مراجعة ← اعتماد.</p></div></div>
+        <div class="page-heading"><div><h2>التقارير</h2><p>دورة التقرير محفوظة: مسودة ← مراجعة ← اعتماد.</p></div><button class="btn secondary" data-attachment-panel="report" type="button">رفع مرفق</button></div>
         <div class="panel table-panel"><table><thead><tr><th>التقرير</th><th>العينة / الاختبار</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead><tbody id="reportsTable"></tbody></table></div>
       </section>
 
       <section id="equipment" class="page">
-        <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2></div><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div>
+        <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2><p>أضف جهازاً واحداً أو استورد كل الأجهزة والمعايرات من ملف Excel/CSV دفعة واحدة.</p></div><div class="heading-actions"><button class="btn secondary" data-attachment-panel="equipment" type="button">رفع مرفق</button><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div></div>
+        <article class="panel equipment-import-panel"><div class="panel-heading"><div><h3>استيراد الأجهزة والمعايرات</h3><p class="muted">نزّل القالب، املأ صفاً لكل جهاز في Excel، ثم احفظه CSV وارفعه هنا.</p></div><button class="text-btn" data-quality-template="equipment" type="button">تنزيل قالب Excel</button></div><div class="equipment-import-actions"><input id="equipmentImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="equipment" type="button">استيراد كل الأجهزة</button></div><p class="form-note">الحقول: اسم الجهاز، الرقم التسلسلي، الشركة، الموديل، آخر/القادمة للمعايرة، الشهادة والملاحظات.</p></article>
         <div class="panel table-panel"><table><thead><tr><th>الجهاز</th><th>الرقم التسلسلي</th><th>آخر معايرة</th><th>القادمة</th><th>الشهادة</th><th>الحالة</th></tr></thead><tbody id="equipmentTable"></tbody></table></div>
+      </section>
+
+      <section id="quality" class="page">
+        <div class="page-heading"><div><h2>الجودة والوثائق</h2></div></div>
+        <div class="quality-grid">
+          <article class="panel quality-card" id="qualityEquipmentCard"><span class="quality-code">QMS-00</span><h3>الأجهزة والمعايرة</h3><p>سجل الأجهزة، شهادات المعايرة والاستيراد الجماعي من Excel.</p><button class="btn secondary" data-page-go="equipment" type="button">إدارة الأجهزة والمعايرة</button></article>
+          <article class="panel quality-card"><span class="quality-code">QMS-01</span><h3>الإجراءات</h3><p>إجراءات التشغيل والجودة ومراجعاتها وإصداراتها.</p><button class="btn secondary" data-quality-add="procedure" type="button">+ إجراء</button></article>
+          <article class="panel quality-card"><span class="quality-code">QMS-02</span><h3>أوراق العمل</h3><p>نماذج Work Sheet مرتبطة بالاختبارات والتحقق.</p><button class="btn secondary" data-quality-add="worksheet" type="button">+ ورقة عمل</button></article>
+          <article class="panel quality-card"><span class="quality-code">QMS-03</span><h3>نماذج إدارية</h3><p>طلب إجازة، مباشرة عمل، تدريب وسائر النماذج الداخلية.</p><button class="btn secondary" data-quality-add="admin_form" type="button">+ نموذج إداري</button></article>
+        </div>
+        <div class="quality-grid quality-import-grid">
+          <article class="panel"><div class="panel-heading"><h3>مشاركات اختبارات الكفاءة</h3><button class="text-btn" data-quality-template="proficiency" type="button">تنزيل قالب Excel</button></div><p class="muted">توثيق اختبارات الكفاءة ونتائجها وملفات تقاريرها.</p><input id="proficiencyImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="proficiency" type="button">استيراد المشاركات</button></article>
+          <article class="panel"><div class="panel-heading"><h3>سجلات الموظفين</h3><button class="text-btn" data-quality-template="staff" type="button">تنزيل قالب Excel</button></div><p class="muted">مؤهلات وخبرات وسيرة ذاتية للموظفين؛ لا ينشئ الاستيراد حسابات دخول.</p><input id="staffImport" class="quality-file" type="file" accept=".csv,text/csv"><button class="btn primary" data-quality-import="staff" type="button">استيراد الموظفين</button></article>
+        </div>
+        <div class="quality-lists">
+          <article class="panel table-panel"><div class="panel-heading"><h3>وثائق الجودة</h3></div><table><thead><tr><th>التصنيف</th><th>الكود</th><th>العنوان</th><th>الإصدار</th><th>الحالة</th><th>الملف</th><th>الإجراءات</th></tr></thead><tbody id="qualityDocumentsTable"></tbody></table></article>
+          <article class="panel table-panel"><div class="panel-heading"><h3>اختبارات الكفاءة</h3><button class="text-btn" data-quality-add="proficiency" type="button">+ مشاركة</button></div><table><thead><tr><th>الاختبار</th><th>المادة</th><th>المزود</th><th>التاريخ</th><th>النتيجة</th><th>Z-score</th></tr></thead><tbody id="proficiencyTable"></tbody></table></article>
+          <article class="panel table-panel"><div class="panel-heading"><h3>ملفات الموظفين للجودة</h3><button class="text-btn" data-quality-add="staff" type="button">+ موظف</button></div><table><thead><tr><th>الاسم</th><th>المسمى</th><th>التخصص</th><th>الخبرة</th><th>المؤهل</th><th>الحالة</th></tr></thead><tbody id="qualityStaffTable"></tbody></table></article>
+        </div>
       </section>
 
       <section id="whatsapp" class="page">
@@ -226,26 +246,17 @@
 
       <section id="company" class="page">
         <div class="page-heading company-heading">
-          <div><h2>شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية</h2><p>الملف التعريفي الرسمي 2026، الخدمات، الاعتمادات، الأجهزة، الفروع وسابقة الأعمال.</p></div>
-          <div class="company-heading-actions"><a class="btn secondary" href="assets/asas-company-profile-2026.pdf" target="_blank" rel="noopener noreferrer">فتح البروفايل الرسمي</a><a class="btn primary" href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">زيارة الموقع الرسمي</a></div>
+          <div><h2>مختبر أساس للاستشارات الفنية والمختبرات الهندسية</h2><p>نبذة رسمية عن خدمات المختبر وفروعه ووسائل التواصل.</p></div>
+          <a class="btn primary" href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">زيارة الموقع الرسمي</a>
         </div>
         <article class="panel company-intro">
-          <span class="section-kicker">معتمد من الملف التعريفي الرسمي - 8 سبتمبر 2026</span>
+          <span class="section-kicker">من موقع أساس الرسمي</span>
           <h3>شريكك الاستراتيجي في كل اختبارات مشروعك</h3>
           <p>مختبر هندسي سعودي متخصص في الجسات والدراسات الجيوتقنية واختبارات مواد البناء، يدعم القرار الهندسي بنتائج دقيقة وتقارير فنية موثوقة.</p>
         </article>
-        <div class="company-facts" aria-label="حقائق مختبر أساس"><article><strong>ISO/IEC 17025:2017</strong><span>مختبر هندسي معتمد من المركز السعودي للاعتماد SAAC</span></article><article><strong>5</strong><span>فروع في مكة المكرمة وجدة والمدينة المنورة والرياض والقصيم</span></article><article><strong>300+</strong><span>شريك نجاح ضمن القطاعات الحكومية والخاصة</span></article></div>
-        <section class="panel accreditation-panel" aria-labelledby="accreditationTitle">
-          <div class="panel-heading"><div><span class="section-kicker">الاعتمادات والشهادات</span><h3 id="accreditationTitle">جودة موثقة والتزام تنظيمي</h3></div><span class="accreditation-badge">SAAC</span></div>
-          <div class="accreditation-grid">
-            <article><strong>SAAC - ISO/IEC 17025:2017</strong><span>اعتماد المركز السعودي للاعتماد لكفاءة مختبرات الفحص والمعايرة، مع نطاق الاختبارات الوارد في الشهادة.</span></article>
-            <article><strong>ISO 9001:2015</strong><span>شهادة نظام إدارة الجودة.</span></article>
-            <article><strong>ISO 14001:2015</strong><span>شهادة نظام الإدارة البيئية.</span></article>
-            <article><strong>هيئة الرقابة النووية والإشعاعية</strong><span>شهادة مسؤول الحماية من الإشعاع ورخص تشغيل استخدام المصادر الإشعاعية للقياس والاستكشاف.</span></article>
-            <article><strong>التسجيل والتراخيص</strong><span>تسجيل فروع مكة المكرمة وجدة والمدينة المنورة والرياض، وشهادة التوطين ورخص النشاط التجاري.</span></article>
-            <article><strong>التأهيل والاعتماد</strong><span>شهادة اعتماد المختبر والانتساب، اعتماد هيئة مدن، اعتماد الأمانة وشهادات التأهيل للمشاريع.</span></article>
-          </div>
-        </section>
+        <div class="company-facts" aria-label="حقائق مختبر أساس"><article><strong>15+</strong><span>سنة من الخبرة في الاختبارات والاستشارات</span></article><article><strong>5</strong><span>فروع تغطي مناطق المملكة</span></article><article><strong>7</strong><span>مجالات اختبار هندسية رئيسية</span></article></div>
+        <article class="panel company-accreditation"><span class="section-kicker">الاعتماد</span><h3>مختبر أساس معتمد من المركز السعودي للاعتماد SAAC</h3><p>وفق معيار ISO/IEC 17025:2017، كما ورد في الملف التعريفي للشركة لعام 2026. يشمل مجال العمل اختبارات التربة ومواد البناء وخدمات مراقبة الجودة.</p><a class="btn secondary" href="company-profile.pdf" target="_blank" rel="noopener">فتح الملف التعريفي للشركة PDF</a></article>
+        <section class="panel company-certificates" aria-labelledby="certificatesTitle"><h3 id="certificatesTitle" data-en="Accreditations and certificates">الاعتمادات والشهادات</h3><p data-en="Documents reproduced from the company profile dated 8 September 2026. Refer to each original for its scope, conditions and validity dates.">وثائق من الملف التعريفي للشركة بتاريخ 8 سبتمبر 2026. يُرجع إلى كل وثيقة أصلية لمعرفة نطاقها وشروطها وتواريخ صلاحيتها.</p><div class="certificate-grid"><a class="certificate-card" href="company-profile.pdf#page=15" target="_blank" rel="noopener"><strong>ISO/IEC 17025:2017 — SAAC</strong><span data-en="Laboratory accreditation and testing scope">اعتماد المختبر ونطاق الاختبارات</span><small data-en="View document · page 15">عرض الوثيقة · صفحة 15</small></a><a class="certificate-card" href="company-profile.pdf#page=27" target="_blank" rel="noopener"><strong>ISO 9001:2015</strong><span data-en="Quality management system">نظام إدارة الجودة</span><small data-en="View document · page 27">عرض الوثيقة · صفحة 27</small></a><a class="certificate-card" href="company-profile.pdf#page=26" target="_blank" rel="noopener"><strong>ISO 14001:2015</strong><span data-en="Environmental management system">نظام الإدارة البيئية</span><small data-en="View document · page 26">عرض الوثيقة · صفحة 26</small></a><a class="certificate-card" href="company-profile.pdf#page=29" target="_blank" rel="noopener"><strong>NRRC</strong><span data-en="Radiation source operating licences — Makkah and Madinah">تراخيص تشغيل المصادر الإشعاعية — مكة والمدينة</span><small data-en="View document · page 29">عرض الوثيقة · صفحة 29</small></a><a class="certificate-card" href="company-profile.pdf#page=28" target="_blank" rel="noopener"><strong>RSO</strong><span data-en="Radiation Safety Officer certificate">شهادة مسؤول الحماية من الإشعاع</span><small data-en="View document · page 28">عرض الوثيقة · صفحة 28</small></a><a class="certificate-card" href="company-profile.pdf#page=22" target="_blank" rel="noopener"><strong>MODON</strong><span data-en="MODON approval">اعتماد هيئة مدن</span><small data-en="View document · page 22">عرض الوثيقة · صفحة 22</small></a><a class="certificate-card" href="company-profile.pdf#page=23" target="_blank" rel="noopener"><strong>Municipality</strong><span data-en="Municipality approval certificate">شهادة اعتماد الأمانة</span><small data-en="View document · page 23">عرض الوثيقة · صفحة 23</small></a><a class="certificate-card" href="company-profile.pdf#page=16" target="_blank" rel="noopener"><strong>Registration</strong><span data-en="Branch registrations — Makkah, Madinah, Jeddah and Riyadh">تسجيل الفروع — مكة والمدينة وجدة والرياض</span><small data-en="View document · page 16">عرض الوثيقة · صفحة 16</small></a><a class="certificate-card" href="company-profile.pdf#page=18" target="_blank" rel="noopener"><strong>Saudization</strong><span data-en="Saudization certificate">شهادة التوطين</span><small data-en="View document · page 18">عرض الوثيقة · صفحة 18</small></a><a class="certificate-card" href="company-profile.pdf#page=19" target="_blank" rel="noopener"><strong>Business</strong><span data-en="Business activity licences">تراخيص النشاط التجاري</span><small data-en="View document · page 19">عرض الوثيقة · صفحة 19</small></a><a class="certificate-card" href="company-profile.pdf#page=24" target="_blank" rel="noopener"><strong>Qualification</strong><span data-en="Qualification and geotechnical studies certificates">شهادات التأهيل والدراسات الجيوتقنية</span><small data-en="View document · page 24">عرض الوثيقة · صفحة 24</small></a></div><p data-en="Project qualification letters may include conditions; they do not constitute unconditional approval for every project.">قد تتضمن خطابات التأهيل للمشاريع شروطًا؛ ولا تمثل اعتمادًا غير مشروط لكل مشروع.</p></section><section class="panel company-profile-viewer"><h3 data-en="Full company profile · 66 pages">الملف التعريفي الكامل · 66 صفحة</h3><div class="heading-actions"><a class="btn primary" href="company-profile.pdf" target="_blank" rel="noopener" data-en="Open full profile">فتح البروفايل الكامل</a><a class="btn secondary" href="company-profile.pdf" download="ASAS-Company-Profile-2026.pdf" data-en="Download PDF">تنزيل PDF</a></div><details><summary data-en="Preview profile here">عرض البروفايل داخل النظام</summary><iframe loading="lazy" src="company-profile.pdf#view=FitH" title="ASAS company profile — 66 pages"></iframe></details></section>
         <section class="service-flow" aria-labelledby="serviceFlowTitle">
           <div class="flow-heading"><span class="section-kicker">تدفق العمل</span><h3 id="serviceFlowTitle">من الدراسة الأولية إلى التقرير المعتمد</h3><p>مسار موحد داخل النظام يعكس طريقة العمل المنشورة لدى أساس ويجعل حالة كل مشروع واضحة للفريق.</p></div>
           <ol class="flow-steps">
@@ -260,7 +271,7 @@
           <article class="panel company-vision"><span>رؤيتنا</span><h3>الريادة في الفحوصات الهندسية</h3><p>أن نكون مختبراً هندسياً رائداً في المملكة في فحوصات التربة واختبارات مواد البناء من خلال الابتكار والتميز الفني.</p></article>
         </div>
         <div class="company-grid">
-          <article class="panel"><h3>الخدمات والاختبارات</h3><ul class="company-list"><li>جسات وفحص التربة والدراسات الجيوتقنية والجيوفيزيائية</li><li>اختبارات الخرسانة الطازجة والمتصلدة والمنشآت القائمة</li><li>اختبارات الإسفلت والطرق الميدانية والمخبرية</li><li>اختبارات الركام ومواد البناء والحديد والأنكوربولت</li><li>تعيين الكثافة الحقلية والقياس باستخدام النظائر المشعة</li><li>التحاليل الكيميائية للمياه والتربة والركام</li><li>اختبارات البلوك والإنترلوك والبلدورات ومراقبة الجودة</li></ul></article>
+          <article class="panel"><h3>الخدمات الهندسية</h3><ul class="company-list"><li>دراسات التربة وفحص التربة قبل البناء — SBC 303 وASTM</li><li>اختبارات الخرسانة الطازجة والمتصلدة — ASTM وSASO 1452</li><li>اختبارات الإسفلت الميدانية والمخبرية — ASTM D6926 وD2172</li><li>اختبارات الركام — ASTM C131 وC136</li><li>اختبارات حديد التسليح والأنكوربولت — ASTM A615 وSASO 2510</li><li>التحاليل الكيميائية للمياه والتربة والركام</li><li>اختبارات البلوك والإنترلوك والبلدورات</li></ul></article>
           <article class="panel"><h3>فروعنا</h3><ul class="company-list"><li>مكة المكرمة — بطحاء قريش</li><li>جدة — الفروسية</li><li>المدينة المنورة — بلدية العوالي</li><li>الرياض — حي الندوة</li><li>القصيم — بريدة</li></ul></article>
           <article class="panel"><h3>التواصل الرسمي</h3><div class="company-contact"><a href="mailto:info@asaslab.com">info@asaslab.com</a><a href="tel:+966560618527">+966 56 061 8527</a><a href="tel:+966564705513">+966 56 470 5513</a><a href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">www.asaslab.com</a></div></article>
         </div>
@@ -273,11 +284,7 @@
           <article class="project-showcase project-asphalt"><span class="project-type">إسفلت</span><h3>تطوير المنطقة التقنية — الرياض</h3><p>اختبارات مراقبة جودة الطرق الإسفلتية، وأخذ عينات كور لتحديد سماكة الطبقة ونسبة الدمك ومطابقة المواصفات.</p><span class="project-location">الرياض</span></article>
           <article class="project-showcase project-soil"><span class="project-type">دراسات تربة</span><h3>اعتماد مخطط سكني خاص — الجموم</h3><p>دراسة جيوفيزيائية للمقاومة الكهربائية لتحديد طبقات الأرض والردميات والتكهفات بطريقة وينر وفق المتطلبات الفنية.</p><span class="project-location">الجموم — مكة</span></article>
         </div>
-        <section class="panel profile-document" aria-labelledby="profileDocumentTitle">
-          <div class="panel-heading"><div><span class="section-kicker">الوثيقة المرجعية</span><h3 id="profileDocumentTitle">بروفايل شركة أساس الكامل - إصدار 2026</h3><p>66 صفحة تشمل الأجهزة والتقنيات، نطاق الخدمات والاختبارات، الاعتمادات والشهادات، شركاء النجاح وسابقة الأعمال.</p></div><a class="btn primary" href="assets/asas-company-profile-2026.pdf" download>تنزيل PDF</a></div>
-          <object data="assets/asas-company-profile-2026.pdf#view=FitH" type="application/pdf" aria-label="بروفايل شركة أساس 2026"><p>لا يدعم متصفحك العرض المباشر. <a href="assets/asas-company-profile-2026.pdf" target="_blank" rel="noopener noreferrer">افتح ملف البروفايل من هنا.</a></p></object>
-        </section>
-        <article class="panel company-note"><strong>تنبيه تشغيلي:</strong> هذه الصفحة مرجعية لبيانات الشركة العامة واعتماداتها. تظل بيانات المشاريع والعملاء والعينات والنتائج ضمن صفحات النظام المحمية وسجل التدقيق.</article>
+        <article class="panel company-note"><strong>تنبيه تشغيلي:</strong> هذه الصفحة مرجعية لبيانات الشركة العامة. تظل بيانات المشاريع والعملاء والعينات والنتائج ضمن صفحات النظام المحمية وسجل التدقيق.</article>
       </section>
 
       <section id="audit" class="page">
@@ -286,7 +293,7 @@
       </section>
 
       <section id="users" class="page">
-        <div class="page-heading"><div><h2>المستخدمون والصلاحيات</h2><p>متاحة لمدير النظام والمدير المخوّل.</p></div><button id="openUser" class="btn primary" type="button">+ مستخدم</button></div>
+        <div class="page-heading"><div><h2>المستخدمون والصلاحيات</h2><p>متاحة لمدير النظام والمدير المخوّل.</p></div><div class="heading-actions"><button class="btn secondary" data-attachment-panel="user" type="button">رفع مرفق</button><button id="openUser" class="btn primary" type="button">+ مستخدم</button></div></div>
         <div class="panel table-panel"><table><thead><tr><th>اسم المستخدم</th><th>الاسم</th><th>الدور</th><th>الحالة</th><th>تاريخ الإنشاء</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
       </section>
 
@@ -307,11 +314,12 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=30e74c6"></script>
-  <script src="app-password.js?v=5d3b8c5"></script>
+  <script src="runtime-config.js?v=8-1-1"></script>
+  <script src="i18n.js?v=8-1-1"></script>
+  <script src="app-password.js?v=8-1-2-quality"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=30e74c6').catch(function () {}); });
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=8-1-2-quality').catch(function () {}); });
     }
   </script>
 </body>

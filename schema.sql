@@ -194,6 +194,18 @@ CREATE TABLE IF NOT EXISTS audit_log(
  FOREIGN KEY(user_id) REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS record_attachments(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ entity_type TEXT NOT NULL,
+ entity_id INTEGER NOT NULL,
+ original_name TEXT NOT NULL,
+ stored_name TEXT NOT NULL UNIQUE,
+ uploaded_by INTEGER,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(uploaded_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_record_attachments_entity ON record_attachments(entity_type,entity_id);
+
 CREATE TABLE IF NOT EXISTS settings(
  key TEXT PRIMARY KEY,
  value TEXT
@@ -210,6 +222,59 @@ CREATE TABLE IF NOT EXISTS sync_queue(
  last_error TEXT,
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
  sent_at TEXT
+);
+
+-- Quality records are intentionally separate from technical operations.
+CREATE TABLE IF NOT EXISTS quality_documents(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ category TEXT NOT NULL CHECK(category IN ('procedure','worksheet','admin_form')),
+ code TEXT NOT NULL,
+ title TEXT NOT NULL,
+ revision TEXT,
+ status TEXT NOT NULL DEFAULT 'ساري',
+ owner TEXT,
+ document_ref TEXT,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS proficiency_tests(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ test_name TEXT NOT NULL,
+ material TEXT,
+ standard TEXT,
+ provider TEXT,
+ participation_date TEXT,
+ result TEXT,
+ z_score TEXT,
+ report_ref TEXT,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS quality_staff(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ full_name TEXT NOT NULL,
+ job_title TEXT,
+ specialty TEXT,
+ experience_years TEXT,
+ qualification_ref TEXT,
+ cv_ref TEXT,
+ active INTEGER NOT NULL DEFAULT 1,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS catalog_resources(
+ test_catalog_id INTEGER PRIMARY KEY,
+ astm_attachment_id INTEGER,
+ worksheet_attachment_id INTEGER,
+ results_attachment_id INTEGER,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(test_catalog_id) REFERENCES test_catalog(id),
+ FOREIGN KEY(astm_attachment_id) REFERENCES record_attachments(id),
+ FOREIGN KEY(worksheet_attachment_id) REFERENCES record_attachments(id),
+ FOREIGN KEY(results_attachment_id) REFERENCES record_attachments(id)
 );
 
 -- Draft-only WhatsApp outbox.  The application never posts to a group or
