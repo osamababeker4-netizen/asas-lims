@@ -282,6 +282,7 @@ CREATE TABLE IF NOT EXISTS catalog_resources(
 -- draft through the official WhatsApp Business channel.
 CREATE TABLE IF NOT EXISTS whatsapp_drafts(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
+ draft_name TEXT,
  recipient_user_id INTEGER,
  related_entity TEXT NOT NULL,
  related_id INTEGER,
