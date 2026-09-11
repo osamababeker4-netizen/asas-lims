@@ -151,7 +151,7 @@ RECORD_TYPES = {
     'work_order': ('work_orders', 'projects'), 'sample': ('samples', 'samples'),
     'test': ('tests', 'tests'), 'report': ('reports', 'reports'),
     'equipment': ('equipment', 'equipment'), 'user': ('users', 'users'),
-    'catalog': ('test_catalog', 'catalog')
+    'catalog': ('test_catalog', 'catalog'), 'field_visit': ('field_visits', 'field')
 }
 
 
@@ -171,8 +171,11 @@ def save_record_file(connection, user, data):
     original_name = os.path.basename(str(data.get('file_name') or ''))
     extension = os.path.splitext(original_name)[1].lower()
     encoded = str(data.get('file_base64') or '')
-    if not encoded or extension not in {'.pdf', '.doc', '.docx', '.xls', '.xlsx'}:
-        raise ValueError('يسمح فقط بملفات PDF أو Word أو Excel')
+    allowed = {'.pdf', '.doc', '.docx', '.xls', '.xlsx'}
+    if entity_type == 'field_visit':
+        allowed |= {'.jpg', '.jpeg', '.png', '.webp', '.heic'}
+    if not encoded or extension not in allowed:
+        raise ValueError('نوع الملف غير مدعوم لهذا السجل')
     if len(encoded) > 35_000_000:
         raise ValueError('حجم الملف يتجاوز 25MB')
     try:
@@ -216,7 +219,8 @@ def migrate_schema(connection):
             ('balady_permit_type', 'balady_permit_type TEXT'),
             ('balady_permit_status', 'balady_permit_status TEXT'),
             ('balady_reference_url', 'balady_reference_url TEXT')
-        ]
+        ],
+        'whatsapp_drafts': [('draft_name', 'draft_name TEXT')]
     }
     for table, columns in additions.items():
         existing = {row['name'] for row in connection.execute('pragma table_info(' + table + ')')}
@@ -348,9 +352,9 @@ def otp_delivery_error(channel, error):
 def create_whatsapp_draft(connection, created_by, related_entity, related_id, message, recipient_user_id=None):
     """Store a reviewable message draft; no WhatsApp transport is invoked here."""
     connection.execute(
-        '''insert into whatsapp_drafts(recipient_user_id,related_entity,related_id,message_text,created_by)
-           values(?,?,?,?,?)''',
-        (recipient_user_id, related_entity, related_id, message.strip(), created_by)
+        '''insert into whatsapp_drafts(draft_name,recipient_user_id,related_entity,related_id,message_text,created_by)
+           values(?,?,?,?,?,?)''',
+        ('مسودة ' + related_entity + ' #' + str(related_id), recipient_user_id, related_entity, related_id, message.strip(), created_by)
     )
 
 
@@ -563,7 +567,7 @@ class H(BaseHTTPRequestHandler):
             'alerts': alerts,
             'sync': q("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue where status='queued' order by id desc limit 30"),
             'technicians': q("select id,full_name,username from users where active=1 and role in ('technician','field') order by full_name"),
-            'whatsapp_drafts': q('''select d.*,u.full_name recipient_name from whatsapp_drafts d
+            'whatsapp_drafts': q('''select d.*,u.full_name recipient_name,u.phone recipient_phone from whatsapp_drafts d
                 left join users u on u.id=d.recipient_user_id ''' + (
                     "order by d.id desc limit 100" if user.get('role') in {'admin', 'manager'}
                     else "where d.recipient_user_id=%d order by d.id desc limit 100" % int(user['id'])
@@ -602,6 +606,7 @@ class H(BaseHTTPRequestHandler):
             '/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
             '/logo.jpg': ('logo.jpg', 'image/jpeg'),
             '/i18n.js': ('i18n.js', 'application/javascript; charset=utf-8'),
+            '/branch-map.js': ('branch-map.js', 'application/javascript; charset=utf-8'),
             '/company-profile.pdf': ('company-profile.pdf', 'application/pdf')
         }
         if path in static_files:
@@ -628,10 +633,10 @@ class H(BaseHTTPRequestHandler):
                 if not self.require_permission(user, 'dashboard'):
                     return
                 if user.get('role') in {'admin', 'manager'}:
-                    rows = connection.execute('''select d.*,u.full_name recipient_name from whatsapp_drafts d
+                    rows = connection.execute('''select d.*,u.full_name recipient_name,u.phone recipient_phone from whatsapp_drafts d
                         left join users u on u.id=d.recipient_user_id order by d.id desc limit 100''').fetchall()
                 else:
-                    rows = connection.execute('''select d.*,u.full_name recipient_name from whatsapp_drafts d
+                    rows = connection.execute('''select d.*,u.full_name recipient_name,u.phone recipient_phone from whatsapp_drafts d
                         left join users u on u.id=d.recipient_user_id
                         where d.recipient_user_id=? order by d.id desc limit 100''', (user['id'],)).fetchall()
                 return self.send_json([dict(row) for row in rows])
@@ -659,7 +664,7 @@ class H(BaseHTTPRequestHandler):
                 if not os.path.isfile(target):
                     return self.send_json({'error': 'الملف غير موجود'}, 404)
                 extension = os.path.splitext(row['stored_name'])[1].lower()
-                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic'}
                 return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'))
 
             if path == '/api/quality':
@@ -952,6 +957,20 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'مراجعة مسودة واتساب', 'whatsapp_draft', draft_id, 'Ready for manual send')
                 connection.commit()
                 publish_event('whatsapp_draft', 'ready', draft_id)
+                return self.send_json({'ok': True, 'id': draft_id})
+
+            if path.startswith('/api/whatsapp/drafts/') and path.endswith('/rename'):
+                if not require_role(user, {'manager'}):
+                    return self.send_json({'error': 'تعديل اسم المسودة للمدير فقط'}, 403)
+                draft_id = int(path.split('/')[4])
+                draft_name = str(data.get('draft_name') or '').strip()[:120]
+                if not draft_name:
+                    return self.send_json({'error': 'اسم المسودة مطلوب'}, 400)
+                updated = connection.execute('update whatsapp_drafts set draft_name=? where id=?', (draft_name, draft_id)).rowcount
+                if not updated:
+                    return self.send_json({'error': 'المسودة غير موجودة'}, 404)
+                audit(connection, user['id'], 'تعديل اسم مسودة واتساب', 'whatsapp_draft', draft_id, draft_name)
+                connection.commit(); publish_event('whatsapp_draft', 'rename', draft_id)
                 return self.send_json({'ok': True, 'id': draft_id})
 
             if path == '/api/tests/assign':
