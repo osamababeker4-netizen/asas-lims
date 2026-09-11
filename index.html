@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=8-1-1">
+  <link rel="stylesheet" href="style.css?v=8-2-0-field">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -174,6 +174,8 @@
               <label>الموقع<input id="fieldLocation"></label>
             </div>
             <div class="field-actions"><button id="getLocationBtn" class="btn secondary" type="button">تحديد الموقع</button><span id="gpsStatus" class="muted">لم يتم تحديد الموقع</span></div>
+            <div id="coordinatesCard" class="coordinates-card hidden" aria-live="polite"><div><small>خط العرض</small><strong id="fieldLatitude">—</strong></div><div><small>خط الطول</small><strong id="fieldLongitude">—</strong></div><div><small>الدقة</small><strong id="fieldAccuracy">—</strong></div><a id="fieldMapLink" class="btn secondary" target="_blank" rel="noopener noreferrer">عرض على الخريطة</a></div>
+            <section class="field-media panel inset-panel"><div class="panel-heading"><div><h3>صور الزيارة الميدانية</h3><p class="muted">التقط صورة جديدة أو اختر صورًا من الاستديو.</p></div><div class="heading-actions"><button id="openFieldCamera" class="btn primary" type="button">فتح الكاميرا</button><button id="openFieldGallery" class="btn secondary" type="button">فتح الاستديو</button></div></div><input id="fieldCameraInput" class="hidden" type="file" accept="image/*" capture="environment"><input id="fieldGalleryInput" class="hidden" type="file" accept="image/*" multiple><div id="fieldPhotoPreview" class="field-photo-preview"><span class="muted">لم تُرفق صور بعد</span></div></section>
             <div class="field-tests panel inset-panel">
               <div class="panel-heading"><h3>اختبارات الزيارة</h3><button id="addFieldTest" class="btn secondary" type="button">+ اختيار اختبار رسمي</button></div>
               <div id="fieldTests"></div>
@@ -240,7 +242,7 @@
         <div class="page-heading"><div><h2>مسودات مجتمع واتساب</h2><p>تُنشأ تلقائيًا من العمليات المهمة. راجعها ثم انسخها وانشرها يدويًا في مجتمع مختبر أساس.</p></div></div>
         <article class="panel">
           <p class="form-note">لا يرسل النظام إلى أي مجموعة أو مجتمع تلقائيًا؛ الإرسال النهائي يتطلب مراجعة المسؤول والالتزام بسياسات WhatsApp Business.</p>
-          <div class="table-panel"><table><thead><tr><th>الوجهة</th><th>المرجع</th><th>المسودة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="whatsappDraftsTable"></tbody></table></div>
+          <div class="table-panel"><table><thead><tr><th>اسم المسودة</th><th>الوجهة</th><th>المرجع</th><th>المسودة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="whatsappDraftsTable"></tbody></table></div>
         </article>
       </section>
 
@@ -329,7 +331,7 @@
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="runtime-config.js?v=8-1-1"></script>
   <script src="i18n.js?v=8-1-1"></script>
-  <script src="app-password.js?v=8-1-2-quality"></script>
+  <script src="app-password.js?v=8-2-0-field"></script>
   <script src="branch-map.js?v=8-1-3-branches"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
