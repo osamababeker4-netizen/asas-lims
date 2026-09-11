@@ -15,11 +15,14 @@
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
-      <h1>تسجيل دخول النظام</h1>
+      <img src="logo.jpg" class="login-logo" alt="شعار مختبر أساس">
+      <p class="eyebrow">ASAS LIMS · V8.0.0 FINAL</p>
+      <h1>منصة أساس لإدارة المختبر</h1>
+      <p class="muted">إدارة المشاريع، أوامر العمل، العينات، الاختبارات والتقارير في واجهة عربية موحّدة.</p>
       <form id="loginForm" class="form-stack">
-        <label>رقم الجوال<input id="loginUsername" autocomplete="username tel" inputmode="tel" required placeholder="رقم الجوال"></label>
-        <label>كلمة السر<input id="loginPassword" autocomplete="current-password" type="password" required placeholder="كلمة السر"></label>
-        <button class="btn primary" type="submit">دخول النظام</button>
+        <label>اسم المستخدم أو رقم الجوال<input id="loginUsername" autocomplete="username tel" inputmode="tel" required placeholder="اسم المستخدم أو +9665XXXXXXXX"></label>
+        <label>كلمة المرور<input id="loginPassword" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
+        <button class="btn primary" type="submit">تسجيل الدخول</button>
       </form>
       <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
       <form id="staticSetupForm" class="form-stack hidden" novalidate>
@@ -308,7 +311,7 @@
   <script src="app-password.js?v=5d3b8c5"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=8.0.1-login').catch(function () {}); });
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=30e74c6').catch(function () {}); });
     }
   </script>
 </body>

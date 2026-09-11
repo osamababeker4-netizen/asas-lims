@@ -156,44 +156,6 @@ def init():
             ('admin', hp(password), 'مدير المختبر', 'admin', phone)
         )
         print('تم إنشاء حساب admin الأول باستخدام كلمة المرور المحلية التي وفرتها.')
-    reset_version = os.environ.get('LIMS_ADMIN_RESET_VERSION', '').strip()
-    if reset_version:
-        applied = connection.execute(
-            "select value from settings where key='admin_reset_version'"
-        ).fetchone()
-        if not applied or applied['value'] != reset_version:
-            reset_password = os.environ.get('LIMS_ADMIN_RESET_PASSWORD', '')
-            reset_phone = os.environ.get('LIMS_ADMIN_RESET_PHONE', '').strip()
-            if len(reset_password) < 12:
-                connection.close()
-                raise RuntimeError('LIMS_ADMIN_RESET_PASSWORD must contain at least 12 characters.')
-            if not valid_e164(reset_phone):
-                connection.close()
-                raise RuntimeError('LIMS_ADMIN_RESET_PHONE must use the international E.164 format.')
-            administrator = connection.execute(
-                "select id from users where username='admin' or role='admin' order by case when username='admin' then 0 else 1 end, id limit 1"
-            ).fetchone()
-            if administrator:
-                connection.execute(
-                    'update users set username=?,password_hash=?,phone=?,active=1,role=? where id=?',
-                    ('admin', hp(reset_password), reset_phone, 'admin', administrator['id'])
-                )
-                administrator_id = administrator['id']
-            else:
-                cursor = connection.execute(
-                    'insert into users(username,password_hash,full_name,role,phone,active) values(?,?,?,?,?,1)',
-                    ('admin', hp(reset_password), 'مدير المختبر', 'admin', reset_phone)
-                )
-                administrator_id = cursor.lastrowid
-            connection.execute(
-                "insert into settings(key,value) values('admin_reset_version',?) on conflict(key) do update set value=excluded.value",
-                (reset_version,)
-            )
-            connection.execute(
-                'insert into audit_log(user_id,action,entity,entity_id,details) values(?,?,?,?,?)',
-                (administrator_id, 'ADMIN_CREDENTIAL_RESET', 'user', administrator_id, 'Administrator credentials reset from protected deployment configuration')
-            )
-            print('تم تطبيق إعادة ضبط حساب المدير من إعدادات النشر المحمية.')
     connection.commit()
     connection.close()
 
