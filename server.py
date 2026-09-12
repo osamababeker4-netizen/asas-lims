@@ -351,12 +351,8 @@ def otp_delivery_error(channel, error):
 
 
 def create_whatsapp_draft(connection, created_by, related_entity, related_id, message, recipient_user_id=None):
-    """Store a reviewable message draft; no WhatsApp transport is invoked here."""
-    connection.execute(
-        '''insert into whatsapp_drafts(draft_name,recipient_user_id,related_entity,related_id,message_text,created_by)
-           values(?,?,?,?,?,?)''',
-        ('مسودة ' + related_entity + ' #' + str(related_id), recipient_user_id, related_entity, related_id, message.strip(), created_by)
-    )
+    """Compatibility shim: communication now uses direct channel links."""
+    return None
 
 
 def publish_event(entity, operation, entity_id):
@@ -544,12 +540,6 @@ class H(BaseHTTPRequestHandler):
             'overdue_work_orders': q("select w.id,w.order_no,w.title,w.due_date,p.code project_code from work_orders w join projects p on p.id=w.project_id where w.due_date is not null and w.due_date < date('now') and w.status != 'مكتمل' order by w.due_date"),
             'awaiting_review': q("select id,code,name,'project' entity from projects where status='قيد المراجعة' union all select id,license_no,'زيارة ميدانية','field_visit' entity from field_visits where status='قيد المراجعة' order by id desc")
         }
-        counts['whatsapp_drafts'] = connection.execute(
-            "select count(*) from whatsapp_drafts where status='draft'"
-        ).fetchone()[0]
-        counts['whatsapp_ready'] = connection.execute(
-            "select count(*) from whatsapp_drafts where status='ready'"
-        ).fetchone()[0]
         return {
             'counts': counts,
             'projects': projects,
@@ -567,12 +557,7 @@ class H(BaseHTTPRequestHandler):
             'activity': q('select created_at,action,details from audit_log order by id desc limit 15'),
             'alerts': alerts,
             'sync': q("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue where status='queued' order by id desc limit 30"),
-            'technicians': q("select id,full_name,username from users where active=1 and role in ('technician','field') order by full_name"),
-            'whatsapp_drafts': q('''select d.*,u.full_name recipient_name,u.phone recipient_phone from whatsapp_drafts d
-                left join users u on u.id=d.recipient_user_id ''' + (
-                    "order by d.id desc limit 100" if user.get('role') in {'admin', 'manager'}
-                    else "where d.recipient_user_id=%d order by d.id desc limit 100" % int(user['id'])
-                ))
+            'technicians': q("select id,full_name,username from users where active=1 and role in ('technician','field') order by full_name")
         }
     def project_workspace(self, connection, project_id):
         project = connection.execute('''
@@ -634,6 +619,12 @@ class H(BaseHTTPRequestHandler):
                 if not self.require_permission(user, 'settings'):
                     return
                 return self.send_json({row['key']: row['value'] for row in connection.execute('select key,value from settings').fetchall()})
+
+            if path == '/api/communication-links':
+                rows = connection.execute(
+                    "select key,value from settings where key in ('whatsapp_group_url','telegram_url')"
+                ).fetchall()
+                return self.send_json({row['key']: row['value'] for row in rows})
 
             if path == '/api/whatsapp/drafts':
                 if not self.require_permission(user, 'dashboard'):
