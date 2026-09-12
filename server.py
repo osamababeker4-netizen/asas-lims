@@ -261,9 +261,9 @@ def init():
             ''', (code, name_ar, name_ar, category, 'ASTM ' + code))
     if connection.execute('select count(*) from users').fetchone()[0] == 0:
         password = os.environ.get('LIMS_BOOTSTRAP_PASSWORD')
-        if not password or len(password) < 12:
+        if not password:
             connection.close()
-            raise RuntimeError('يتطلب أول تشغيل تعيين LIMS_BOOTSTRAP_PASSWORD محلياً إلى كلمة مرور من 12 حرفاً على الأقل.')
+            raise RuntimeError('يتطلب أول تشغيل تعيين LIMS_BOOTSTRAP_PASSWORD إلى كلمة مرور غير فارغة.')
         phone = os.environ.get('LIMS_BOOTSTRAP_PHONE', '').strip()
         if not valid_e164(phone):
             connection.close()
@@ -910,8 +910,8 @@ class H(BaseHTTPRequestHandler):
                 account = connection.execute('select id,password_hash from users where id=? and active=1', (user['id'],)).fetchone()
                 if not account or not checkpw(current_password, account['password_hash']):
                     return self.send_json({'error': 'كلمة المرور الحالية غير صحيحة'}, 400)
-                if len(new_password) < 12:
-                    return self.send_json({'error': 'كلمة المرور الجديدة يجب ألا تقل عن 12 حرفاً'}, 400)
+                if not new_password:
+                    return self.send_json({'error': 'كلمة المرور الجديدة مطلوبة'}, 400)
                 if new_password != confirm_password:
                     return self.send_json({'error': 'تأكيد كلمة المرور غير مطابق'}, 400)
                 connection.execute('update users set password_hash=? where id=?', (hp(new_password), user['id']))
@@ -944,8 +944,8 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'اسم المستخدم مطلوب'}, 400)
                 if not full_name:
                     return self.send_json({'error': 'الاسم الكامل مطلوب'}, 400)
-                if len(password) < 12:
-                    return self.send_json({'error': 'كلمة المرور يجب ألا تقل عن 12 حرفاً'}, 400)
+                if not password:
+                    return self.send_json({'error': 'كلمة المرور مطلوبة'}, 400)
                 if role not in ROLE_PERMS:
                     return self.send_json({'error': 'الدور المحدد غير معتمد في الخادم؛ حدّث الصفحة ثم اختر الدور مرة أخرى'}, 400)
                 if phone and not valid_e164(phone):
@@ -981,8 +981,6 @@ class H(BaseHTTPRequestHandler):
                 phone = normalize_phone(data.get('phone', target['phone'] or ''))
                 if role not in ROLE_PERMS or (entity_id == user['id'] and active == 0):
                     return self.send_json({'error': 'تعديل المستخدم غير صالح'}, 400)
-                if password and len(password) < 12:
-                    return self.send_json({'error': 'كلمة المرور يجب ألا تقل عن 12 حرفاً'}, 400)
                 if phone and not valid_e164(phone):
                     return self.send_json({'error': 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX'}, 400)
                 if phone_in_use(connection, phone, entity_id):
