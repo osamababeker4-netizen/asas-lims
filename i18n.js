@@ -720,7 +720,14 @@ const UI_TRANSLATIONS = {
   "رقم الجوال": "Mobile number",
   "تأكيد كلمة المرور": "Confirm password",
   "كلمة المرور الجديدة (اختياري)": "New password (optional)",
-  "أدخل الرقم المحلي فقط بعد اختيار مفتاح الدولة.": "Enter only the local number after selecting the country code."
+  "أدخل الرقم المحلي فقط بعد اختيار مفتاح الدولة.": "Enter only the local number after selecting the country code.",
+  "ملفي الشخصي": "My profile",
+  "فتح الملف الشخصي": "Open profile",
+  "تغيير الصورة": "Change photo",
+  "حفظ الملف الشخصي": "Save profile",
+  "يمكنك تعديل الاسم والصورة وكلمة المرور.": "You can update the name, photo and password.",
+  "تم تحديث الملف الشخصي": "Profile updated",
+  "إعدادات النظام متاحة للأدوار الإدارية فقط": "System settings are available to management roles only"
 };
 'use strict';
 // UI strings are translated; saved values and escaped user content are preserved.
