@@ -40,14 +40,14 @@ PRIORITIES = {'منخفضة', 'متوسطة', 'عالية', 'حرجة'}
 
 ROLE_PERMS = {
     'admin': {'*'},
-    'general_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync'},
-    'technical_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync'},
-    'laboratory_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync'},
-    'quality_manager': {'dashboard', 'equipment', 'quality', 'audit'},
+    'general_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync', 'settings'},
+    'technical_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
+    'laboratory_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
+    'quality_manager': {'dashboard', 'equipment', 'quality', 'audit', 'settings'},
     'quality_officer': {'dashboard', 'quality'},
     'calibration_officer': {'dashboard', 'quality'},
     'document_controller': {'dashboard', 'quality'},
-    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync'},
+    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync', 'settings'},
     'quality': {'dashboard', 'quality'},
     'technician': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports'},
     'field': {'dashboard', 'field', 'clients', 'projects', 'samples'}
@@ -892,6 +892,18 @@ class H(BaseHTTPRequestHandler):
                 connection.commit()
                 return self.send_json({'ok': True})
 
+            if path == '/api/profile/update':
+                full_name = str(data.get('full_name') or '').strip()
+                avatar = str(data.get('avatar_data_url') or '')
+                if not full_name:
+                    return self.send_json({'error': 'الاسم الكامل مطلوب'}, 400)
+                if avatar and (not avatar.startswith('data:image/') or len(avatar) > 1_500_000):
+                    return self.send_json({'error': 'صورة المستخدم غير صالحة أو كبيرة'}, 400)
+                connection.execute('update users set full_name=?,avatar_data_url=? where id=?', (full_name, avatar, user['id']))
+                audit(connection, user['id'], 'تعديل الملف الشخصي', 'user', user['id'], user['username'])
+                connection.commit(); publish_event('user', 'profile', user['id'])
+                return self.send_json({'ok': True, 'user': {'username': user['username'], 'full_name': full_name, 'role': user['role'], 'phone': user.get('phone'), 'avatar_data_url': avatar}})
+
             if path == '/api/users/create':
                 if not self.require_permission(user, 'users'):
                     return
@@ -964,8 +976,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json({'ok': True, 'id': entity_id, 'sync': 'queued'})
 
             if path == '/api/settings/update':
-                if user.get('role') != 'admin':
-                    return self.send_json({'error': 'إعدادات النظام لمدير النظام فقط'}, 403)
+                if user.get('role') not in {'admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'}:
+                    return self.send_json({'error': 'إعدادات النظام متاحة للأدوار الإدارية فقط'}, 403)
                 allowed = {'lab_name','lab_name_en','website_url','support_email','support_phone','currency','report_prefix','sample_prefix','work_order_prefix','timezone','default_language','date_format','whatsapp_group_url','telegram_url','map_provider','max_attachment_mb','enable_otp','require_report_approval'}
                 for key, value in data.items():
                     if key in allowed:
