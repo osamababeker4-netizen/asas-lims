@@ -196,7 +196,8 @@ def save_record_file(connection, user, data):
 def migrate_schema(connection):
     additions = {
         'users': [
-            ('phone', 'phone TEXT')
+            ('phone', 'phone TEXT'),
+            ('avatar_data_url', 'avatar_data_url TEXT')
         ],
         'projects': [
             ('priority', "priority TEXT NOT NULL DEFAULT 'متوسطة'"),
@@ -626,8 +627,13 @@ class H(BaseHTTPRequestHandler):
             if path == '/api/users':
                 if not self.require_permission(user, 'users'):
                     return
-                rows = connection.execute('select id,username,full_name,role,phone,active,created_at from users order by id desc').fetchall()
+                rows = connection.execute('select id,username,full_name,role,phone,avatar_data_url,active,created_at from users order by id desc').fetchall()
                 return self.send_json([dict(row) for row in rows])
+
+            if path == '/api/settings':
+                if not self.require_permission(user, 'settings'):
+                    return
+                return self.send_json({row['key']: row['value'] for row in connection.execute('select key,value from settings').fetchall()})
 
             if path == '/api/whatsapp/drafts':
                 if not self.require_permission(user, 'dashboard'):
@@ -806,7 +812,7 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json({'ok': False, 'error': error}, 401)
             phone = str(user['phone'] or '').strip()
             connection.close()
-            return self.send_json({'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}}, extra_headers={'Set-Cookie': 'LIMS_SESSION=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict'})
+            return self.send_json({'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone, 'avatar_data_url': user['avatar_data_url']}}, extra_headers={'Set-Cookie': 'LIMS_SESSION=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict'})
 
         if path == '/api/auth/verify':
             return self.send_json({'ok': False, 'error': 'otp_disabled'}, 410)
@@ -842,7 +848,7 @@ class H(BaseHTTPRequestHandler):
             connection.commit()
             connection.close()
             return self.send_json(
-                {'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone}},
+                {'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone, 'avatar_data_url': user['avatar_data_url']}},
                 extra_headers={'Set-Cookie': 'LIMS_SESSION=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict'}
             )
             '''
@@ -900,7 +906,10 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX'}, 400)
                 if phone_in_use(connection, phone):
                     return self.send_json({'error': 'رقم الجوال مسجل لمستخدم آخر'}, 409)
-                connection.execute('insert into users(username,password_hash,full_name,role,phone,active) values(?,?,?,?,?,1)', (username, hp(password), full_name, role, phone))
+                avatar = str(data.get('avatar_data_url') or '')
+                if avatar and (not avatar.startswith('data:image/') or len(avatar) > 1_500_000):
+                    return self.send_json({'error': 'صورة المستخدم غير صالحة أو كبيرة'}, 400)
+                connection.execute('insert into users(username,password_hash,full_name,role,phone,avatar_data_url,active) values(?,?,?,?,?,?,1)', (username, hp(password), full_name, role, phone, avatar))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 audit(connection, user['id'], 'إضافة مستخدم', 'user', entity_id, username)
                 # Do not enqueue passwords or their hashes: the queue contains only
@@ -932,7 +941,10 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX'}, 400)
                 if phone_in_use(connection, phone, entity_id):
                     return self.send_json({'error': 'رقم الجوال مسجل لمستخدم آخر'}, 409)
-                connection.execute('update users set full_name=?,role=?,phone=?,active=? where id=?', (data.get('full_name', target['full_name']), role, phone, active, entity_id))
+                avatar = str(data.get('avatar_data_url', target['avatar_data_url'] or ''))
+                if avatar and (not avatar.startswith('data:image/') or len(avatar) > 1_500_000):
+                    return self.send_json({'error': 'صورة المستخدم غير صالحة أو كبيرة'}, 400)
+                connection.execute('update users set full_name=?,role=?,phone=?,avatar_data_url=?,active=? where id=?', (data.get('full_name', target['full_name']), role, phone, avatar, active, entity_id))
                 if password:
                     connection.execute('update users set password_hash=? where id=?', (hp(password), entity_id))
                 audit(connection, user['id'], 'تعديل مستخدم', 'user', entity_id, target['username'])
@@ -944,6 +956,17 @@ class H(BaseHTTPRequestHandler):
                 connection.commit()
                 publish_event('user', 'update', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id, 'sync': 'queued'})
+
+            if path == '/api/settings/update':
+                if user.get('role') != 'admin':
+                    return self.send_json({'error': 'إعدادات النظام لمدير النظام فقط'}, 403)
+                allowed = {'lab_name','lab_name_en','website_url','support_email','support_phone','currency','report_prefix','sample_prefix','work_order_prefix','timezone','default_language','date_format','whatsapp_group_url','telegram_url','map_provider','max_attachment_mb','enable_otp','require_report_approval'}
+                for key, value in data.items():
+                    if key in allowed:
+                        connection.execute('insert into settings(key,value) values(?,?) on conflict(key) do update set value=excluded.value', (key, str(value)[:500]))
+                audit(connection, user['id'], 'تعديل إعدادات النظام', 'settings', 0, 'System settings updated')
+                connection.commit(); publish_event('settings', 'update', 0)
+                return self.send_json({'ok': True})
 
             if path.startswith('/api/whatsapp/drafts/') and path.endswith('/ready'):
                 if not require_role(user, {'manager'}):
