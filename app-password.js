@@ -105,6 +105,10 @@ function localDB() {
     if (!Array.isArray(data[key])) data[key] = [];
   });
   data.catalog = mergeOfficialCatalog(data.catalog);
+  data.settings = data.settings || {};
+  if (!data.settings.whatsapp_group_url || data.settings.whatsapp_group_url === 'https://chat.whatsapp.com/CWalJYwXsocKtYiqsJsMSh') {
+    data.settings.whatsapp_group_url = 'https://chat.whatsapp.com/LxqH7L6GorGEhMfUTYthgG?s=sh&p=a&mlu=4&ilr=4';
+  }
   return data;
 }
 
@@ -317,6 +321,7 @@ function staticApi(path, options) {
     localQueue(data,'user',user.id,'update'); localAudit(data,'تعديل مستخدم','user',user.username); saveLocal(data); return {ok:true,id:user.id,sync:'queued'};
   }
   if (path === '/api/settings') return data.settings || {};
+  if (path === '/api/communication-links') return {whatsapp_group_url:(data.settings||{}).whatsapp_group_url||'',telegram_url:(data.settings||{}).telegram_url||''};
   if (path === '/api/settings/update') { data.settings = Object.assign({},data.settings || {},body); saveLocal(data); return {ok:true}; }
   throw new Error('المسار غير مدعوم في العرض الثابت');
 }
@@ -506,9 +511,23 @@ async function loadCatalog() {
   renderCatalog();
 }
 
+function applyCurrentUserIdentity(user) {
+  if (!user) return;
+  currentUser = Object.assign({}, currentUser || {}, user);
+  setText($('currentUsername'), '@' + currentUser.username);
+  setHtml($('currentUser'), esc(currentUser.full_name) + ' · ' + escUI(ROLE_NAMES[currentUser.role] || currentUser.role));
+  $('currentUserAvatar').src = currentUser.avatar_data_url || 'logo.jpg';
+}
+
+async function refreshCurrentUserIdentity() {
+  if (STATIC_MODE || !currentUser) return;
+  applyCurrentUserIdentity(await api('/api/me'));
+}
+
 async function refresh() {
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async function() {
+    await refreshCurrentUserIdentity();
     dashboard = await api('/api/dashboard');
     renderDashboard();
     renderProjects();
@@ -873,7 +892,7 @@ function openUserForm(user) {
 }
 
 function splitInternationalPhone(phone) { const value=String(phone||''); const found=COUNTRY_CODES.slice().sort(function(a,b){return b.code.length-a.code.length;}).find(function(item){return value.startsWith(item.code);}); return {code:found?found.code:'+966',local:found?value.slice(found.code.length).replace(/^0+/,''):value.replace(/\D/g,'').replace(/^0+/,'')}; }
-function resizeAvatar(file) { return new Promise(function(resolve,reject){if(file.size>8*1024*1024)return reject(new Error('الصورة تتجاوز 8MB'));const reader=new FileReader();reader.onerror=function(){reject(new Error('تعذر قراءة الصورة'));};reader.onload=function(){const image=new Image();image.onerror=function(){reject(new Error('ملف الصورة غير صالح'));};image.onload=function(){const size=320,canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;const ctx=canvas.getContext('2d');const side=Math.min(image.width,image.height),x=(image.width-side)/2,y=(image.height-side)/2;ctx.drawImage(image,x,y,side,side,0,0,size,size);resolve(canvas.toDataURL('image/jpeg',.82));};image.src=reader.result;};reader.readAsDataURL(file);}); }
+function resizeAvatar(file) { return new Promise(function(resolve,reject){if(file.size>8*1024*1024)return reject(new Error('الصورة تتجاوز 8MB'));if(!String(file.type||'').startsWith('image/'))return reject(new Error('اختر ملف صورة صالحًا'));const reader=new FileReader();reader.onerror=function(){reject(new Error('تعذر قراءة الصورة'));};reader.onload=function(){const image=new Image();image.onerror=function(){reject(new Error('صيغة الصورة غير مدعومة؛ استخدم JPG أو PNG'));};image.onload=function(){const size=256,canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;const ctx=canvas.getContext('2d');if(!ctx)return reject(new Error('تعذر معالجة الصورة على هذا الجهاز'));const side=Math.min(image.naturalWidth||image.width,image.naturalHeight||image.height),x=((image.naturalWidth||image.width)-side)/2,y=((image.naturalHeight||image.height)-side)/2;ctx.drawImage(image,x,y,side,side,0,0,size,size);const avatar=canvas.toDataURL('image/jpeg',.76);if(!avatar||avatar==='data:,')return reject(new Error('تعذر ضغط الصورة'));resolve(avatar);};image.src=reader.result;};reader.readAsDataURL(file);}); }
 
 async function saveUserForm(form) {
   try {
@@ -924,7 +943,7 @@ async function submitSimple(form, path) {
 }
 function openChangePassword() { modal('<h2>تغيير كلمة المرور</h2><p>هذا التغيير يخص حسابك المسجّل فقط.</p><form id="changePasswordForm"><div class="modal-grid"><label>كلمة المرور الحالية<input name="current_password" type="password" autocomplete="current-password" required></label><label>كلمة المرور الجديدة<input name="new_password" type="password" autocomplete="new-password" minlength="12" required></label><label>تأكيد كلمة المرور الجديدة<input name="confirm_password" type="password" autocomplete="new-password" minlength="12" required></label></div><p class="form-note">الحد الأدنى 12 حرفًا.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تغيير كلمة المرور</button></div></form>'); }
 function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك تعديل الاسم والصورة وكلمة المرور. اسم المستخدم ثابت: <strong>@'+esc(currentUser.username)+'</strong></p><form id="myProfileForm"><input type="hidden" name="avatar_data_url" value="'+esc(currentUser.avatar_data_url||'')+'"><div class="user-photo-editor"><img id="profileAvatarPreview" src="'+esc(currentUser.avatar_data_url||'logo.jpg')+'" alt="صورة المستخدم"><div><strong>@'+esc(currentUser.username)+'</strong><small>اسم المستخدم</small><button id="chooseProfileAvatar" class="btn secondary" type="button">تغيير الصورة</button><input id="profileAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><label>الاسم الكامل<input name="full_name" required value="'+esc(currentUser.full_name)+'"></label><div class="modal-actions"><button class="btn secondary" type="button" id="profilePasswordButton">تغيير كلمة المرور</button><button class="btn primary" type="submit">حفظ الملف الشخصي</button></div></form>');const form=$('myProfileForm');$('chooseProfileAvatar').addEventListener('click',function(){$('profileAvatarInput').click();});$('profileAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('profileAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});$('profilePasswordButton').addEventListener('click',openChangePassword); }
-async function submitMyProfile(form) { const payload={full_name:form.elements.full_name.value.trim(),avatar_data_url:form.elements.avatar_data_url.value};if(!payload.full_name)throw new Error('الاسم الكامل مطلوب');await api('/api/profile/update',{method:'POST',body:JSON.stringify(payload)});currentUser.full_name=payload.full_name;currentUser.avatar_data_url=payload.avatar_data_url;$('currentUserAvatar').src=payload.avatar_data_url||'logo.jpg';setHtml($('currentUser'),esc(payload.full_name)+' · '+escUI(ROLE_NAMES[currentUser.role]||currentUser.role));closeModal();await refresh();showToast('تم تحديث الملف الشخصي');}
+async function submitMyProfile(form) { const payload={full_name:form.elements.full_name.value.trim(),avatar_data_url:form.elements.avatar_data_url.value};if(!payload.full_name)throw new Error('الاسم الكامل مطلوب');const result=await api('/api/profile/update',{method:'POST',body:JSON.stringify(payload)});applyCurrentUserIdentity(result.user||payload);closeModal();await refresh();showToast('تم تحديث الاسم والصورة بنجاح');}
 async function submitChangePassword(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(data)});closeModal();showToast('تم تغيير كلمة المرور لحسابك'); }
 async function loadSystemSettings() { if(!currentUser||['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)<0)return;try{const settings=await api('/api/settings');const form=$('systemSettingsForm');Object.keys(settings).forEach(function(key){const field=form.elements[key];if(!field)return;if(field.type==='checkbox')field.checked=settings[key]==='true';else field.value=settings[key];});if(form.elements.default_language){form.elements.default_language.value=localStorage.getItem('asas_lims_language')||settings.default_language||'ar';}}catch(error){setText($('settingsMessage'),error.message);} }
 function validChannelUrl(value, channel) { try { const url=new URL(String(value||'').trim());if(url.protocol!=='https:')return '';const host=url.hostname.toLowerCase().replace(/^www\./,'');const allowed=channel==='whatsapp'?['chat.whatsapp.com','wa.me','whatsapp.com']:['t.me','telegram.me'];return allowed.some(function(domain){return host===domain||host.endsWith('.'+domain);})?url.href:'';}catch(error){return '';} }
