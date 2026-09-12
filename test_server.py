@@ -188,7 +188,8 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertTrue(created['ok'])
 
             status, updated, _ = request('POST', '/api/users/update', {
-                'id': created['id'], 'full_name': 'مستخدم مختبر محدّث', 'role': 'manager', 'active': True, 'password': ''
+                'id': created['id'], 'full_name': 'مستخدم مختبر محدّث', 'role': 'manager', 'active': True,
+                'password': '', 'avatar_data_url': 'data:image/jpeg;base64,/9j/test-avatar'
             }, token)
             self.assertEqual(status, 200)
             self.assertTrue(updated['ok'])
@@ -199,6 +200,7 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(saved['full_name'], 'مستخدم مختبر محدّث')
             self.assertEqual(saved['role'], 'manager')
             self.assertEqual(saved['active'], 1)
+            self.assertEqual(saved['avatar_data_url'], 'data:image/jpeg;base64,/9j/test-avatar')
             connection = self.server.db()
             user_sync = connection.execute("select entity,entity_id,operation,payload_json from sync_queue where entity='user' order by id").fetchall()
             connection.close()
