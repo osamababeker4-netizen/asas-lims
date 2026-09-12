@@ -386,6 +386,7 @@ function navigate(page) {
   $('sidebar').classList.remove('open');
   if (page === 'field') loadFieldRecent();
   if (page === 'settings') loadSystemSettings();
+  if (page === 'communications') loadCommunicationLinks();
 }
 
 async function login(event) {
@@ -461,6 +462,7 @@ async function completeLogin(result) {
   // manager is not blocked by a hidden page despite being authorized.
   $('usersNav').classList.toggle('hidden', ['admin','general_manager','manager'].indexOf(result.user.role) < 0);
   $('settingsNav').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
+  $('manageCommunicationLinks').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
   $('qualityNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(result.user.role) < 0);
   $('qualityEquipmentCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','technical_manager','laboratory_manager'].indexOf(result.user.role) < 0);
   await loadCatalog(); await refresh(); startLiveUpdates(); navigate('dashboard');
@@ -515,7 +517,6 @@ async function refresh() {
     renderSamples();
     renderTests();
     renderReports();
-    renderWhatsappDrafts();
     renderEquipment();
     renderAudit();
     if (currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(currentUser.role) >= 0) await renderQuality();
@@ -571,12 +572,9 @@ function renderDashboard() {
   setText($('metricReports'), dashboard.counts.reports || 0);
   setText($('metricReview'), (dashboard.alerts.awaiting_review || []).length);
   setText($('metricSync'), dashboard.counts.sync_queue || 0);
-  setText($('metricWhatsapp'), dashboard.counts.whatsapp_drafts || 0);
   const pending = dashboard.counts.sync_queue || 0;
-  const drafts = dashboard.counts.whatsapp_drafts || 0;
   setText($('syncIndicator'), 'المزامنة المباشرة: متصلة' +
-    (pending ? ' · ' + pending + ' عملية مسجلة' : '') +
-    (drafts ? ' · ' + drafts + ' مسودة بانتظار المراجعة' : ''));
+    (pending ? ' · ' + pending + ' عملية مسجلة' : ''));
   const priorities = [];
   (dashboard.alerts.overdue_work_orders || []).forEach(function(item) { priorities.push('<div class="priority-item overdue"><strong>أمر متأخر: ' + esc(item.order_no) + ' — ' + esc(item.title) + '</strong><small>' + esc(item.project_code) + ' · استحقاق ' + esc(item.due_date) + '</small></div>'); });
   (dashboard.alerts.blocked_projects || []).forEach(function(item) { priorities.push('<div class="priority-item blocked"><strong>مشروع متوقف: ' + esc(item.code) + ' — ' + esc(item.name) + '</strong><small>الأولوية ' + escUI(item.priority) + (item.due_date ? ' · الاستحقاق ' + esc(item.due_date) : '') + '</small></div>'); });
@@ -652,18 +650,6 @@ function renderTests() {
     const canAssign = currentUser && ['admin','manager'].indexOf(currentUser.role) >= 0;
     return '<tr><td><strong>' + esc(test.test_no) + '</strong></td><td>' + esc(test.sample_no) + '</td><td>' + escUI(test.name_ar) + '<small>' + esc(test.code) + '</small></td><td>' + esc(test.standard) + '</td><td>' + escUI(test.technician_name || 'غير مسند') + '</td><td>' + esc(result) + '</td><td>' + statusChip(test.status) + '</td><td>' + (canAssign ? '<button class="text-btn" data-test-assign="' + test.id + '" type="button">إسناد لفني</button>' : '—') + '</td></tr>';
   }).join('') || '<tr><td colspan="8" class="empty">لا توجد اختبارات.</td></tr>');
-}
-
-function renderWhatsappDrafts() {
-  const drafts = dashboard ? (dashboard.whatsapp_drafts || []) : [];
-  const canReview = currentUser && ['admin','manager'].indexOf(currentUser.role) >= 0;
-  setHtml($('whatsappDraftsTable'), drafts.map(function(draft) {
-    const draftName = draft.draft_name || ('مسودة ' + draft.related_entity + ' #' + (draft.related_id || draft.id));
-    const action = '<button class="text-btn" data-whatsapp-open="' + draft.id + '" type="button">فتح واتساب</button><button class="text-btn" data-whatsapp-copy="' + draft.id + '" type="button">نسخ المسودة</button>' +
-      (canReview ? '<button class="text-btn" data-whatsapp-rename="' + draft.id + '" type="button">تغيير الاسم</button>' : '') +
-      (canReview && draft.status === 'draft' ? '<button class="text-btn" data-whatsapp-ready="' + draft.id + '" type="button">اعتماد للمشاركة</button>' : '');
-    return '<tr><td><strong>' + esc(draftName) + '</strong></td><td>' + esc(draft.recipient_name || draft.target_name) + '</td><td>' + esc(draft.related_entity) + ' #' + esc(draft.related_id || '') + '</td><td><small>' + esc(draft.message_text) + '</small></td><td>' + statusChip(draft.status === 'ready' ? 'جاهزة للمشاركة' : 'مسودة') + '</td><td><div class="row-actions">' + action + '</div></td></tr>';
-  }).join('') || '<tr><td colspan="6" class="empty">لا توجد مسودات بعد.</td></tr>');
 }
 
 function renderCatalog() {
@@ -941,7 +927,10 @@ function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك ت
 async function submitMyProfile(form) { const payload={full_name:form.elements.full_name.value.trim(),avatar_data_url:form.elements.avatar_data_url.value};if(!payload.full_name)throw new Error('الاسم الكامل مطلوب');await api('/api/profile/update',{method:'POST',body:JSON.stringify(payload)});currentUser.full_name=payload.full_name;currentUser.avatar_data_url=payload.avatar_data_url;$('currentUserAvatar').src=payload.avatar_data_url||'logo.jpg';setHtml($('currentUser'),esc(payload.full_name)+' · '+escUI(ROLE_NAMES[currentUser.role]||currentUser.role));closeModal();await refresh();showToast('تم تحديث الملف الشخصي');}
 async function submitChangePassword(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(data)});closeModal();showToast('تم تغيير كلمة المرور لحسابك'); }
 async function loadSystemSettings() { if(!currentUser||['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)<0)return;try{const settings=await api('/api/settings');const form=$('systemSettingsForm');Object.keys(settings).forEach(function(key){const field=form.elements[key];if(!field)return;if(field.type==='checkbox')field.checked=settings[key]==='true';else field.value=settings[key];});if(form.elements.default_language){form.elements.default_language.value=localStorage.getItem('asas_lims_language')||settings.default_language||'ar';}}catch(error){setText($('settingsMessage'),error.message);} }
-async function submitSystemSettings(form) { const data={};Array.from(form.elements).forEach(function(field){if(!field.name)return;data[field.name]=field.type==='checkbox'?String(field.checked):field.value.trim();});await api('/api/settings/update',{method:'POST',body:JSON.stringify(data)});setText($('settingsMessage'),'تم حفظ الإعدادات ومزامنتها بنجاح');showToast('تم حفظ إعدادات النظام'); }
+function validChannelUrl(value, channel) { try { const url=new URL(String(value||'').trim());if(url.protocol!=='https:')return '';const host=url.hostname.toLowerCase().replace(/^www\./,'');const allowed=channel==='whatsapp'?['chat.whatsapp.com','wa.me','whatsapp.com']:['t.me','telegram.me'];return allowed.some(function(domain){return host===domain||host.endsWith('.'+domain);})?url.href:'';}catch(error){return '';} }
+function applyChannelLink(channel,value) { const link=$(channel+'ChannelLink');const status=$(channel+'ChannelStatus');if(!link||!status)return;const href=validChannelUrl(value,channel);if(href){link.href=href;link.classList.remove('disabled');link.setAttribute('aria-disabled','false');setText(status,'متصل وجاهز للفتح');}else{link.removeAttribute('href');link.classList.add('disabled');link.setAttribute('aria-disabled','true');setText(status,'أضف رابطًا صحيحًا من إعدادات النظام');} }
+async function loadCommunicationLinks() { try { const settings=await api('/api/communication-links');applyChannelLink('whatsapp',settings.whatsapp_group_url);applyChannelLink('telegram',settings.telegram_url);}catch(error){applyChannelLink('whatsapp','');applyChannelLink('telegram','');showToast('تعذر تحميل روابط التواصل',true);} }
+async function submitSystemSettings(form) { const data={};Array.from(form.elements).forEach(function(field){if(!field.name)return;data[field.name]=field.type==='checkbox'?String(field.checked):field.value.trim();});await api('/api/settings/update',{method:'POST',body:JSON.stringify(data)});setText($('settingsMessage'),'تم حفظ الإعدادات ومزامنتها بنجاح');await loadCommunicationLinks();showToast('تم حفظ إعدادات النظام وتحديث روابط التواصل'); }
 async function submitQualityDocument(form) { const data = {}; new FormData(form).forEach(function(value,key) { if (key !== 'quality_file') data[key] = value; }); const file = form.elements.quality_file.files[0]; if (file) { if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 8192)); data.file_name = file.name; data.file_base64 = btoa(binary); } await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم حفظ وثيقة الجودة'); }
 function openQualityDocumentEdit(item) { modal('<h2>تعديل وثيقة الجودة</h2><form id="qualityDocumentEditForm"><input type="hidden" name="id" value="'+item.id+'"><input type="hidden" name="category" value="'+esc(item.category)+'"><div class="modal-grid"><label>الكود<input name="code" required value="'+esc(item.code)+'"></label><label>العنوان<input name="title" required value="'+esc(item.title)+'"></label><label>الإصدار<input name="revision" value="'+esc(item.revision||'')+'"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ التعديل</button></div></form>'); }
 async function submitQualityDocumentEdit(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/quality/documents/update',{method:'POST',body:JSON.stringify(data)});closeModal();await refresh();showToast('تم تعديل وثيقة الجودة'); }
