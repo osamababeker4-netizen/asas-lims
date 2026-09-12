@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=8-3-0-users">
+  <link rel="stylesheet" href="style.css?v=8-3-2-profiles">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -88,7 +88,7 @@
             <h2 id="pageTitle">لوحة القيادة</h2>
           </div>
         </div>
-        <div class="user-chip"><img id="currentUserAvatar" class="user-avatar" src="logo.jpg" alt="صورة المستخدم"><span id="saudiClock" class="muted">توقيت السعودية: —</span><select id="languageToggle" aria-label="لغة النظام"><option value="ar">العربية</option><option value="en">English</option></select><span id="currentUser">—</span><button id="changePassword" class="text-btn" type="button">تغيير كلمة المرور</button></div>
+        <div class="user-chip"><span id="saudiClock" class="muted">توقيت السعودية: —</span><button id="openProfile" class="profile-summary" type="button" aria-label="فتح الملف الشخصي"><img id="currentUserAvatar" class="user-avatar" src="logo.jpg" alt="صورة المستخدم"><span><strong id="currentUsername">اسم المستخدم</strong><small id="currentUser">—</small></span></button><button id="changePassword" class="text-btn" type="button">تغيير كلمة المرور</button></div>
       </header>
 
       <section id="dashboard" class="page active">
@@ -342,8 +342,8 @@
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="runtime-config.js?v=8-1-1"></script>
-  <script src="i18n.js?v=8-3-0-users"></script>
-  <script src="app-password.js?v=8-3-1-user-fix"></script>
+  <script src="i18n.js?v=8-3-2-profiles"></script>
+  <script src="app-password.js?v=8-3-2-profiles"></script>
   <script src="branch-map.js?v=8-1-3-branches"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
