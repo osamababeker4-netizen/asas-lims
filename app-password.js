@@ -900,9 +900,12 @@ async function submitSimple(form, path) {
   new FormData(form).forEach(function(value,key) { data[key] = value; });
   if (path === '/api/users/update') { const active = form.querySelector('[name="active"]'); data.active = active ? active.checked : true; }
   if (path.indexOf('/api/users/') === 0) {
+    if (!data.id && !String(data.username || '').trim()) throw new Error('اسم المستخدم مطلوب');
     if (!String(data.full_name || '').trim()) throw new Error('الاسم الكامل مطلوب');
     if (!data.id && String(data.password || '').length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
     if (data.id && data.password && String(data.password).length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
+    if (data.phone && !/^\\+[1-9]\\d{7,14}$/.test(String(data.phone))) throw new Error('رقم الجوال غير صحيح؛ تحقق من مفتاح الدولة والرقم المحلي');
+    if (!ROLE_NAMES[data.role]) throw new Error('اختر دورًا معتمدًا للمستخدم');
   }
   const isUserSave = path.indexOf('/api/users/') === 0;
   const saveButton = isUserSave ? form.querySelector('#saveUserButton') : null;
