@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=8-3-2-profiles">
+  <link rel="stylesheet" href="style.css?v=8-4-0-communications">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -55,7 +55,7 @@
         <button class="nav-link" data-page="tests">الاختبارات</button>
         <button class="nav-link" data-page="catalog">دليل الاختبارات</button>
         <button class="nav-link" data-page="reports">التقارير</button>
-        <button class="nav-link" data-page="whatsapp">مسودات واتساب</button>
+        <button class="nav-link" data-page="communications">قنوات التواصل</button>
         <button class="nav-link" data-page="quality" id="qualityNav">الجودة والوثائق</button>
         <button class="nav-link" data-page="company">عن مختبر أساس</button>
         <button class="nav-link" data-page="audit">سجل التدقيق</button>
@@ -103,7 +103,6 @@
           <article class="metric-card accent-green"><span>التقارير</span><strong id="metricReports">0</strong></article>
           <article class="metric-card accent-red"><span>بانتظار المراجعة</span><strong id="metricReview">0</strong></article>
           <article class="metric-card accent-slate"><span>طابور المزامنة</span><strong id="metricSync">0</strong></article>
-          <article class="metric-card accent-green"><span>مسودات واتساب الجاهزة للمراجعة</span><strong id="metricWhatsapp">0</strong></article>
         </div>
         <div class="dashboard-grid">
           <article class="panel priority-panel">
@@ -239,12 +238,13 @@
         </div>
       </section>
 
-      <section id="whatsapp" class="page">
-        <div class="page-heading"><div><h2>مسودات مجتمع واتساب</h2><p>تُنشأ تلقائيًا من العمليات المهمة. راجعها ثم انسخها وانشرها يدويًا في مجتمع مختبر أساس.</p></div></div>
-        <article class="panel">
-          <p class="form-note">لا يرسل النظام إلى أي مجموعة أو مجتمع تلقائيًا؛ الإرسال النهائي يتطلب مراجعة المسؤول والالتزام بسياسات WhatsApp Business.</p>
-          <div class="table-panel"><table><thead><tr><th>اسم المسودة</th><th>الوجهة</th><th>المرجع</th><th>المسودة</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="whatsappDraftsTable"></tbody></table></div>
-        </article>
+      <section id="communications" class="page">
+        <div class="page-heading"><div><h2>قنوات التواصل</h2><p>روابط مباشرة تُحدَّث تلقائيًا من إعدادات النظام لجميع المستخدمين.</p></div><button id="manageCommunicationLinks" class="btn secondary" data-page-go="settings" type="button">إدارة الروابط</button></div>
+        <div class="communication-grid">
+          <article id="whatsappChannelCard" class="panel communication-card whatsapp-channel"><span class="channel-icon" aria-hidden="true">WA</span><div><h3>WhatsApp</h3><p id="whatsappChannelStatus">جارٍ تحميل الرابط…</p></div><a id="whatsappChannelLink" class="btn channel-link disabled" target="_blank" rel="noopener noreferrer" aria-disabled="true">فتح واتساب</a></article>
+          <article id="telegramChannelCard" class="panel communication-card telegram-channel"><span class="channel-icon" aria-hidden="true">TG</span><div><h3>Telegram</h3><p id="telegramChannelStatus">جارٍ تحميل الرابط…</p></div><a id="telegramChannelLink" class="btn channel-link disabled" target="_blank" rel="noopener noreferrer" aria-disabled="true">فتح تلقرام</a></article>
+        </div>
+        <p class="form-note">يظهر الرابط فور حفظه في «إعدادات النظام». لا ينشئ النظام مسودات أو رسائل تلقائية.</p>
       </section>
 
       <section id="company" class="page">
@@ -342,8 +342,8 @@
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="runtime-config.js?v=8-1-1"></script>
-  <script src="i18n.js?v=8-3-2-profiles"></script>
-  <script src="app-password.js?v=8-3-2-profiles"></script>
+  <script src="i18n.js?v=8-4-0-communications"></script>
+  <script src="app-password.js?v=8-4-0-communications"></script>
   <script src="branch-map.js?v=8-1-3-branches"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
