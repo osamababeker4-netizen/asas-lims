@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v8-4-4-phone-fix';
-const APP_SHELL = ['./','./index.html','./style.css?v=8-4-4-phone-fix','./app-password.js?v=8-4-4-phone-fix','./branch-map.js?v=8-1-3-branches','./i18n.js?v=8-4-4-phone-fix','./runtime-config.js?v=8-1-1','./manifest.webmanifest','./logo.jpg'];
+const CACHE_NAME = 'asas-lims-pwa-v8-4-5-password-choice';
+const APP_SHELL = ['./','./index.html','./style.css?v=8-4-5-password-choice','./app-password.js?v=8-4-5-password-choice','./branch-map.js?v=8-1-3-branches','./i18n.js?v=8-4-5-password-choice','./runtime-config.js?v=8-1-1','./manifest.webmanifest','./logo.jpg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
