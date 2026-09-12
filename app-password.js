@@ -222,6 +222,14 @@ function staticApi(path, options) {
     if (body.new_password !== body.confirm_password) throw new Error('تأكيد كلمة المرور غير مطابق');
     user.password = body.new_password; localAudit(data,'تغيير كلمة المرور الذاتية','user',user.id,user.username); saveLocal(data); return {ok:true};
   }
+  if (path === '/api/profile/update') {
+    const user = data.users.find(function(item) { return item.id === currentUser.id; });
+    if (!user) throw new Error('المستخدم غير موجود');
+    const fullName = String(body.full_name || '').trim(); if (!fullName) throw new Error('الاسم الكامل مطلوب');
+    user.full_name = fullName; user.avatar_data_url = body.avatar_data_url || '';
+    currentUser.full_name = fullName; currentUser.avatar_data_url = user.avatar_data_url;
+    localStorage.setItem(STORAGE_KEY + '_session', JSON.stringify(currentUser)); saveLocal(data); return {ok:true,user:currentUser};
+  }
   if (!currentUser) throw new Error('غير مسجل الدخول');
   if (path === '/api/catalog') return data.catalog;
   if (path === '/api/dashboard') return localDashboard(data);
@@ -395,7 +403,7 @@ async function login(event) {
     centralAccessToken = result.token;
     sessionStorage.setItem('asas_lims_access_token', centralAccessToken);
     $('loginPassword').value = '';
-    await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone}});
+    await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone,avatar_data_url:result.user.avatar_data_url}});
   } catch (error) {
     setText($('loginMessage'), error.message);
   }
@@ -411,7 +419,7 @@ async function verifyOtpLogin(event) {
     centralAccessToken = result.token;
     sessionStorage.setItem('asas_lims_access_token', centralAccessToken);
     pendingOtpLogin = null;
-    await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone}});
+    await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone,avatar_data_url:result.user.avatar_data_url}});
   } catch (error) { setText($('loginMessage'), error.message); }
 }
 
@@ -445,13 +453,14 @@ async function completeLogin(result) {
   currentUser = result.user;
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
-  setHtml($('currentUser'), esc(result.user.full_name) + ' — ' + escUI(ROLE_NAMES[result.user.role] || result.user.role));
+  setText($('currentUsername'), '@' + result.user.username);
+  setHtml($('currentUser'), esc(result.user.full_name) + ' · ' + escUI(ROLE_NAMES[result.user.role] || result.user.role));
   $('currentUserAvatar').src = result.user.avatar_data_url || 'logo.jpg';
   // The API authorizes both administrators and managers to manage users.
   // Keep the navigation aligned with that server-side permission so a
   // manager is not blocked by a hidden page despite being authorized.
   $('usersNav').classList.toggle('hidden', ['admin','general_manager','manager'].indexOf(result.user.role) < 0);
-  $('settingsNav').classList.toggle('hidden', result.user.role !== 'admin');
+  $('settingsNav').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
   $('qualityNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(result.user.role) < 0);
   $('qualityEquipmentCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','technical_manager','laboratory_manager'].indexOf(result.user.role) < 0);
   await loadCatalog(); await refresh(); startLiveUpdates(); navigate('dashboard');
@@ -928,8 +937,10 @@ async function submitSimple(form, path) {
   showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ والمزامنة');
 }
 function openChangePassword() { modal('<h2>تغيير كلمة المرور</h2><p>هذا التغيير يخص حسابك المسجّل فقط.</p><form id="changePasswordForm"><div class="modal-grid"><label>كلمة المرور الحالية<input name="current_password" type="password" autocomplete="current-password" required></label><label>كلمة المرور الجديدة<input name="new_password" type="password" autocomplete="new-password" minlength="12" required></label><label>تأكيد كلمة المرور الجديدة<input name="confirm_password" type="password" autocomplete="new-password" minlength="12" required></label></div><p class="form-note">الحد الأدنى 12 حرفًا.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تغيير كلمة المرور</button></div></form>'); }
+function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك تعديل الاسم والصورة وكلمة المرور. اسم المستخدم ثابت: <strong>@'+esc(currentUser.username)+'</strong></p><form id="myProfileForm"><input type="hidden" name="avatar_data_url" value="'+esc(currentUser.avatar_data_url||'')+'"><div class="user-photo-editor"><img id="profileAvatarPreview" src="'+esc(currentUser.avatar_data_url||'logo.jpg')+'" alt="صورة المستخدم"><div><strong>@'+esc(currentUser.username)+'</strong><small>اسم المستخدم</small><button id="chooseProfileAvatar" class="btn secondary" type="button">تغيير الصورة</button><input id="profileAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><label>الاسم الكامل<input name="full_name" required value="'+esc(currentUser.full_name)+'"></label><div class="modal-actions"><button class="btn secondary" type="button" id="profilePasswordButton">تغيير كلمة المرور</button><button class="btn primary" type="submit">حفظ الملف الشخصي</button></div></form>');const form=$('myProfileForm');$('chooseProfileAvatar').addEventListener('click',function(){$('profileAvatarInput').click();});$('profileAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('profileAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});$('profilePasswordButton').addEventListener('click',openChangePassword); }
+async function submitMyProfile(form) { const payload={full_name:form.elements.full_name.value.trim(),avatar_data_url:form.elements.avatar_data_url.value};if(!payload.full_name)throw new Error('الاسم الكامل مطلوب');await api('/api/profile/update',{method:'POST',body:JSON.stringify(payload)});currentUser.full_name=payload.full_name;currentUser.avatar_data_url=payload.avatar_data_url;$('currentUserAvatar').src=payload.avatar_data_url||'logo.jpg';setHtml($('currentUser'),esc(payload.full_name)+' · '+escUI(ROLE_NAMES[currentUser.role]||currentUser.role));closeModal();await refresh();showToast('تم تحديث الملف الشخصي');}
 async function submitChangePassword(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(data)});closeModal();showToast('تم تغيير كلمة المرور لحسابك'); }
-async function loadSystemSettings() { if(!currentUser||currentUser.role!=='admin')return;try{const settings=await api('/api/settings');const form=$('systemSettingsForm');Object.keys(settings).forEach(function(key){const field=form.elements[key];if(!field)return;if(field.type==='checkbox')field.checked=settings[key]==='true';else field.value=settings[key];});}catch(error){setText($('settingsMessage'),error.message);} }
+async function loadSystemSettings() { if(!currentUser||['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)<0)return;try{const settings=await api('/api/settings');const form=$('systemSettingsForm');Object.keys(settings).forEach(function(key){const field=form.elements[key];if(!field)return;if(field.type==='checkbox')field.checked=settings[key]==='true';else field.value=settings[key];});if(form.elements.default_language){form.elements.default_language.value=localStorage.getItem('asas_lims_language')||settings.default_language||'ar';}}catch(error){setText($('settingsMessage'),error.message);} }
 async function submitSystemSettings(form) { const data={};Array.from(form.elements).forEach(function(field){if(!field.name)return;data[field.name]=field.type==='checkbox'?String(field.checked):field.value.trim();});await api('/api/settings/update',{method:'POST',body:JSON.stringify(data)});setText($('settingsMessage'),'تم حفظ الإعدادات ومزامنتها بنجاح');showToast('تم حفظ إعدادات النظام'); }
 async function submitQualityDocument(form) { const data = {}; new FormData(form).forEach(function(value,key) { if (key !== 'quality_file') data[key] = value; }); const file = form.elements.quality_file.files[0]; if (file) { if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 8192)); data.file_name = file.name; data.file_base64 = btoa(binary); } await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم حفظ وثيقة الجودة'); }
 function openQualityDocumentEdit(item) { modal('<h2>تعديل وثيقة الجودة</h2><form id="qualityDocumentEditForm"><input type="hidden" name="id" value="'+item.id+'"><input type="hidden" name="category" value="'+esc(item.category)+'"><div class="modal-grid"><label>الكود<input name="code" required value="'+esc(item.code)+'"></label><label>العنوان<input name="title" required value="'+esc(item.title)+'"></label><label>الإصدار<input name="revision" value="'+esc(item.revision||'')+'"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ التعديل</button></div></form>'); }
@@ -1089,6 +1100,7 @@ function bindEvents() {
   $('loginForm').addEventListener('submit',login);
   $('logoutBtn').addEventListener('click',logout);
   $('changePassword').addEventListener('click',openChangePassword);
+  $('openProfile').addEventListener('click',openMyProfile);
   $('staticSetup').addEventListener('click',bootstrapStaticAdmin);
   $('staticSetupForm').addEventListener('submit',submitStaticAdmin);
   $('menuBtn').addEventListener('click',function() { $('sidebar').classList.toggle('open'); });
@@ -1212,6 +1224,7 @@ function bindEvents() {
       if (form.id === 'recordAttachmentForm') await submitRecordAttachment(form);
       if (form.id === 'catalogResourcesForm') await submitCatalogResources(form);
       if (form.id === 'changePasswordForm') await submitChangePassword(form);
+      if (form.id === 'myProfileForm') await submitMyProfile(form);
       if (form.id === 'systemSettingsForm') await submitSystemSettings(form);
       if (form.id === 'baladyForm') saveBaladyData(form);
     } catch (error) {
@@ -1227,6 +1240,9 @@ function init() {
   bindEvents();
   const languageToggle = $('languageToggle');
   if (languageToggle) { languageToggle.value = localStorage.getItem('asas_lims_language') || 'ar'; languageToggle.addEventListener('change', function(){ setLanguage(languageToggle.value); }); setLanguage(languageToggle.value); }
+  else setLanguage(localStorage.getItem('asas_lims_language') || 'ar');
+  const settingsLanguage = $('systemSettingsForm') && $('systemSettingsForm').elements.default_language;
+  if (settingsLanguage) settingsLanguage.addEventListener('change',function(){ setLanguage(settingsLanguage.value); });
   updateSaudiClock(); setInterval(updateSaudiClock,1000);
   const footerYear = $('footerYear');
   if (footerYear) setText(footerYear, String(new Date().getFullYear()));
