@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users(
  full_name TEXT NOT NULL,
  role TEXT NOT NULL DEFAULT 'technician',
  phone TEXT,
+ avatar_data_url TEXT,
  active INTEGER NOT NULL DEFAULT 1,
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -342,6 +343,22 @@ CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status, created_a
 CREATE INDEX IF NOT EXISTS idx_whatsapp_drafts_status ON whatsapp_drafts(status, created_at);
 
 INSERT OR IGNORE INTO settings(key,value) VALUES('lab_name','مختبر أساس');
+INSERT OR IGNORE INTO settings(key,value) VALUES('lab_name_en','ASAS Laboratory');
+INSERT OR IGNORE INTO settings(key,value) VALUES('website_url','https://www.asaslab.com/');
+INSERT OR IGNORE INTO settings(key,value) VALUES('support_email','info@asaslab.com');
+INSERT OR IGNORE INTO settings(key,value) VALUES('currency','SAR');
+INSERT OR IGNORE INTO settings(key,value) VALUES('report_prefix','AST-R-');
+INSERT OR IGNORE INTO settings(key,value) VALUES('sample_prefix','AS-');
+INSERT OR IGNORE INTO settings(key,value) VALUES('work_order_prefix','WO-');
+INSERT OR IGNORE INTO settings(key,value) VALUES('timezone','Asia/Riyadh');
+INSERT OR IGNORE INTO settings(key,value) VALUES('default_language','ar');
+INSERT OR IGNORE INTO settings(key,value) VALUES('date_format','DD/MM/YYYY');
+INSERT OR IGNORE INTO settings(key,value) VALUES('whatsapp_group_url','https://chat.whatsapp.com/CWalJYwXsocKtYiqsJsMSh');
+INSERT OR IGNORE INTO settings(key,value) VALUES('telegram_url','https://t.me/+xPEyC5xPw8w5MjE0');
+INSERT OR IGNORE INTO settings(key,value) VALUES('map_provider','google');
+INSERT OR IGNORE INTO settings(key,value) VALUES('max_attachment_mb','25');
+INSERT OR IGNORE INTO settings(key,value) VALUES('enable_otp','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('require_report_approval','true');
 
 INSERT OR IGNORE INTO test_catalog(code,name_ar,name_en,category,standard,version,active) VALUES
 ('D1883','نسبة تحمل كاليفورنيا CBR','California Bearing Ratio','تربة','ASTM D1883','2024',1),
