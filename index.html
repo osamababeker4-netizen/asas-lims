@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=8-4-4-phone-fix">
+  <link rel="stylesheet" href="style.css?v=8-4-5-password-choice">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -29,8 +29,8 @@
         <label>اسم مستخدم المدير<input id="setupUsername" autocomplete="username" required value="admin" placeholder="اسم المستخدم"></label>
         <label>الاسم الكامل<input id="setupFullName" autocomplete="name" required value="مدير المختبر" placeholder="الاسم الكامل"></label>
         <label>رقم الجوال الدولي (اختياري)<input id="setupPhone" autocomplete="tel" inputmode="tel" placeholder="+9665XXXXXXXX"></label>
-        <label>كلمة مرور جديدة<input id="setupPassword" autocomplete="new-password" type="password" required minlength="12" placeholder="12 حرفاً على الأقل"></label>
-        <label>تأكيد كلمة المرور<input id="setupPasswordConfirm" autocomplete="new-password" type="password" required minlength="12" placeholder="أعد كتابة كلمة المرور"></label>
+        <label>كلمة مرور جديدة<input id="setupPassword" autocomplete="new-password" type="password" required placeholder="كلمة المرور التي تريدها"></label>
+        <label>تأكيد كلمة المرور<input id="setupPasswordConfirm" autocomplete="new-password" type="password" required placeholder="أعد كتابة كلمة المرور"></label>
         <button class="btn primary" type="submit">إنشاء الحساب المحلي</button>
       </form>
       <p id="loginMessage" class="form-message" aria-live="polite"></p>
@@ -341,12 +341,12 @@
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="runtime-config.js?v=8-1-1"></script>
-  <script src="i18n.js?v=8-4-4-phone-fix"></script>
-  <script src="app-password.js?v=8-4-4-phone-fix"></script>
+  <script src="i18n.js?v=8-4-5-password-choice"></script>
+  <script src="app-password.js?v=8-4-5-password-choice"></script>
   <script src="branch-map.js?v=8-1-3-branches"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=8-4-4-phone-fix').catch(function () {}); });
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=8-4-5-password-choice').catch(function () {}); });
     }
   </script>
 </body>
