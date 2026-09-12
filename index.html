@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=8-2-0-field">
+  <link rel="stylesheet" href="style.css?v=8-3-0-users">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -60,6 +60,7 @@
         <button class="nav-link" data-page="company">عن مختبر أساس</button>
         <button class="nav-link" data-page="audit">سجل التدقيق</button>
         <button class="nav-link" data-page="users" id="usersNav">المستخدمون والصلاحيات</button>
+        <button class="nav-link" data-page="settings" id="settingsNav">إعدادات النظام</button>
       </nav>
       <div class="sidebar-footer">
         <span id="syncIndicator" class="sync-indicator">المزامنة: —</span>
@@ -87,7 +88,7 @@
             <h2 id="pageTitle">لوحة القيادة</h2>
           </div>
         </div>
-        <div class="user-chip"><span id="saudiClock" class="muted">توقيت السعودية: —</span><select id="languageToggle" aria-label="لغة النظام"><option value="ar">العربية</option><option value="en">English</option></select><span id="currentUser">—</span><button id="changePassword" class="text-btn" type="button">تغيير كلمة المرور</button></div>
+        <div class="user-chip"><img id="currentUserAvatar" class="user-avatar" src="logo.jpg" alt="صورة المستخدم"><span id="saudiClock" class="muted">توقيت السعودية: —</span><select id="languageToggle" aria-label="لغة النظام"><option value="ar">العربية</option><option value="en">English</option></select><span id="currentUser">—</span><button id="changePassword" class="text-btn" type="button">تغيير كلمة المرور</button></div>
       </header>
 
       <section id="dashboard" class="page active">
@@ -309,7 +310,18 @@
 
       <section id="users" class="page">
         <div class="page-heading"><div><h2>المستخدمون والصلاحيات</h2><p>متاحة لمدير النظام والمدير المخوّل.</p></div><div class="heading-actions"><button class="btn secondary" data-attachment-panel="user" type="button">رفع مرفق</button><button id="openUser" class="btn primary" type="button">+ مستخدم</button></div></div>
-        <div class="panel table-panel"><table><thead><tr><th>اسم المستخدم</th><th>الاسم</th><th>الدور</th><th>الحالة</th><th>تاريخ الإنشاء</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
+        <div class="panel table-panel"><table><thead><tr><th>الصورة</th><th>اسم المستخدم</th><th>الاسم</th><th>رقم الجوال</th><th>الدور</th><th>الحالة</th><th>تاريخ الإنشاء</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
+      </section>
+
+      <section id="settings" class="page">
+        <div class="page-heading"><div><h2>إعدادات النظام</h2><p>الهوية العامة، التقارير، التواصل، الحماية والتفضيلات التشغيلية.</p></div></div>
+        <form id="systemSettingsForm" class="settings-form">
+          <article class="panel settings-card"><div class="panel-heading"><h3>هوية المختبر</h3><span class="pill">عام</span></div><div class="form-grid"><label>اسم المختبر بالعربية<input name="lab_name" required></label><label>اسم المختبر بالإنجليزية<input name="lab_name_en"></label><label>الموقع الإلكتروني<input name="website_url" type="url"></label><label>البريد الرسمي<input name="support_email" type="email"></label><label>هاتف الدعم<input name="support_phone" dir="ltr"></label><label>العملة<select name="currency"><option value="SAR">ريال سعودي (SAR)</option><option value="USD">دولار (USD)</option></select></label></div></article>
+          <article class="panel settings-card"><div class="panel-heading"><h3>التشغيل والترقيم</h3><span class="pill">LIMS</span></div><div class="form-grid"><label>بادئة التقارير<input name="report_prefix"></label><label>بادئة العينات<input name="sample_prefix"></label><label>بادئة أوامر العمل<input name="work_order_prefix"></label><label>المنطقة الزمنية<select name="timezone"><option value="Asia/Riyadh">السعودية — Asia/Riyadh</option><option value="UTC">UTC</option></select></label><label>اللغة الافتراضية<select name="default_language"><option value="ar">العربية</option><option value="en">English</option></select></label><label>تنسيق التاريخ<select name="date_format"><option value="DD/MM/YYYY">DD/MM/YYYY</option><option value="YYYY-MM-DD">YYYY-MM-DD</option></select></label></div></article>
+          <article class="panel settings-card"><div class="panel-heading"><h3>التواصل والخرائط</h3><span class="pill">تكامل</span></div><div class="form-grid"><label>رابط مجموعة واتساب<input name="whatsapp_group_url" type="url"></label><label>رابط Telegram<input name="telegram_url" type="url"></label><label>مزود الخرائط<select name="map_provider"><option value="google">Google Maps</option><option value="openstreetmap">OpenStreetMap</option></select></label><label>الحد الأقصى للمرفق (MB)<input name="max_attachment_mb" type="number" min="1" max="100"></label></div></article>
+          <article class="panel settings-card"><div class="panel-heading"><h3>الأمان والاعتماد</h3><span class="pill">حماية</span></div><div class="settings-checks"><label><input name="enable_otp" type="checkbox"> تفعيل رمز التحقق عند تسجيل الدخول</label><label><input name="require_report_approval" type="checkbox"> اشتراط اعتماد التقرير قبل الإصدار</label></div></article>
+          <div class="settings-save"><button class="btn primary" type="submit">حفظ إعدادات النظام</button><p id="settingsMessage" class="form-message" aria-live="polite"></p></div>
+        </form>
       </section>
 
       <footer class="official-footer">
@@ -330,8 +342,8 @@
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="runtime-config.js?v=8-1-1"></script>
-  <script src="i18n.js?v=8-1-1"></script>
-  <script src="app-password.js?v=8-2-0-field"></script>
+  <script src="i18n.js?v=8-3-0-users"></script>
+  <script src="app-password.js?v=8-3-0-users"></script>
   <script src="branch-map.js?v=8-1-3-branches"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
