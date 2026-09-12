@@ -895,16 +895,13 @@ function openUserForm(user) {
 }
 
 function splitInternationalPhone(phone) { const value=String(phone||''); const found=COUNTRY_CODES.slice().sort(function(a,b){return b.code.length-a.code.length;}).find(function(item){return value.startsWith(item.code);}); return {code:found?found.code:'+966',local:found?value.slice(found.code.length).replace(/^0+/,''):value.replace(/\D/g,'').replace(/^0+/,'')}; }
+function canonicalPhone(countryCode, entered) { const code=String(countryCode||'+966').replace(/[^+\d]/g,'');const codeDigits=code.replace(/\D/g,'');let digits=String(entered||'').replace(/\D/g,'').replace(/^00/,'');while(digits.startsWith(codeDigits))digits=digits.slice(codeDigits.length);digits=digits.replace(/^0+/,'');return digits?code+digits:''; }
 function resizeAvatar(file) { return new Promise(function(resolve,reject){if(file.size>8*1024*1024)return reject(new Error('الصورة تتجاوز 8MB'));if(!String(file.type||'').startsWith('image/'))return reject(new Error('اختر ملف صورة صالحًا'));const reader=new FileReader();reader.onerror=function(){reject(new Error('تعذر قراءة الصورة'));};reader.onload=function(){const image=new Image();image.onerror=function(){reject(new Error('صيغة الصورة غير مدعومة؛ استخدم JPG أو PNG'));};image.onload=function(){const size=256,canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;const ctx=canvas.getContext('2d');if(!ctx)return reject(new Error('تعذر معالجة الصورة على هذا الجهاز'));const side=Math.min(image.naturalWidth||image.width,image.naturalHeight||image.height),x=((image.naturalWidth||image.width)-side)/2,y=((image.naturalHeight||image.height)-side)/2;ctx.drawImage(image,x,y,side,side,0,0,size,size);const avatar=canvas.toDataURL('image/jpeg',.76);if(!avatar||avatar==='data:,')return reject(new Error('تعذر ضغط الصورة'));resolve(avatar);};image.src=reader.result;};reader.readAsDataURL(file);}); }
 
 async function saveUserForm(form) {
   try {
-    const selectedCode=String(form.elements.country_code.value||'+966');
-    let local=String(form.elements.local_phone.value||'').replace(/\D/g,'').replace(/^00/,'');
-    const selectedDigits=selectedCode.replace(/\D/g,'');
-    if(local.startsWith(selectedDigits))local=local.slice(selectedDigits.length);
-    local=local.replace(/^0+/,'');
-    let phone=''; if(local){if(local.length<8||local.length>10)throw new Error('رقم الجوال المحلي غير صحيح');phone=selectedCode+local;}
+    const phone=canonicalPhone(form.elements.country_code.value,form.elements.local_phone.value);
+    if(phone && !/^\+[1-9]\d{7,14}$/.test(phone))throw new Error('رقم الجوال المحلي غير صحيح');
     let phoneInput=form.elements.phone;if(!phoneInput){phoneInput=document.createElement('input');phoneInput.type='hidden';phoneInput.name='phone';form.appendChild(phoneInput);}phoneInput.value=phone;
     if(form.elements.password.value!==form.elements.password_confirm.value)throw new Error('تأكيد كلمة المرور غير مطابق');
     await submitSimple(form, form.elements.id.value ? '/api/users/update' : '/api/users/create');
@@ -925,7 +922,7 @@ async function submitSimple(form, path) {
     if (!String(data.full_name || '').trim()) throw new Error('الاسم الكامل مطلوب');
     if (!data.id && String(data.password || '').length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
     if (data.id && data.password && String(data.password).length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
-    if (data.phone && !/^\\+[1-9]\\d{7,14}$/.test(String(data.phone))) throw new Error('رقم الجوال غير صحيح؛ تحقق من مفتاح الدولة والرقم المحلي');
+    if (data.phone && !/^\+[1-9]\d{7,14}$/.test(String(data.phone))) throw new Error('رقم الجوال غير صحيح؛ تحقق من مفتاح الدولة والرقم المحلي');
     if (!ROLE_NAMES[data.role]) throw new Error('اختر دورًا معتمدًا للمستخدم');
   }
   const isUserSave = path.indexOf('/api/users/') === 0;
