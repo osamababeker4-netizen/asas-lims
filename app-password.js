@@ -224,7 +224,7 @@ function staticApi(path, options) {
   if (path === '/api/auth/change-password') {
     const user = data.users.find(function(item) { return item.id === currentUser.id; });
     if (!user || user.password !== String(body.current_password || '')) throw new Error('كلمة المرور الحالية غير صحيحة');
-    if (String(body.new_password || '').length < 12) throw new Error('كلمة المرور الجديدة يجب ألا تقل عن 12 حرفاً');
+    if (!String(body.new_password || '')) throw new Error('كلمة المرور الجديدة مطلوبة');
     if (body.new_password !== body.confirm_password) throw new Error('تأكيد كلمة المرور غير مطابق');
     user.password = body.new_password; localAudit(data,'تغيير كلمة المرور الذاتية','user',user.id,user.username); saveLocal(data); return {ok:true};
   }
@@ -309,7 +309,7 @@ function staticApi(path, options) {
   if (path === '/api/users/create') {
     const username = String(body.username || '').trim();
     const password = String(body.password || '');
-    if (!username || !String(body.full_name || '').trim() || password.length < 12) throw new Error('أكمل بيانات المستخدم واجعل كلمة المرور 12 حرفاً على الأقل');
+    if (!username || !String(body.full_name || '').trim() || !password) throw new Error('أكمل بيانات المستخدم وكلمة المرور');
     if (data.users.some(function(item) { return item.username === username; })) throw new Error('اسم المستخدم مستخدم بالفعل');
     const id = localId(data.users); data.users.push({id:id,username:username,password:password,full_name:String(body.full_name).trim(),role:body.role || 'technician',phone:String(body.phone || '').trim(),avatar_data_url:body.avatar_data_url || '',active:1,created_at:saudiNow()}); localQueue(data,'user',id,'create'); localAudit(data,'إضافة مستخدم','user',username); saveLocal(data); return {ok:true,id:id,sync:'queued'};
   }
@@ -317,7 +317,6 @@ function staticApi(path, options) {
     const user = data.users.find(function(item) { return item.id === Number(body.id); }); if (!user) throw new Error('المستخدم غير موجود');
     const password = String(body.password || '');
     if (!String(body.full_name || '').trim()) throw new Error('الاسم الكامل مطلوب');
-    if (password && password.length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
     user.full_name = String(body.full_name).trim(); user.role = body.role || user.role; user.phone = String(body.phone || '').trim(); user.avatar_data_url = body.avatar_data_url || user.avatar_data_url || ''; user.active = body.active ? 1 : 0;
     if (password) user.password = password;
     localQueue(data,'user',user.id,'update'); localAudit(data,'تعديل مستخدم','user',user.username); saveLocal(data); return {ok:true,id:user.id,sync:'queued'};
@@ -494,7 +493,7 @@ async function submitStaticAdmin(event) {
   const password = $('setupPassword').value;
   const confirmation = $('setupPasswordConfirm').value;
   if (!username || !name) return setText($('loginMessage'), 'أدخل اسم المستخدم والاسم الكامل.');
-  if (password.length < 12) return setText($('loginMessage'), 'كلمة المرور يجب ألا تقل عن 12 حرفاً.');
+  if (!password) return setText($('loginMessage'), 'أدخل كلمة المرور التي تريدها.');
   if (password !== confirmation) return setText($('loginMessage'), 'تأكيد كلمة المرور غير مطابق.');
   const data = localDB();
   if (data.users.length) return setText($('loginMessage'), 'الحساب المحلي موجود بالفعل. سجّل الدخول.');
@@ -889,6 +888,8 @@ function openUserForm(user) {
   const countries = COUNTRY_CODES.map(function(item){return '<option value="'+item.code+'"'+(item.code===phoneParts.code?' selected':'')+'>'+item.name+' '+item.code+'</option>';}).join('');
   modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><p>تعديل بيانات الحساب وكلمة المرور والصورة ورقم الجوال.</p><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><input type="hidden" name="avatar_data_url" value="' + esc(value.avatar_data_url || '') + '"><div class="user-photo-editor"><img id="userAvatarPreview" src="' + esc(value.avatar_data_url || 'logo.jpg') + '" alt="معاينة صورة المستخدم"><div><strong>صورة المستخدم</strong><small>JPG أو PNG — تُضغط تلقائيًا</small><button id="chooseUserAvatar" class="btn secondary" type="button">اختيار صورة</button><input id="userAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال<div class="phone-composer"><select name="country_code" dir="ltr">'+countries+'</select><input name="local_phone" dir="ltr" inputmode="numeric" autocomplete="tel-national" placeholder="5XXXXXXXX" value="'+esc(phoneParts.local)+'"></div></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور الجديدة ' + (user ? '(اختياري)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label><label>تأكيد كلمة المرور<input name="password_confirm" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">أدخل الرقم المحلي فقط بعد اختيار مفتاح الدولة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button id="saveUserButton" class="btn primary" type="button">حفظ ومزامنة المستخدم</button></div></form>');
   const form = $('userForm');
+  form.elements.password.removeAttribute('minlength');
+  form.elements.password_confirm.removeAttribute('minlength');
   $('chooseUserAvatar').addEventListener('click',function(){$('userAvatarInput').click();});
   $('userAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('userAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});
   $('saveUserButton').addEventListener('click', function() { saveUserForm(form); });
@@ -920,8 +921,7 @@ async function submitSimple(form, path) {
   if (path.indexOf('/api/users/') === 0) {
     if (!data.id && !String(data.username || '').trim()) throw new Error('اسم المستخدم مطلوب');
     if (!String(data.full_name || '').trim()) throw new Error('الاسم الكامل مطلوب');
-    if (!data.id && String(data.password || '').length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
-    if (data.id && data.password && String(data.password).length < 12) throw new Error('كلمة المرور يجب ألا تقل عن 12 حرفاً');
+    if (!data.id && !String(data.password || '')) throw new Error('كلمة المرور مطلوبة');
     if (data.phone && !/^\+[1-9]\d{7,14}$/.test(String(data.phone))) throw new Error('رقم الجوال غير صحيح؛ تحقق من مفتاح الدولة والرقم المحلي');
     if (!ROLE_NAMES[data.role]) throw new Error('اختر دورًا معتمدًا للمستخدم');
   }
@@ -945,7 +945,7 @@ async function submitSimple(form, path) {
   publishLiveUpdate('operations');
   showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ والمزامنة');
 }
-function openChangePassword() { modal('<h2>تغيير كلمة المرور</h2><p>هذا التغيير يخص حسابك المسجّل فقط.</p><form id="changePasswordForm"><div class="modal-grid"><label>كلمة المرور الحالية<input name="current_password" type="password" autocomplete="current-password" required></label><label>كلمة المرور الجديدة<input name="new_password" type="password" autocomplete="new-password" minlength="12" required></label><label>تأكيد كلمة المرور الجديدة<input name="confirm_password" type="password" autocomplete="new-password" minlength="12" required></label></div><p class="form-note">الحد الأدنى 12 حرفًا.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تغيير كلمة المرور</button></div></form>'); }
+function openChangePassword() { modal('<h2>تغيير كلمة المرور</h2><p>هذا التغيير يخص حسابك المسجّل فقط.</p><form id="changePasswordForm"><div class="modal-grid"><label>كلمة المرور الحالية<input name="current_password" type="password" autocomplete="current-password" required></label><label>كلمة المرور الجديدة<input name="new_password" type="password" autocomplete="new-password" required></label><label>تأكيد كلمة المرور الجديدة<input name="confirm_password" type="password" autocomplete="new-password" required></label></div><p class="form-note">اكتب كلمة المرور التي تريدها دون حد أدنى للحروف.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تغيير كلمة المرور</button></div></form>'); }
 function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك تعديل الاسم والصورة وكلمة المرور. اسم المستخدم ثابت: <strong>@'+esc(currentUser.username)+'</strong></p><form id="myProfileForm"><input type="hidden" name="avatar_data_url" value="'+esc(currentUser.avatar_data_url||'')+'"><div class="user-photo-editor"><img id="profileAvatarPreview" src="'+esc(currentUser.avatar_data_url||'logo.jpg')+'" alt="صورة المستخدم"><div><strong>@'+esc(currentUser.username)+'</strong><small>اسم المستخدم</small><button id="chooseProfileAvatar" class="btn secondary" type="button">تغيير الصورة</button><input id="profileAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><label>الاسم الكامل<input name="full_name" required value="'+esc(currentUser.full_name)+'"></label><div class="modal-actions"><button class="btn secondary" type="button" id="profilePasswordButton">تغيير كلمة المرور</button><button class="btn primary" type="submit">حفظ الملف الشخصي</button></div></form>');const form=$('myProfileForm');$('chooseProfileAvatar').addEventListener('click',function(){$('profileAvatarInput').click();});$('profileAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('profileAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});$('profilePasswordButton').addEventListener('click',openChangePassword); }
 async function submitMyProfile(form) { const payload={full_name:form.elements.full_name.value.trim(),avatar_data_url:form.elements.avatar_data_url.value};if(!payload.full_name)throw new Error('الاسم الكامل مطلوب');let result;try{result=await api('/api/profile/update',{method:'POST',body:JSON.stringify(payload)});}catch(error){if(error.message!=='مسار غير معروف'||!currentUser||['admin','general_manager','manager'].indexOf(currentUser.role)<0)throw error;const users=await api('/api/users');const account=users.find(function(item){return item.username===currentUser.username;});if(!account)throw error;await api('/api/users/update',{method:'POST',body:JSON.stringify({id:account.id,full_name:payload.full_name,role:account.role,phone:account.phone||'',avatar_data_url:payload.avatar_data_url,active:Boolean(account.active),password:''})});result={user:payload};}applyCurrentUserIdentity(result.user||payload);closeModal();await refresh();showToast('تم تحديث الاسم والصورة بنجاح');}
 async function submitChangePassword(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(data)});closeModal();showToast('تم تغيير كلمة المرور لحسابك'); }
