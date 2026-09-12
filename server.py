@@ -229,6 +229,18 @@ def migrate_schema(connection):
             if name not in existing:
                 connection.execute('alter table ' + table + ' add column ' + definition)
     connection.execute('create index if not exists idx_projects_due_date on projects(due_date)')
+    connection.execute(
+        "update settings set value=? where key='whatsapp_group_url' and (value is null or value='' or value=?)",
+        ('https://chat.whatsapp.com/LxqH7L6GorGEhMfUTYthgG?s=sh&p=a&mlu=4&ilr=4',
+         'https://chat.whatsapp.com/CWalJYwXsocKtYiqsJsMSh')
+    )
+
+
+def refresh_user_sessions(user_id, **changes):
+    """Keep identity fields current across every open session for a user."""
+    for session in SESSIONS.values():
+        if int(session.get('id', 0)) == int(user_id):
+            session.update(changes)
 
 
 def init():
@@ -615,6 +627,15 @@ class H(BaseHTTPRequestHandler):
                 rows = connection.execute('select id,username,full_name,role,phone,avatar_data_url,active,created_at from users order by id desc').fetchall()
                 return self.send_json([dict(row) for row in rows])
 
+            if path == '/api/me':
+                row = connection.execute(
+                    'select id,username,full_name,role,phone,avatar_data_url,active from users where id=? and active=1',
+                    (user['id'],)
+                ).fetchone()
+                if not row:
+                    return self.send_json({'error': 'الحساب غير متاح'}, 401)
+                return self.send_json(dict(row))
+
             if path == '/api/settings':
                 if not self.require_permission(user, 'settings'):
                     return
@@ -891,6 +912,7 @@ class H(BaseHTTPRequestHandler):
                 if avatar and (not avatar.startswith('data:image/') or len(avatar) > 1_500_000):
                     return self.send_json({'error': 'صورة المستخدم غير صالحة أو كبيرة'}, 400)
                 connection.execute('update users set full_name=?,avatar_data_url=? where id=?', (full_name, avatar, user['id']))
+                refresh_user_sessions(user['id'], full_name=full_name, avatar_data_url=avatar)
                 audit(connection, user['id'], 'تعديل الملف الشخصي', 'user', user['id'], user['username'])
                 connection.commit(); publish_event('user', 'profile', user['id'])
                 return self.send_json({'ok': True, 'user': {'username': user['username'], 'full_name': full_name, 'role': user['role'], 'phone': user.get('phone'), 'avatar_data_url': avatar}})
@@ -954,6 +976,8 @@ class H(BaseHTTPRequestHandler):
                 if avatar and (not avatar.startswith('data:image/') or len(avatar) > 1_500_000):
                     return self.send_json({'error': 'صورة المستخدم غير صالحة أو كبيرة'}, 400)
                 connection.execute('update users set full_name=?,role=?,phone=?,avatar_data_url=?,active=? where id=?', (data.get('full_name', target['full_name']), role, phone, avatar, active, entity_id))
+                refresh_user_sessions(entity_id, full_name=data.get('full_name', target['full_name']), role=role,
+                                      phone=phone, avatar_data_url=avatar, active=active)
                 if password:
                     connection.execute('update users set password_hash=? where id=?', (hp(password), entity_id))
                 audit(connection, user['id'], 'تعديل مستخدم', 'user', entity_id, target['username'])
