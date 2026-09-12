@@ -900,8 +900,14 @@ class H(BaseHTTPRequestHandler):
                 password = str(data.get('password', ''))
                 role = data.get('role', 'technician')
                 phone = str(data.get('phone', '')).strip()
-                if not username or not full_name or len(password) < 12 or role not in ROLE_PERMS:
-                    return self.send_json({'error': 'بيانات المستخدم غير مكتملة أو كلمة المرور أقل من 12 حرفاً'}, 400)
+                if not username:
+                    return self.send_json({'error': 'اسم المستخدم مطلوب'}, 400)
+                if not full_name:
+                    return self.send_json({'error': 'الاسم الكامل مطلوب'}, 400)
+                if len(password) < 12:
+                    return self.send_json({'error': 'كلمة المرور يجب ألا تقل عن 12 حرفاً'}, 400)
+                if role not in ROLE_PERMS:
+                    return self.send_json({'error': 'الدور المحدد غير معتمد في الخادم؛ حدّث الصفحة ثم اختر الدور مرة أخرى'}, 400)
                 if phone and not valid_e164(phone):
                     return self.send_json({'error': 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX'}, 400)
                 if phone_in_use(connection, phone):
