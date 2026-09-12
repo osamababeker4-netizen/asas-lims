@@ -353,7 +353,7 @@ INSERT OR IGNORE INTO settings(key,value) VALUES('work_order_prefix','WO-');
 INSERT OR IGNORE INTO settings(key,value) VALUES('timezone','Asia/Riyadh');
 INSERT OR IGNORE INTO settings(key,value) VALUES('default_language','ar');
 INSERT OR IGNORE INTO settings(key,value) VALUES('date_format','DD/MM/YYYY');
-INSERT OR IGNORE INTO settings(key,value) VALUES('whatsapp_group_url','https://chat.whatsapp.com/CWalJYwXsocKtYiqsJsMSh');
+INSERT OR IGNORE INTO settings(key,value) VALUES('whatsapp_group_url','https://chat.whatsapp.com/LxqH7L6GorGEhMfUTYthgG?s=sh&p=a&mlu=4&ilr=4');
 INSERT OR IGNORE INTO settings(key,value) VALUES('telegram_url','https://t.me/+xPEyC5xPw8w5MjE0');
 INSERT OR IGNORE INTO settings(key,value) VALUES('map_provider','google');
 INSERT OR IGNORE INTO settings(key,value) VALUES('max_attachment_mb','25');
