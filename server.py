@@ -312,6 +312,21 @@ def valid_e164(phone):
     return phone.startswith('+') and phone[1:].isdigit() and 8 <= len(phone) <= 16
 
 
+def normalize_phone(phone, default_code='+966'):
+    raw = str(phone or '').strip()
+    if not raw:
+        return ''
+    digits = re.sub(r'\D', '', raw)
+    if digits.startswith('00'):
+        digits = digits[2:]
+    code_digits = re.sub(r'\D', '', default_code)
+    while digits.startswith(code_digits + code_digits):
+        digits = digits[len(code_digits):]
+    if raw.startswith('+') or digits.startswith(code_digits):
+        return '+' + digits
+    return default_code + digits.lstrip('0')
+
+
 def phone_in_use(connection, phone, exclude_user_id=None):
     if not phone:
         return False
@@ -924,7 +939,7 @@ class H(BaseHTTPRequestHandler):
                 full_name = str(data.get('full_name', '')).strip()
                 password = str(data.get('password', ''))
                 role = data.get('role', 'technician')
-                phone = str(data.get('phone', '')).strip()
+                phone = normalize_phone(data.get('phone', ''))
                 if not username:
                     return self.send_json({'error': 'اسم المستخدم مطلوب'}, 400)
                 if not full_name:
@@ -963,7 +978,7 @@ class H(BaseHTTPRequestHandler):
                 role = data.get('role', target['role'])
                 active = 1 if data.get('active', bool(target['active'])) else 0
                 password = str(data.get('password', ''))
-                phone = str(data.get('phone', target['phone'] or '')).strip()
+                phone = normalize_phone(data.get('phone', target['phone'] or ''))
                 if role not in ROLE_PERMS or (entity_id == user['id'] and active == 0):
                     return self.send_json({'error': 'تعديل المستخدم غير صالح'}, 400)
                 if password and len(password) < 12:
