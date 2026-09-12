@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v8-4-1-avatar-fix';
-const APP_SHELL = ['./','./index.html','./style.css?v=8-4-1-avatar-fix','./app-password.js?v=8-4-1-avatar-fix','./branch-map.js?v=8-1-3-branches','./i18n.js?v=8-4-1-avatar-fix','./runtime-config.js?v=8-1-1','./manifest.webmanifest','./logo.jpg'];
+const CACHE_NAME = 'asas-lims-pwa-v8-4-2-clean-login';
+const APP_SHELL = ['./','./index.html','./style.css?v=8-4-2-clean-login','./app-password.js?v=8-4-2-clean-login','./branch-map.js?v=8-1-3-branches','./i18n.js?v=8-4-2-clean-login','./runtime-config.js?v=8-1-1','./manifest.webmanifest','./logo.jpg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
