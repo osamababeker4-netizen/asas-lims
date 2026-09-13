@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import base64
+import io
 import hashlib
 import hmac
 import json
@@ -11,6 +12,9 @@ import re
 import sqlite3
 import threading
 import time
+import zipfile
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
 import urllib.error
@@ -221,7 +225,13 @@ def migrate_schema(connection):
             ('balady_permit_status', 'balady_permit_status TEXT'),
             ('balady_reference_url', 'balady_reference_url TEXT')
         ],
-        'whatsapp_drafts': [('draft_name', 'draft_name TEXT')]
+        'whatsapp_drafts': [('draft_name', 'draft_name TEXT')],
+        'equipment': [
+            ('equipment_code', 'equipment_code TEXT'), ('range_text', 'range_text TEXT'),
+            ('section', 'section TEXT'), ('verification_status', 'verification_status TEXT'),
+            ('maintenance_status', 'maintenance_status TEXT'), ('calibrated_to', 'calibrated_to TEXT'),
+            ('service_date', 'service_date TEXT')
+        ]
     }
     for table, columns in additions.items():
         existing = {row['name'] for row in connection.execute('pragma table_info(' + table + ')')}
@@ -325,6 +335,116 @@ def normalize_phone(phone, default_code='+966'):
     if raw.startswith('+') or digits.startswith(code_digits):
         return '+' + digits
     return default_code + digits.lstrip('0')
+
+
+def excel_date(value):
+    text = str(value or '').strip()
+    if not text:
+        return ''
+    try:
+        number = float(text)
+        if 1 <= number <= 100000:
+            return (datetime(1899, 12, 30) + timedelta(days=number)).strftime('%Y-%m-%d')
+    except ValueError:
+        pass
+    return text
+
+
+def parse_equipment_xlsx(encoded):
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except ValueError:
+        raise ValueError('ملف Excel غير صالح')
+    if len(raw) > 10 * 1024 * 1024:
+        raise ValueError('ملف Excel يتجاوز 10MB')
+    ns = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+          'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+          'p': 'http://schemas.openxmlformats.org/package/2006/relationships'}
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile:
+        raise ValueError('ملف Excel غير صالح أو تالف')
+    with archive:
+        if sum(item.file_size for item in archive.infolist()) > 60 * 1024 * 1024:
+            raise ValueError('محتوى ملف Excel كبير جداً')
+        shared = []
+        if 'xl/sharedStrings.xml' in archive.namelist():
+            root = ET.fromstring(archive.read('xl/sharedStrings.xml'))
+            shared = [''.join(node.text or '' for node in item.findall('.//m:t', ns)) for item in root.findall('m:si', ns)]
+        workbook = ET.fromstring(archive.read('xl/workbook.xml'))
+        rels = ET.fromstring(archive.read('xl/_rels/workbook.xml.rels'))
+        targets = {item.attrib['Id']: item.attrib['Target'] for item in rels.findall('p:Relationship', ns)}
+
+        def column_index(reference):
+            match = re.match(r'[A-Z]+', reference or '')
+            value = 0
+            for char in (match.group(0) if match else 'A'):
+                value = value * 26 + ord(char) - 64
+            return value - 1
+
+        parsed_sheets = []
+        for sheet in workbook.findall('m:sheets/m:sheet', ns):
+            target = targets.get(sheet.attrib.get('{%s}id' % ns['r']), '')
+            path = target.lstrip('/') if target.startswith('/xl/') else 'xl/' + target.lstrip('/')
+            if path not in archive.namelist():
+                continue
+            root = ET.fromstring(archive.read(path))
+            rows = []
+            for row in root.findall('.//m:sheetData/m:row', ns):
+                values = {}
+                for cell in row.findall('m:c', ns):
+                    index = column_index(cell.attrib.get('r', ''))
+                    kind = cell.attrib.get('t')
+                    value_node = cell.find('m:v', ns)
+                    if kind == 'inlineStr':
+                        value = ''.join(node.text or '' for node in cell.findall('.//m:t', ns))
+                    else:
+                        value = value_node.text if value_node is not None else ''
+                        if kind == 's' and value:
+                            shared_index = int(value)
+                            value = shared[shared_index] if shared_index < len(shared) else ''
+                    values[index] = str(value or '').strip()
+                if values:
+                    rows.append([values.get(i, '') for i in range(max(values) + 1)])
+            parsed_sheets.append((sheet.attrib.get('name', ''), rows))
+
+    aliases = {
+        'equipment name': 'name', 'اسم الجهاز': 'name',
+        'equipment serial no.': 'serial_no', 'equipment serial no': 'serial_no', 'الرقم التسلسلي': 'serial_no',
+        'equipment id': 'equipment_code', 'رقم الجهاز': 'equipment_code', 'كود الجهاز': 'equipment_code',
+        'range': 'range_text', 'النطاق': 'range_text', 'section': 'section', 'القسم': 'section',
+        'verification status': 'verification_status', 'حالة التحقق': 'verification_status',
+        'maintenance status': 'maintenance_status', 'حالة الصيانة': 'maintenance_status',
+        'calibrated to': 'calibrated_to', 'معاير حتى': 'calibrated_to',
+        'date of inter service': 'service_date', 'تاريخ الخدمة': 'service_date',
+        'note': 'notes', 'notes': 'notes', 'ملاحظات': 'notes'
+    }
+    candidates = []
+    for sheet_name, rows in parsed_sheets:
+        header_index = next((i for i, row in enumerate(rows[:25]) if any(str(value).strip().lower() == 'equipment name' for value in row)), None)
+        if header_index is None:
+            continue
+        columns = {}
+        for index, value in enumerate(rows[header_index]):
+            key = re.sub(r'\s+', ' ', str(value).strip().lower())
+            if key in aliases:
+                columns[index] = aliases[key]
+        records = []
+        for row in rows[header_index + 1:]:
+            payload = {field: (row[index] if index < len(row) else '') for index, field in columns.items()}
+            sequence = row[1].strip() if len(row) > 1 else (row[0].strip() if row else '')
+            if not payload.get('name') or not re.fullmatch(r'\d+(?:\.0+)?', sequence):
+                continue
+            payload['calibrated_to'] = excel_date(payload.get('calibrated_to'))
+            payload['service_date'] = excel_date(payload.get('service_date'))
+            verification = payload.get('verification_status', '').lower()
+            payload['status'] = 'غير ساري' if ('not valid' in verification or 'needed' in verification) else 'ساري'
+            records.append(payload)
+        candidates.append((len(records), sheet_name, records))
+    if not candidates or max(item[0] for item in candidates) == 0:
+        raise ValueError('لم يتم العثور على جدول أجهزة صالح داخل ملف Excel')
+    _, sheet_name, records = max(candidates, key=lambda item: item[0])
+    return sheet_name, records
 
 
 def phone_in_use(connection, phone, exclude_user_id=None):
@@ -579,7 +699,7 @@ class H(BaseHTTPRequestHandler):
             '''),
             'tests': q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,pr.mdd,pr.omc,u.full_name technician_name from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id left join users u on u.id=t.technician_id order by t.id desc'),
             'reports': q('select r.*,t.test_no,tc.name_ar,s.sample_no from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id order by r.id desc'),
-            'equipment': q('select * from equipment order by id desc'),
+            'equipment': q("select * from equipment order by coalesce(section,''),coalesce(equipment_code,''),name,id"),
             'audit': q('select a.*,u.full_name from audit_log a left join users u on u.id=a.user_id order by a.id desc limit 150'),
             'activity': q('select created_at,action,details from audit_log order by id desc limit 15'),
             'alerts': alerts,
@@ -1270,6 +1390,38 @@ class H(BaseHTTPRequestHandler):
                 connection.commit()
                 publish_event('sample', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id, 'planned_count': len(planned)})
+
+            if path == '/api/equipment/import':
+                if not self.require_permission(user, 'equipment'):
+                    return
+                sheet_name, records = parse_equipment_xlsx(str(data.get('file_base64') or ''))
+                inserted = 0
+                updated = 0
+                for item in records:
+                    existing = None
+                    if item.get('equipment_code'):
+                        existing = connection.execute('select id from equipment where trim(equipment_code)=trim(?)', (item['equipment_code'],)).fetchone()
+                    if not existing and item.get('serial_no') and item['serial_no'] != '-':
+                        existing = connection.execute('select id from equipment where trim(serial_no)=trim(?)', (item['serial_no'],)).fetchone()
+                    values = (item.get('name'), item.get('serial_no'), item.get('equipment_code'), item.get('range_text'),
+                              item.get('section'), item.get('verification_status'), item.get('maintenance_status'),
+                              item.get('calibrated_to'), item.get('service_date'), item.get('status'), item.get('notes'))
+                    if existing:
+                        connection.execute('''update equipment set name=?,serial_no=?,equipment_code=?,range_text=?,section=?,
+                            verification_status=?,maintenance_status=?,calibrated_to=?,service_date=?,status=?,notes=? where id=?''',
+                            values + (existing['id'],))
+                        updated += 1
+                    else:
+                        connection.execute('''insert into equipment(name,serial_no,equipment_code,range_text,section,
+                            verification_status,maintenance_status,calibrated_to,service_date,status,notes)
+                            values(?,?,?,?,?,?,?,?,?,?,?)''', values)
+                        inserted += 1
+                audit(connection, user['id'], 'استيراد أجهزة من Excel', 'equipment', 0,
+                      '{}: {} جديد، {} محدّث'.format(sheet_name, inserted, updated))
+                connection.commit()
+                publish_event('equipment', 'import', 0)
+                return self.send_json({'ok': True, 'inserted': inserted, 'updated': updated,
+                                       'total': len(records), 'sheet': sheet_name})
 
             if path == '/api/equipment':
                 if not self.require_permission(user, 'equipment'):
