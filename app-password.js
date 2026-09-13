@@ -466,7 +466,7 @@ async function completeLogin(result) {
   // The API authorizes both administrators and managers to manage users.
   // Keep the navigation aligned with that server-side permission so a
   // manager is not blocked by a hidden page despite being authorized.
-  $('usersNav').classList.toggle('hidden', ['admin','general_manager','manager'].indexOf(result.user.role) < 0);
+  $('usersNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager'].indexOf(result.user.role) < 0);
   $('settingsNav').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
   $('manageCommunicationLinks').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
   $('qualityNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(result.user.role) < 0);
@@ -541,7 +541,7 @@ async function refresh() {
     renderEquipment();
     renderAudit();
     if (currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(currentUser.role) >= 0) await renderQuality();
-    if (currentUser && ['admin','general_manager','manager'].indexOf(currentUser.role) >= 0) await renderUsers();
+    if (currentUser && ['admin','general_manager','manager','quality_manager'].indexOf(currentUser.role) >= 0) await renderUsers();
   })();
   try { return await refreshInFlight; } finally { refreshInFlight = null; }
 }
@@ -668,7 +668,7 @@ function renderSamples() {
 function renderTests() {
   setHtml($('testsTable'), (dashboard ? dashboard.tests : []).map(function(test) {
     const result = test.mdd !== null && test.mdd !== undefined ? 'MDD ' + Number(test.mdd).toFixed(3) + ' / OMC ' + Number(test.omc).toFixed(2) + '%' : '—';
-    const canAssign = currentUser && ['admin','manager'].indexOf(currentUser.role) >= 0;
+    const canAssign = currentUser && ['admin','manager','quality_manager'].indexOf(currentUser.role) >= 0;
     return '<tr><td><strong>' + esc(test.test_no) + '</strong></td><td>' + esc(test.sample_no) + '</td><td>' + escUI(test.name_ar) + '<small>' + esc(test.code) + '</small></td><td>' + esc(test.standard) + '</td><td>' + escUI(test.technician_name || 'غير مسند') + '</td><td>' + esc(result) + '</td><td>' + statusChip(test.status) + '</td><td>' + (canAssign ? '<button class="text-btn" data-test-assign="' + test.id + '" type="button">إسناد لفني</button>' : '—') + '</td></tr>';
   }).join('') || '<tr><td colspan="8" class="empty">لا توجد اختبارات.</td></tr>');
 }
