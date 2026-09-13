@@ -47,7 +47,8 @@ ROLE_PERMS = {
     'general_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync', 'settings'},
     'technical_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
     'laboratory_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
-    'quality_manager': {'dashboard', 'equipment', 'quality', 'audit', 'settings'},
+    # مدير الجودة مخوّل كمدير شامل: إضافة وتعديل واعتماد وإدارة المستخدمين والإعدادات.
+    'quality_manager': {'*'},
     'quality_officer': {'dashboard', 'quality'},
     'calibration_officer': {'dashboard', 'quality'},
     'document_controller': {'dashboard', 'quality'},
@@ -88,7 +89,10 @@ def has_perm(user, permission):
 
 
 def require_role(user, roles):
-    return bool(user and (user.get('role') == 'admin' or user.get('role') in roles))
+    if not user:
+        return False
+    permissions = ROLE_PERMS.get(user.get('role'), set())
+    return user.get('role') == 'admin' or '*' in permissions or user.get('role') in roles
 
 
 def rowdict(row):
@@ -863,7 +867,7 @@ class H(BaseHTTPRequestHandler):
             if path == '/api/whatsapp/drafts':
                 if not self.require_permission(user, 'dashboard'):
                     return
-                if user.get('role') in {'admin', 'manager'}:
+                if require_role(user, {'manager'}):
                     rows = connection.execute('''select d.*,u.full_name recipient_name,u.phone recipient_phone from whatsapp_drafts d
                         left join users u on u.id=d.recipient_user_id order by d.id desc limit 100''').fetchall()
                 else:
@@ -1330,8 +1334,8 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'المشروع غير موجود'}, 404)
                 if status == 'قيد المراجعة' and not require_role(user, {'manager'}):
                     return self.send_json({'error': 'إحالة المشروع للمراجعة للمدير فقط'}, 403)
-                if status == 'معتمد' and user.get('role') != 'admin':
-                    return self.send_json({'error': 'اعتماد المشروع لمدير النظام فقط'}, 403)
+                if status == 'معتمد' and not require_role(user, set()):
+                    return self.send_json({'error': 'اعتماد المشروع لمدير النظام أو مدير الجودة فقط'}, 403)
                 if status == 'قيد المراجعة':
                     connection.execute('update projects set status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP where id=?', (status, user['id'], entity_id))
                 elif status == 'معتمد':
@@ -1809,8 +1813,8 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'حالة التقرير غير صالحة'}, 400)
                 if status == 'قيد المراجعة' and not require_role(user, {'manager'}):
                     return self.send_json({'error': 'المراجعة للمدير فقط'}, 403)
-                if status == 'معتمد' and user.get('role') != 'admin':
-                    return self.send_json({'error': 'الاعتماد لمدير النظام فقط'}, 403)
+                if status == 'معتمد' and not require_role(user, set()):
+                    return self.send_json({'error': 'الاعتماد لمدير النظام أو مدير الجودة فقط'}, 403)
                 if status == 'معتمد':
                     connection.execute('update reports set status=?,approved_by=?,issued_at=CURRENT_TIMESTAMP where id=?', (status, user['id'], report_id))
                 else:
