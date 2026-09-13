@@ -350,7 +350,7 @@ def excel_date(value):
     return text
 
 
-def parse_equipment_xlsx(encoded):
+def parse_xlsx_sheets(encoded):
     try:
         raw = base64.b64decode(encoded, validate=True)
     except ValueError:
@@ -407,6 +407,84 @@ def parse_equipment_xlsx(encoded):
                 if values:
                     rows.append([values.get(i, '') for i in range(max(values) + 1)])
             parsed_sheets.append((sheet.attrib.get('name', ''), rows))
+
+    return parsed_sheets
+
+
+def normalized_excel_header(value):
+    value = str(value or '').strip().lower().replace('_', ' ')
+    value = re.sub(r'[\u200e\u200f\ufeff]', '', value)
+    value = re.sub(r'[^\w\u0600-\u06ff]+', ' ', value, flags=re.UNICODE)
+    return re.sub(r'\s+', ' ', value).strip()
+
+
+EXCEL_IMPORT_ALIASES = {
+    'clients': {
+        'name': ['الاسم', 'اسم العميل', 'العميل', 'name', 'client name', 'customer name'],
+        'phone': ['الهاتف', 'رقم الجوال', 'الجوال', 'phone', 'mobile', 'mobile number'],
+        'email': ['البريد', 'البريد الإلكتروني', 'email', 'email address']},
+    'projects': {
+        'name': ['اسم المشروع', 'المشروع', 'name', 'project name'],
+        'client': ['العميل', 'اسم العميل', 'client', 'client name'],
+        'location': ['الموقع', 'location', 'site'], 'priority': ['الأولوية', 'priority'],
+        'start_date': ['البداية', 'تاريخ البداية', 'start date'], 'due_date': ['الاستحقاق', 'تاريخ الاستحقاق', 'due date', 'end date'],
+        'progress': ['التقدم', 'نسبة الإنجاز', 'progress'], 'description': ['الوصف', 'description', 'details']},
+    'work_orders': {
+        'title': ['أمر العمل', 'عنوان أمر العمل', 'title', 'work order', 'work order title'],
+        'project_id': ['معرف المشروع', 'رقم المشروع', 'project id'], 'project': ['المشروع', 'اسم المشروع', 'project', 'project name'],
+        'priority': ['الأولوية', 'priority'], 'scheduled_date': ['الموعد', 'تاريخ الجدولة', 'scheduled date'],
+        'due_date': ['الاستحقاق', 'تاريخ الاستحقاق', 'due date'], 'description': ['الوصف', 'description', 'details']},
+    'samples': {
+        'material': ['المادة', 'نوع المادة', 'material', 'material type'],
+        'project_id': ['معرف المشروع', 'رقم المشروع', 'project id'], 'project': ['المشروع', 'اسم المشروع', 'project', 'project name'],
+        'source': ['المصدر', 'source', 'sample source'], 'received_date': ['تاريخ الاستلام', 'received date', 'date received'],
+        'notes': ['ملاحظات', 'الملاحظات', 'notes', 'note']},
+    'proficiency': {
+        'test_name': ['اسم الاختبار', 'الاختبار', 'test name', 'proficiency test'], 'material': ['المادة', 'material'],
+        'standard': ['المعيار', 'standard'], 'provider': ['مقدم الخدمة', 'المزود', 'provider', 'service provider'],
+        'participation_date': ['تاريخ المشاركة', 'participation date', 'date'], 'result': ['النتيجة', 'result'],
+        'z_score': ['z score', 'z-score', 'درجة z'], 'report_ref': ['مرجع التقرير', 'report reference', 'report ref'],
+        'notes': ['ملاحظات', 'notes', 'note']},
+    'staff': {
+        'full_name': ['الاسم الكامل', 'اسم الموظف', 'full name', 'employee name'], 'job_title': ['المسمى الوظيفي', 'job title', 'position'],
+        'specialty': ['التخصص', 'specialty'], 'experience_years': ['سنوات الخبرة', 'years of experience', 'experience years'],
+        'qualification_ref': ['مرجع المؤهل', 'qualification reference', 'qualification ref'],
+        'cv_ref': ['مرجع السيرة الذاتية', 'cv reference', 'cv ref'], 'notes': ['ملاحظات', 'notes', 'note']}
+}
+
+
+def parse_entity_xlsx(encoded, entity_type):
+    aliases = EXCEL_IMPORT_ALIASES.get(entity_type)
+    if not aliases:
+        raise ValueError('نوع الاستيراد غير مدعوم')
+    lookup = {normalized_excel_header(alias): field for field, names in aliases.items() for alias in names}
+    primary = {'clients':'name', 'projects':'name', 'work_orders':'title', 'samples':'material',
+               'proficiency':'test_name', 'staff':'full_name'}[entity_type]
+    date_fields = {'start_date', 'due_date', 'scheduled_date', 'received_date', 'participation_date'}
+    candidates = []
+    for sheet_name, rows in parse_xlsx_sheets(encoded):
+        for header_index, header in enumerate(rows[:35]):
+            columns = {index: lookup[normalized_excel_header(value)] for index, value in enumerate(header)
+                       if normalized_excel_header(value) in lookup}
+            if primary not in columns.values() or len(set(columns.values())) < 2:
+                continue
+            records = []
+            for row in rows[header_index + 1:]:
+                payload = {field: (row[index].strip() if index < len(row) else '') for index, field in columns.items()}
+                if not payload.get(primary):
+                    continue
+                for field in date_fields.intersection(payload):
+                    payload[field] = excel_date(payload[field])
+                records.append(payload)
+            candidates.append((len(records), len(set(columns.values())), sheet_name, records))
+    if not candidates or max(item[0] for item in candidates) == 0:
+        raise ValueError('لم يتم العثور على جدول صالح أو عناوين أعمدة معروفة داخل ملف Excel')
+    _, _, sheet_name, records = max(candidates, key=lambda item: (item[0], item[1]))
+    return sheet_name, records
+
+
+def parse_equipment_xlsx(encoded):
+    parsed_sheets = parse_xlsx_sheets(encoded)
 
     aliases = {
         'equipment name': 'name', 'اسم الجهاز': 'name',
@@ -1521,6 +1599,72 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'ربط مورد اختبار', 'test_catalog', catalog_id, resource_type)
                 connection.commit(); publish_event('catalog_resource', 'update', catalog_id)
                 return self.send_json({'ok': True, 'id': attachment_id, 'ref': '/api/attachments/files/' + str(attachment_id)})
+
+            if path == '/api/import/xlsx':
+                entity_type = str(data.get('entity_type') or '')
+                required_perm = {'clients':'clients','projects':'projects','work_orders':'projects','samples':'samples',
+                                 'proficiency':'quality','staff':'quality'}.get(entity_type)
+                if not required_perm or not self.require_permission(user, required_perm):
+                    return
+                try:
+                    sheet_name, rows = parse_entity_xlsx(str(data.get('file_base64') or ''), entity_type)
+                except ValueError as error:
+                    return self.send_json({'error': str(error)}, 400)
+                if len(rows) > 1000:
+                    return self.send_json({'error': 'يحتوي الملف على أكثر من 1000 سجل؛ قسّمه إلى ملفين'}, 400)
+                imported, skipped = 0, []
+                for number, row in enumerate(rows, 2):
+                    try:
+                        if entity_type == 'clients':
+                            name = str(row.get('name') or '').strip()
+                            if not name: raise ValueError()
+                            connection.execute('insert into clients(name,phone,email) values(?,?,?)', (name, row.get('phone'), row.get('email')))
+                        elif entity_type == 'projects':
+                            name = str(row.get('name') or '').strip()
+                            if not name: raise ValueError()
+                            client_name = str(row.get('client') or '').strip(); client_id = None
+                            if client_name:
+                                client = connection.execute('select id from clients where name=?', (client_name,)).fetchone()
+                                if not client:
+                                    connection.execute('insert into clients(name) values(?)', (client_name,)); client_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                                else: client_id = client['id']
+                            progress = int(float(row.get('progress') or 0))
+                            connection.execute('insert into projects(code,name,client_id,location,priority,description,start_date,due_date,progress,updated_at) values(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+                                (nextno(connection,'PR-','projects'), name, client_id, row.get('location'), normalize_priority(row.get('priority')), row.get('description'), row.get('start_date'), row.get('due_date'), max(0, min(100, progress))))
+                        elif entity_type == 'work_orders':
+                            title = str(row.get('title') or '').strip()
+                            project_id = parse_optional_int(row.get('project_id'))
+                            if not project_id and row.get('project'):
+                                project = connection.execute('select id from projects where name=? or code=?', (row['project'], row['project'])).fetchone()
+                                project_id = project['id'] if project else None
+                            if not title or not project_id: raise ValueError()
+                            connection.execute('insert into work_orders(order_no,project_id,title,description,priority,scheduled_date,due_date,created_by,updated_at) values(?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+                                (nextno(connection,'WO-','work_orders'),project_id,title,row.get('description'),normalize_priority(row.get('priority')),row.get('scheduled_date'),row.get('due_date'),user['id']))
+                        elif entity_type == 'samples':
+                            material = str(row.get('material') or '').strip(); project_id = parse_optional_int(row.get('project_id'))
+                            if not project_id and row.get('project'):
+                                project = connection.execute('select id from projects where name=? or code=?', (row['project'], row['project'])).fetchone()
+                                project_id = project['id'] if project else None
+                            if not material: raise ValueError()
+                            connection.execute('insert into samples(sample_no,project_id,material,source,received_date,notes) values(?,?,?,?,?,?)',
+                                (nextno(connection,'SMP-','samples'),project_id,material,row.get('source'),row.get('received_date') or time.strftime('%Y-%m-%d'),row.get('notes')))
+                        elif entity_type == 'proficiency':
+                            test_name = str(row.get('test_name') or '').strip()
+                            if not test_name: raise ValueError()
+                            connection.execute('insert into proficiency_tests(test_name,material,standard,provider,participation_date,result,z_score,report_ref,notes) values(?,?,?,?,?,?,?,?,?)',
+                                (test_name,row.get('material'),row.get('standard'),row.get('provider'),row.get('participation_date'),row.get('result'),row.get('z_score'),row.get('report_ref'),row.get('notes')))
+                        else:
+                            full_name = str(row.get('full_name') or '').strip()
+                            if not full_name: raise ValueError()
+                            experience = int(float(row.get('experience_years') or 0))
+                            connection.execute('insert into quality_staff(full_name,job_title,specialty,experience_years,qualification_ref,cv_ref,active,notes) values(?,?,?,?,?,?,1,?)',
+                                (full_name,row.get('job_title'),row.get('specialty'),experience,row.get('qualification_ref'),row.get('cv_ref'),row.get('notes')))
+                        imported += 1
+                    except (ValueError, TypeError, sqlite3.Error):
+                        skipped.append(number)
+                audit(connection, user['id'], 'استيراد Excel تلقائي', entity_type, 0, str(imported) + ' صف من ' + sheet_name)
+                connection.commit(); publish_event(entity_type, 'xlsx_import', 0)
+                return self.send_json({'ok': True, 'imported': imported, 'skipped': skipped, 'sheet': sheet_name})
 
             if path == '/api/bulk/import':
                 entity_type = str(data.get('entity_type') or '')
