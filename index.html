@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=8-6-0-auto-excel">
+  <link rel="stylesheet" href="style.css?v=8-6-1-admin-permissions">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -308,7 +308,7 @@
       </section>
 
       <section id="users" class="page">
-        <div class="page-heading"><div><h2>المستخدمون والصلاحيات</h2><p>متاحة لمدير النظام والمدير المخوّل.</p></div><div class="heading-actions"><button class="btn secondary" data-attachment-panel="user" type="button">رفع مرفق</button><button id="openUser" class="btn primary" type="button">+ مستخدم</button></div></div>
+        <div class="page-heading"><div><h2>المستخدمون والصلاحيات</h2><p>متاحة بكامل الصلاحيات لمدير النظام ومدير الجودة.</p></div><div class="heading-actions"><button class="btn secondary" data-attachment-panel="user" type="button">رفع مرفق</button><button id="openUser" class="btn primary" type="button">+ مستخدم</button></div></div>
         <div class="panel table-panel"><table><thead><tr><th>الصورة</th><th>اسم المستخدم</th><th>الاسم</th><th>رقم الجوال</th><th>الدور</th><th>الحالة</th><th>تاريخ الإنشاء</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
       </section>
 
@@ -340,17 +340,17 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=8-6-0-auto-excel"></script>
-  <script src="i18n.js?v=8-6-0-auto-excel"></script>
-  <script src="app-password.js?v=8-6-0-auto-excel"></script>
-  <script src="branch-map.js?v=8-6-0-auto-excel"></script>
+  <script src="runtime-config.js?v=8-6-1-admin-permissions"></script>
+  <script src="i18n.js?v=8-6-1-admin-permissions"></script>
+  <script src="app-password.js?v=8-6-1-admin-permissions"></script>
+  <script src="branch-map.js?v=8-6-1-admin-permissions"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-6-0-auto-excel'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-6-1-admin-permissions'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=8-6-0-auto-excel', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=8-6-1-admin-permissions', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>
