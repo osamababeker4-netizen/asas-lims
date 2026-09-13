@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v8-5-0-excel-import';
-const APP_SHELL = ['./','./index.html','./style.css?v=8-5-0-excel-import','./app-password.js?v=8-5-0-excel-import','./branch-map.js?v=8-5-0-excel-import','./i18n.js?v=8-5-0-excel-import','./runtime-config.js?v=8-5-0-excel-import','./manifest.webmanifest','./logo.jpg'];
+const CACHE_NAME = 'asas-lims-pwa-v8-6-0-auto-excel';
+const APP_SHELL = ['./','./index.html','./style.css?v=8-6-0-auto-excel','./app-password.js?v=8-6-0-auto-excel','./branch-map.js?v=8-6-0-auto-excel','./i18n.js?v=8-6-0-auto-excel','./runtime-config.js?v=8-6-0-auto-excel','./manifest.webmanifest','./logo.jpg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
