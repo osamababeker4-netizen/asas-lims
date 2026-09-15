@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=8-7-3-content-sorting">
+  <link rel="stylesheet" href="style.css?v=8-7-4-live-sync-audit">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -87,7 +87,7 @@
             <h2 id="pageTitle">لوحة القيادة</h2>
           </div>
         </div>
-        <div class="user-chip"><span id="saudiClock" class="muted">توقيت السعودية: —</span><button id="openProfile" class="profile-summary" type="button" aria-label="فتح الملف الشخصي"><img id="currentUserAvatar" class="user-avatar" src="logo.jpg" alt="صورة المستخدم"><span><strong id="currentUsername">اسم المستخدم</strong><small id="currentUser">—</small></span></button><button id="changePassword" class="text-btn" type="button">تغيير كلمة المرور</button></div>
+        <div class="user-chip"><span id="saudiClock" class="muted">توقيت السعودية: —</span><button id="syncNow" class="text-btn" type="button">مزامنة الآن</button><button id="openProfile" class="profile-summary" type="button" aria-label="فتح الملف الشخصي"><img id="currentUserAvatar" class="user-avatar" src="logo.jpg" alt="صورة المستخدم"><span><strong id="currentUsername">اسم المستخدم</strong><small id="currentUser">—</small></span></button><button id="changePassword" class="text-btn" type="button">تغيير كلمة المرور</button></div>
       </header>
 
       <section id="dashboard" class="page active">
@@ -303,8 +303,8 @@
       </section>
 
       <section id="audit" class="page">
-        <div class="page-heading"><div><h2>سجل التدقيق</h2><p>الأثر التدقيقي للعمليات الحساسة والتغييرات التشغيلية.</p></div></div>
-        <div class="panel table-panel"><table><thead><tr><th>التاريخ</th><th>المستخدم</th><th>العملية</th><th>الكيان</th><th>التفاصيل</th></tr></thead><tbody id="auditTable"></tbody></table></div>
+        <div class="page-heading"><div><h2>سجل التدقيق</h2><p>الأثر التدقيقي للعمليات الحساسة والتغييرات التشغيلية.</p></div><button id="clearAudit" class="btn danger hidden" type="button">حذف السجل بالكامل</button></div>
+        <div class="panel table-panel"><table><thead><tr><th>التاريخ</th><th>المستخدم</th><th>العملية</th><th>الكيان</th><th>التفاصيل</th><th></th></tr></thead><tbody id="auditTable"></tbody></table></div>
       </section>
 
       <section id="users" class="page">
@@ -340,17 +340,17 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=8-7-3-content-sorting"></script>
-  <script src="i18n.js?v=8-7-3-content-sorting"></script>
-  <script src="app-password.js?v=8-7-3-content-sorting"></script>
-  <script src="branch-map.js?v=8-7-3-content-sorting"></script>
+  <script src="runtime-config.js?v=8-7-4-live-sync-audit"></script>
+  <script src="i18n.js?v=8-7-4-live-sync-audit"></script>
+  <script src="app-password.js?v=8-7-4-live-sync-audit"></script>
+  <script src="branch-map.js?v=8-7-4-live-sync-audit"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-7-3-content-sorting'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-7-4-live-sync-audit'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=8-7-3-content-sorting', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=8-7-4-live-sync-audit', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>

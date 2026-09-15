@@ -823,6 +823,7 @@ class H(BaseHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-cache')
             self.send_header('Connection', 'keep-alive')
             self.send_header('X-Accel-Buffering', 'no')
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(b'retry: 5000\n\n')
             self.wfile.flush()
@@ -1222,6 +1223,28 @@ class H(BaseHTTPRequestHandler):
 
         connection = db()
         try:
+            if path == '/api/audit/delete':
+                if user.get('role') not in {'admin', 'quality_manager'}:
+                    return self.send_json({'error': 'الحذف متاح لمدير النظام ومدير الجودة فقط'}, 403)
+                audit_id = parse_optional_int(data.get('id'))
+                current = connection.execute('select id,action,entity,details from audit_log where id=?', (audit_id,)).fetchone()
+                if not current:
+                    return self.send_json({'error': 'سجل التدقيق غير موجود'}, 404)
+                connection.execute('delete from audit_log where id=?', (audit_id,))
+                audit(connection, user['id'], 'حذف سجل تدقيق', 'audit', audit_id,
+                      '{} · {} · {}'.format(current['action'], current['entity'] or '', current['details'] or ''))
+                connection.commit(); publish_event('audit', 'delete', audit_id)
+                return self.send_json({'ok': True, 'deleted': 1})
+
+            if path == '/api/audit/clear':
+                if user.get('role') not in {'admin', 'quality_manager'}:
+                    return self.send_json({'error': 'الحذف متاح لمدير النظام ومدير الجودة فقط'}, 403)
+                count = connection.execute('select count(*) from audit_log').fetchone()[0]
+                connection.execute('delete from audit_log')
+                audit(connection, user['id'], 'مسح سجل التدقيق', 'audit', 0, 'تم حذف {} عملية سابقة'.format(count))
+                connection.commit(); publish_event('audit', 'clear', 0)
+                return self.send_json({'ok': True, 'deleted': count})
+
             if path == '/api/auth/change-password':
                 current_password = str(data.get('current_password') or '')
                 new_password = str(data.get('new_password') or '')

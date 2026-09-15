@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v8-7-3-content-sorting';
-const APP_SHELL = ['./','./index.html','./style.css?v=8-7-3-content-sorting','./app-password.js?v=8-7-3-content-sorting','./branch-map.js?v=8-7-3-content-sorting','./i18n.js?v=8-7-3-content-sorting','./runtime-config.js?v=8-7-3-content-sorting','./manifest.webmanifest','./logo.jpg'];
+const CACHE_NAME = 'asas-lims-pwa-v8-7-4-live-sync-audit';
+const APP_SHELL = ['./','./index.html','./style.css?v=8-7-4-live-sync-audit','./app-password.js?v=8-7-4-live-sync-audit','./branch-map.js?v=8-7-4-live-sync-audit','./i18n.js?v=8-7-4-live-sync-audit','./runtime-config.js?v=8-7-4-live-sync-audit','./manifest.webmanifest','./logo.jpg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
