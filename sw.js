@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v8-7-1-smart-files-fix';
-const APP_SHELL = ['./','./index.html','./style.css?v=8-7-1-smart-files-fix','./app-password.js?v=8-7-1-smart-files-fix','./branch-map.js?v=8-7-1-smart-files-fix','./i18n.js?v=8-7-1-smart-files-fix','./runtime-config.js?v=8-7-1-smart-files-fix','./manifest.webmanifest','./logo.jpg'];
+const CACHE_NAME = 'asas-lims-pwa-v8-7-2-unlimited-files';
+const APP_SHELL = ['./','./index.html','./style.css?v=8-7-2-unlimited-files','./app-password.js?v=8-7-2-unlimited-files','./branch-map.js?v=8-7-2-unlimited-files','./i18n.js?v=8-7-2-unlimited-files','./runtime-config.js?v=8-7-2-unlimited-files','./manifest.webmanifest','./logo.jpg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
