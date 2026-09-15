@@ -162,6 +162,74 @@ RECORD_TYPES = {
     'catalog': ('test_catalog', 'catalog'), 'field_visit': ('field_visits', 'field')
 }
 
+SMART_SECTIONS = {
+    'dashboard': ('dashboard', 'dashboard'), 'projects': ('project', 'projects'),
+    'workOrders': ('work_order', 'projects'), 'field': ('field_visit', 'field'),
+    'clients': ('client', 'clients'), 'samples': ('sample', 'samples'),
+    'tests': ('test', 'tests'), 'catalog': ('catalog', 'catalog'),
+    'reports': ('report', 'reports'), 'communications': ('communications', 'settings'),
+    'quality': ('quality', 'quality'), 'company': ('company', 'dashboard'),
+    'audit': ('audit', 'audit'), 'users': ('user', 'users'), 'settings': ('settings', 'settings'),
+    'equipment': ('equipment', 'equipment')
+}
+
+SMART_FILE_TYPES = {
+    '.pdf':'PDF', '.doc':'Word', '.docx':'Word', '.xls':'Excel', '.xlsx':'Excel', '.csv':'بيانات CSV',
+    '.txt':'نص', '.jpg':'صورة', '.jpeg':'صورة', '.png':'صورة', '.webp':'صورة', '.heic':'صورة',
+    '.zip':'حزمة مضغوطة', '.dwg':'رسم هندسي', '.dxf':'رسم هندسي'
+}
+
+
+def smart_section_allowed(user, section):
+    item = SMART_SECTIONS.get(section)
+    return bool(item and has_perm(user, item[1]))
+
+
+def detect_smart_target(connection, section, file_name):
+    entity_type = SMART_SECTIONS[section][0]
+    definitions = {
+        'projects': ('projects', "code || ' ' || name"),
+        'workOrders': ('work_orders', "order_no || ' ' || title"),
+        'clients': ('clients', 'name'), 'samples': ('samples', 'sample_no'),
+        'tests': ('tests', 'test_no'), 'reports': ('reports', 'report_no'),
+        'equipment': ('equipment', "coalesce(equipment_code,'') || ' ' || coalesce(serial_no,'') || ' ' || name"),
+        'users': ('users', "username || ' ' || full_name"), 'catalog': ('test_catalog', "code || ' ' || name_ar")
+    }
+    if section not in definitions:
+        return entity_type, 0, 'مصنف داخل القسم'
+    table, expression = definitions[section]
+    haystack = normalized_excel_header(os.path.splitext(file_name)[0])
+    best = None
+    for row in connection.execute('select id,' + expression + ' as search_value from ' + table).fetchall():
+        value = normalized_excel_header(row['search_value'])
+        tokens = [part for part in re.split(r'\s+', value) if len(part) >= 4]
+        haystack_tokens = set(re.split(r'\s+', haystack))
+        score = max(([len(part) for part in tokens if part in haystack_tokens] or [0]))
+        if value and value in haystack:
+            score = max(score, len(value) + 20)
+        if score >= 4 and (not best or score > best[0]):
+            best = (score, row['id'])
+    return entity_type, (best[1] if best else 0), ('مرتبط تلقائيًا' if best else 'يحتاج مراجعة')
+
+
+def store_smart_file(connection, user, section, original_name, content):
+    original_name = os.path.basename(str(original_name or '')).strip()
+    extension = os.path.splitext(original_name)[1].lower()
+    if not original_name or extension not in SMART_FILE_TYPES:
+        raise ValueError('نوع الملف غير مدعوم: ' + (extension or 'بدون امتداد'))
+    if len(content) > 25 * 1024 * 1024:
+        raise ValueError('حجم الملف يتجاوز 25MB: ' + original_name)
+    entity_type, entity_id, status = detect_smart_target(connection, section, original_name)
+    os.makedirs(RECORD_UPLOADS, exist_ok=True)
+    stored_name = secrets.token_urlsafe(18) + extension
+    with open(os.path.join(RECORD_UPLOADS, stored_name), 'wb') as uploaded:
+        uploaded.write(content)
+    connection.execute('''insert into record_attachments(entity_type,entity_id,original_name,stored_name,uploaded_by,section,file_category,classification_status,mime_type)
+        values(?,?,?,?,?,?,?,?,?)''', (entity_type, entity_id, original_name, stored_name, user['id'], section,
+        SMART_FILE_TYPES[extension], status, extension.lstrip('.')))
+    return {'id': connection.execute('select last_insert_rowid()').fetchone()[0], 'name': original_name,
+            'category': SMART_FILE_TYPES[extension], 'status': status, 'entity_id': entity_id}
+
 
 def record_allowed(user, entity_type):
     item = RECORD_TYPES.get(entity_type)
@@ -235,6 +303,10 @@ def migrate_schema(connection):
             ('section', 'section TEXT'), ('verification_status', 'verification_status TEXT'),
             ('maintenance_status', 'maintenance_status TEXT'), ('calibrated_to', 'calibrated_to TEXT'),
             ('service_date', 'service_date TEXT')
+        ],
+        'record_attachments': [
+            ('section', 'section TEXT'), ('file_category', 'file_category TEXT'),
+            ('classification_status', 'classification_status TEXT'), ('mime_type', 'mime_type TEXT')
         ]
     }
     for table, columns in additions.items():
@@ -890,16 +962,24 @@ class H(BaseHTTPRequestHandler):
                     'select id,original_name,created_at from record_attachments where entity_type=? and entity_id=? order by id desc',
                     (entity_type, entity_id)).fetchall()])
 
+            if path == '/api/smart-imports':
+                section = str(parse_qs(parsed.query).get('section', [''])[0])
+                if not smart_section_allowed(user, section):
+                    return self.send_json({'error': 'غير مصرح'}, 403)
+                rows = connection.execute('''select id,original_name,file_category,classification_status,entity_type,entity_id,created_at
+                    from record_attachments where section=? order by file_category,original_name,id desc limit 500''', (section,)).fetchall()
+                return self.send_json([dict(row) for row in rows])
+
             if path.startswith('/api/attachments/files/'):
                 attachment_id = parse_optional_int(path.rsplit('/', 1)[-1])
                 row = connection.execute('select a.*,u.role from record_attachments a left join users u on u.id=a.uploaded_by where a.id=?', (attachment_id,)).fetchone()
-                if not row or not record_allowed(user, row['entity_type']):
+                if not row or not (record_allowed(user, row['entity_type']) or smart_section_allowed(user, row['section'])):
                     return self.send_json({'error': 'الملف غير موجود أو غير مصرح'}, 404)
                 target = os.path.join(RECORD_UPLOADS, row['stored_name'])
                 if not os.path.isfile(target):
                     return self.send_json({'error': 'الملف غير موجود'}, 404)
                 extension = os.path.splitext(row['stored_name'])[1].lower()
-                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic'}
+                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.csv':'text/csv','.txt':'text/plain','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic','.dwg':'application/acad','.dxf':'application/dxf'}
                 return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'))
 
             if path == '/api/quality':
@@ -1583,6 +1663,44 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'رفع مرفق سجل', data.get('entity_type'), data.get('entity_id'), data.get('file_name'))
                 connection.commit()
                 return self.send_json({'ok': True, 'id': attachment_id, 'ref': '/api/attachments/files/' + str(attachment_id), 'stored_name': stored_name})
+
+            if path == '/api/smart-import':
+                section = str(data.get('section') or '')
+                if not smart_section_allowed(user, section):
+                    return self.send_json({'error': 'لا تملك صلاحية هذا القسم'}, 403)
+                try:
+                    encoded = str(data.get('file_base64') or '')
+                    content = base64.b64decode(encoded, validate=True)
+                    file_name = os.path.basename(str(data.get('file_name') or ''))
+                    if not content or len(content) > 25 * 1024 * 1024:
+                        raise ValueError('الملف فارغ أو يتجاوز 25MB')
+                    imported = []
+                    if os.path.splitext(file_name)[1].lower() == '.zip':
+                        try:
+                            archive = zipfile.ZipFile(io.BytesIO(content))
+                        except zipfile.BadZipFile:
+                            raise ValueError('ملف ZIP غير صالح')
+                        with archive:
+                            members = [item for item in archive.infolist() if not item.is_dir() and not item.filename.startswith('__MACOSX/')]
+                            if len(members) > 100 or sum(item.file_size for item in members) > 100 * 1024 * 1024:
+                                raise ValueError('الحزمة كبيرة؛ الحد 100 ملف و100MB بعد الفك')
+                            for item in members:
+                                member_name = os.path.basename(item.filename)
+                                if not member_name or os.path.splitext(member_name)[1].lower() not in SMART_FILE_TYPES or member_name.lower().endswith('.zip'):
+                                    continue
+                                imported.append(store_smart_file(connection, user, section, member_name, archive.read(item)))
+                            if not imported:
+                                raise ValueError('لا توجد ملفات مدعومة داخل حزمة ZIP')
+                    else:
+                        imported.append(store_smart_file(connection, user, section, file_name, content))
+                except (ValueError, TypeError) as error:
+                    connection.rollback()
+                    return self.send_json({'error': str(error)}, 400)
+                matched = sum(1 for item in imported if item['entity_id'])
+                audit(connection, user['id'], 'إرفاق وفرز ذكي', section, 0, '{} ملف، {} مرتبط'.format(len(imported), matched))
+                connection.commit(); publish_event(section, 'smart_import', 0)
+                return self.send_json({'ok': True, 'imported': imported, 'total': len(imported), 'matched': matched,
+                                       'review': len(imported) - matched})
 
             if path == '/api/catalog/resources':
                 if not self.require_permission(user, 'quality'):
