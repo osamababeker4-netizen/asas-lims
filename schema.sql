@@ -209,6 +209,10 @@ CREATE TABLE IF NOT EXISTS record_attachments(
  original_name TEXT NOT NULL,
  stored_name TEXT NOT NULL UNIQUE,
  uploaded_by INTEGER,
+ section TEXT,
+ file_category TEXT,
+ classification_status TEXT,
+ mime_type TEXT,
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(uploaded_by) REFERENCES users(id)
 );
