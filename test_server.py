@@ -40,6 +40,19 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIsNotNone(admin)
         self.assertIn(':', admin['password_hash'])
 
+    def test_smart_files_are_classified_by_engineering_material(self):
+        self.assertEqual(self.server.detect_material_group('ASTM-D1557-Proctor.pdf', b''), 'تربة')
+        self.assertEqual(self.server.detect_material_group('Marshall-D6927.xlsx', b''), 'أسفلت')
+        self.assertEqual(self.server.detect_material_group('Concrete-C39-Cubes.pdf', b''), 'خرسانة')
+        self.assertEqual(self.server.detect_material_group('general-document.pdf', b''), 'أخرى')
+
+    def test_attachment_schema_has_material_group(self):
+        self.server.init()
+        connection = self.server.db()
+        columns = {row['name'] for row in connection.execute('pragma table_info(record_attachments)')}
+        connection.close()
+        self.assertIn('material_group', columns)
+
     def test_pwa_assets_are_served_by_the_central_service(self):
         self.server.init()
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)

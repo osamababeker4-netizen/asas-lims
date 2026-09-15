@@ -179,6 +179,41 @@ SMART_FILE_TYPES = {
     '.zip':'حزمة مضغوطة', '.dwg':'رسم هندسي', '.dxf':'رسم هندسي'
 }
 
+MATERIAL_GROUP_KEYWORDS = {
+    'خرسانة': ('خرسانة','خرساني','concrete','cement','مكعب','cube','cylinder','اسطوانة','slump','هبوط','compressive','compression','c39','c143','c31','c192','c42','c78','c496'),
+    'تربة': ('تربة','تربه','soil','subgrade','ردم','fill','proctor','atterberg','حدود اتربرج','cbr','moisture content','محتوى الرطوبة','sand cone','الكثافة الحقلية','d1557','d698','d4318','d1883','d2216','d6938','d2487'),
+    'أسفلت': ('أسفلت','اسفلت','asphalt','bitumen','bituminous','marshall','marshal','مارشال','gmm','gmb','binder','رابط اسفلتي','اختراق','penetration','d6927','d2041','d2726','d979','d5','d5444','d6307','d2172')
+}
+
+
+def smart_searchable_text(original_name, content, extension):
+    chunks = [str(original_name or '')]
+    if extension in {'.txt', '.csv'}:
+        chunks.append(content[:2 * 1024 * 1024].decode('utf-8', errors='ignore'))
+    elif extension in {'.docx', '.xlsx'}:
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as archive:
+                for item in archive.infolist():
+                    if item.file_size > 2 * 1024 * 1024 or not item.filename.lower().endswith('.xml'):
+                        continue
+                    chunks.append(archive.read(item).decode('utf-8', errors='ignore'))
+                    if sum(len(chunk) for chunk in chunks) > 3 * 1024 * 1024:
+                        break
+        except (zipfile.BadZipFile, OSError):
+            pass
+    else:
+        chunks.append(content[:2 * 1024 * 1024].decode('latin-1', errors='ignore'))
+    return normalized_excel_header(' '.join(chunks))
+
+
+def detect_material_group(original_name, content):
+    extension = os.path.splitext(original_name)[1].lower()
+    text = smart_searchable_text(original_name, content, extension)
+    scores = {group: sum(1 for keyword in keywords if normalized_excel_header(keyword) in text)
+              for group, keywords in MATERIAL_GROUP_KEYWORDS.items()}
+    best_group, best_score = max(scores.items(), key=lambda item: item[1])
+    return best_group if best_score else 'أخرى'
+
 
 def smart_section_allowed(user, section):
     item = SMART_SECTIONS.get(section)
@@ -220,15 +255,16 @@ def store_smart_file(connection, user, section, original_name, content):
     if len(content) > 25 * 1024 * 1024:
         raise ValueError('حجم الملف يتجاوز 25MB: ' + original_name)
     entity_type, entity_id, status = detect_smart_target(connection, section, original_name)
+    material_group = detect_material_group(original_name, content)
     os.makedirs(RECORD_UPLOADS, exist_ok=True)
     stored_name = secrets.token_urlsafe(18) + extension
     with open(os.path.join(RECORD_UPLOADS, stored_name), 'wb') as uploaded:
         uploaded.write(content)
-    connection.execute('''insert into record_attachments(entity_type,entity_id,original_name,stored_name,uploaded_by,section,file_category,classification_status,mime_type)
-        values(?,?,?,?,?,?,?,?,?)''', (entity_type, entity_id, original_name, stored_name, user['id'], section,
-        SMART_FILE_TYPES[extension], status, extension.lstrip('.')))
+    connection.execute('''insert into record_attachments(entity_type,entity_id,original_name,stored_name,uploaded_by,section,file_category,material_group,classification_status,mime_type)
+        values(?,?,?,?,?,?,?,?,?,?)''', (entity_type, entity_id, original_name, stored_name, user['id'], section,
+        SMART_FILE_TYPES[extension], material_group, status, extension.lstrip('.')))
     return {'id': connection.execute('select last_insert_rowid()').fetchone()[0], 'name': original_name,
-            'category': SMART_FILE_TYPES[extension], 'status': status, 'entity_id': entity_id}
+            'category': SMART_FILE_TYPES[extension], 'material_group': material_group, 'status': status, 'entity_id': entity_id}
 
 
 def record_allowed(user, entity_type):
@@ -306,6 +342,7 @@ def migrate_schema(connection):
         ],
         'record_attachments': [
             ('section', 'section TEXT'), ('file_category', 'file_category TEXT'),
+            ('material_group', "material_group TEXT NOT NULL DEFAULT 'أخرى'"),
             ('classification_status', 'classification_status TEXT'), ('mime_type', 'mime_type TEXT')
         ]
     }
@@ -966,8 +1003,8 @@ class H(BaseHTTPRequestHandler):
                 section = str(parse_qs(parsed.query).get('section', [''])[0])
                 if not smart_section_allowed(user, section):
                     return self.send_json({'error': 'غير مصرح'}, 403)
-                rows = connection.execute('''select id,original_name,file_category,classification_status,entity_type,entity_id,created_at
-                    from record_attachments where section=? order by file_category,original_name,id desc limit 500''', (section,)).fetchall()
+                rows = connection.execute('''select id,original_name,file_category,coalesce(material_group,'أخرى') material_group,classification_status,entity_type,entity_id,created_at
+                    from record_attachments where section=? order by material_group,file_category,original_name,id desc limit 2000''', (section,)).fetchall()
                 return self.send_json([dict(row) for row in rows])
 
             if path.startswith('/api/attachments/files/'):
@@ -1674,7 +1711,7 @@ class H(BaseHTTPRequestHandler):
                     file_name = os.path.basename(str(data.get('file_name') or ''))
                     if not content or len(content) > 25 * 1024 * 1024:
                         raise ValueError('الملف فارغ أو يتجاوز 25MB')
-                    imported = []
+                    imported, skipped = [], []
                     if os.path.splitext(file_name)[1].lower() == '.zip':
                         try:
                             archive = zipfile.ZipFile(io.BytesIO(content))
@@ -1687,10 +1724,15 @@ class H(BaseHTTPRequestHandler):
                             for item in members:
                                 member_name = os.path.basename(item.filename)
                                 if not member_name or os.path.splitext(member_name)[1].lower() not in SMART_FILE_TYPES or member_name.lower().endswith('.zip'):
+                                    if member_name:
+                                        skipped.append({'name': member_name, 'reason': 'صيغة غير مدعومة داخل ZIP'})
                                     continue
-                                imported.append(store_smart_file(connection, user, section, member_name, archive.read(item)))
-                            if not imported:
-                                raise ValueError('لا توجد ملفات مدعومة داخل حزمة ZIP')
+                                try:
+                                    imported.append(store_smart_file(connection, user, section, member_name, archive.read(item)))
+                                except (ValueError, OSError) as error:
+                                    skipped.append({'name': member_name, 'reason': str(error)})
+                            if not imported and not skipped:
+                                skipped.append({'name': file_name, 'reason': 'حزمة ZIP فارغة'})
                     else:
                         imported.append(store_smart_file(connection, user, section, file_name, content))
                 except (ValueError, TypeError) as error:
@@ -1700,7 +1742,7 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'إرفاق وفرز ذكي', section, 0, '{} ملف، {} مرتبط'.format(len(imported), matched))
                 connection.commit(); publish_event(section, 'smart_import', 0)
                 return self.send_json({'ok': True, 'imported': imported, 'total': len(imported), 'matched': matched,
-                                       'review': len(imported) - matched})
+                                       'review': len(imported) - matched, 'skipped': skipped})
 
             if path == '/api/catalog/resources':
                 if not self.require_permission(user, 'quality'):
