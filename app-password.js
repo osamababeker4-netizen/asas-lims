@@ -61,6 +61,7 @@ let refreshInFlight = null;
 let realtimeTimer = null;
 let userUpdatesChannel = null;
 let eventStream = null;
+let eventAbortController = null;
 const AUTH_ERRORS = {
   invalid_credentials:'اسم المستخدم أو كلمة المرور غير صحيحة.',
   phone_not_configured:'لا يوجد رقم جوال دولي مفعّل لهذا الحساب. تواصل مع مدير النظام.',
@@ -221,6 +222,15 @@ function staticApi(path, options) {
     currentUser = null;
     return {ok:true};
   }
+  if (path === '/api/audit/delete') {
+    if (!currentUser || ['admin','quality_manager'].indexOf(currentUser.role) < 0) throw new Error('الحذف متاح لمدير النظام ومدير الجودة فقط');
+    const before=data.audit.length;data.audit=data.audit.filter(function(item){return item.id!==Number(body.id);});
+    if(data.audit.length===before)throw new Error('سجل التدقيق غير موجود');localAudit(data,'حذف سجل تدقيق','audit',String(body.id));saveLocal(data);return {ok:true,deleted:1};
+  }
+  if (path === '/api/audit/clear') {
+    if (!currentUser || ['admin','quality_manager'].indexOf(currentUser.role) < 0) throw new Error('الحذف متاح لمدير النظام ومدير الجودة فقط');
+    const count=data.audit.length;data.audit=[];localAudit(data,'مسح سجل التدقيق','audit','تم حذف '+count+' عملية سابقة');saveLocal(data);return {ok:true,deleted:count};
+  }
   if (path === '/api/auth/change-password') {
     const user = data.users.find(function(item) { return item.id === currentUser.id; });
     if (!user || user.password !== String(body.current_password || '')) throw new Error('كلمة المرور الحالية غير صحيحة');
@@ -347,6 +357,10 @@ async function api(path, options) {
     setText($('loginMessage'), 'انتهت جلسة الحماية. سجّل الدخول مجددًا ثم أضف أو عدّل المستخدم.');
   }
   if (!response.ok) throw new Error(AUTH_ERRORS[payload.error] || payload.error || 'تعذر تنفيذ العملية');
+  if (currentUser && String(opts.method || 'GET').toUpperCase() !== 'GET' && path !== '/api/logout') {
+    publishLiveUpdate(path);
+    setTimeout(function(){if(currentUser)refresh().catch(function(){});},0);
+  }
   return payload;
 }
 
@@ -555,8 +569,23 @@ function stopLiveUpdates() {
   realtimeTimer = null;
   if (eventStream) eventStream.close();
   eventStream = null;
+  if (eventAbortController) eventAbortController.abort();
+  eventAbortController = null;
   if (userUpdatesChannel) userUpdatesChannel.close();
   userUpdatesChannel = null;
+}
+
+async function startAuthorizedEventStream() {
+  if (!API_BASE_URL || !centralAccessToken || !currentUser) return;
+  eventAbortController = new AbortController();
+  const controller = eventAbortController;
+  try {
+    const response = await fetch(API_BASE_URL + '/api/events',{headers:{Authorization:'Bearer '+centralAccessToken},credentials:'include',signal:controller.signal});
+    if(!response.ok||!response.body)throw new Error('تعذر فتح قناة المزامنة');
+    const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
+    while(currentUser&&!controller.signal.aborted){const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop()||'';if(lines.some(function(line){return line.indexOf('data: ')===0;}))refresh().catch(function(){});}
+  } catch(error) { /* يعاد الاتصال أدناه ما لم يسجل المستخدم الخروج. */ }
+  if (!controller.signal.aborted && currentUser) setTimeout(startAuthorizedEventStream,1000);
 }
 
 function startLiveUpdates() {
@@ -577,13 +606,15 @@ function startLiveUpdates() {
       if (currentUser) refresh().catch(function() {});
     };
     eventStream.onerror = function() { /* EventSource reconnects automatically. */ };
-  }
+  } else startAuthorizedEventStream();
   // Same-browser updates are immediate. The short visible-page refresh keeps
   // separate devices aligned with the central service without sending secrets.
   realtimeTimer = setInterval(function() {
     if (currentUser && !document.hidden) refresh().catch(function() {});
-  }, 12000);
+  }, 5000);
 }
+
+async function syncNow(showMessage) { const button=$('syncNow');if(button){button.disabled=true;setText(button,'جارٍ المزامنة…');}try{await loadCatalog();await refresh();if(showMessage!==false)showToast('اكتملت المزامنة الآن');}finally{if(button){button.disabled=false;setText(button,'مزامنة الآن');}} }
 
 function renderDashboard() {
   if (!dashboard) return;
@@ -697,8 +728,13 @@ function renderEquipment() {
 }
 
 function renderAudit() {
-  setHtml($('auditTable'), (dashboard ? dashboard.audit : []).map(function(item) { return '<tr><td>' + esc(saudiDisplay(item.created_at)) + '</td><td>' + esc(item.full_name || '') + '</td><td>' + escUI(item.action) + '</td><td>' + esc(item.entity || '') + '</td><td>' + esc(item.details || '') + '</td></tr>'; }).join('') || '<tr><td colspan="5" class="empty">لا توجد عمليات.</td></tr>');
+  const canDelete=currentUser&&['admin','quality_manager'].indexOf(currentUser.role)>=0;
+  const clear=$('clearAudit');if(clear)clear.classList.toggle('hidden',!canDelete);
+  setHtml($('auditTable'), (dashboard ? dashboard.audit : []).map(function(item) { return '<tr><td>' + esc(saudiDisplay(item.created_at)) + '</td><td>' + esc(item.full_name || '') + '</td><td>' + escUI(item.action) + '</td><td>' + esc(item.entity || '') + '</td><td>' + esc(item.details || '') + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-audit-delete="'+item.id+'" type="button">حذف</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد عمليات.</td></tr>');
 }
+
+async function deleteAuditEntry(id){if(!window.confirm('هل تريد حذف هذا السجل؟ سيُسجل النظام واقعة الحذف الجديدة.'))return;await api('/api/audit/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف السجل ومزامنة التغيير');}
+async function clearAuditLog(){if(!window.confirm('هل تريد حذف سجل التدقيق بالكامل؟ لا يمكن التراجع عن هذه العملية.'))return;const result=await api('/api/audit/clear',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' عملية ومزامنة التغيير');}
 
 async function renderUsers() {
   try {
@@ -1148,6 +1184,8 @@ function bindEvents() {
   $('fieldGalleryInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
   $('addFieldTest').addEventListener('click',function() { if (!catalog.length) return showToast('يجري تحميل كتالوج الاختبارات، حاول بعد لحظة',true); if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true); fieldTests.push({catalog_id:'',name:'',standard:'',result:''}); renderFieldTests(); });
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
+  $('syncNow').addEventListener('click',function(){syncNow(true).catch(function(error){showToast(error.message,true);});});
+  $('clearAudit').addEventListener('click',function(){clearAuditLog().catch(function(error){showToast(error.message,true);});});
   document.addEventListener('change',function(event) {
     if (event.target.matches('.project-status')) changeProjectStatus(event.target.dataset.projectId,event.target.value);
     if (event.target.id === 'testCatalogSelect') updateTestDynamic();
@@ -1176,6 +1214,7 @@ function bindEvents() {
     }
     if (button.dataset.fieldRemove !== undefined) { fieldTests.splice(Number(button.dataset.fieldRemove),1); renderFieldTests(); return; }
     if (button.dataset.fieldStatus) return setFieldStatus(button.dataset.fieldStatus);
+    if (button.dataset.auditDelete) return deleteAuditEntry(button.dataset.auditDelete);
     if (button.hasAttribute('data-print-preview')) return window.print();
     if (button.dataset.reportPrint) return printReport(button.dataset.reportPrint);
     if (button.dataset.reportReview) return changeReportStatus(button.dataset.reportReview);
