@@ -103,6 +103,36 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(audit_count, 1)
         self.assertEqual((sync['entity'], sync['entity_id'], sync['operation'], sync['status']), ('project', 7, 'create', 'queued'))
 
+    def test_admin_can_delete_audit_entry_and_deletion_is_audited(self):
+        self.server.init()
+        connection = self.server.db()
+        self.server.audit(connection, 1, 'عملية قابلة للحذف', 'test', 9, 'تفاصيل')
+        target_id = connection.execute("select id from audit_log where action='عملية قابلة للحذف'").fetchone()[0]
+        connection.commit()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        token = secrets.token_urlsafe(24)
+        self.server.SESSIONS[token] = admin
+        connection.close()
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        try:
+            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+            payload = json.dumps({'id': target_id}).encode('utf-8')
+            client.request('POST', '/api/audit/delete', payload, {'Content-Type':'application/json','Authorization':'Bearer '+token})
+            response = client.getresponse()
+            result = json.loads(response.read().decode('utf-8'))
+            client.close()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(result['deleted'], 1)
+            connection = self.server.db()
+            self.assertIsNone(connection.execute('select id from audit_log where id=?', (target_id,)).fetchone())
+            self.assertIsNotNone(connection.execute("select id from audit_log where action='حذف سجل تدقيق'").fetchone())
+            connection.close()
+        finally:
+            self.server.SESSIONS.pop(token, None)
+            httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
+
     def test_project_work_order_and_workspace_api_flow(self):
         self.server.init()
         connection = self.server.db()
