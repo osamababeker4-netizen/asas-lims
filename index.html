@@ -355,5 +355,57 @@
       });
     }
   </script>
+  <!-- كود إرسال إشعارات التلغرام التلقائية لمختبر أساس -->
+<script>
+const TELEGRAM_SETTINGS = {
+  botToken: "8876017413:AAFY5wS1-T76_9cbR5-fwBwLfNd3-GA9QBI",
+  chatId: "-1003927157003"
+};
+
+// دالة الإرسال المباشر للتلغرام
+async function sendTelegramAlert(actionTitle, details) {
+  const message = `📋 *إشعار نظام مختبر أساس*\n\n`
+                + `🔹 *القسم / الإجراء:* ${actionTitle}\n`
+                + `📝 *التفاصيل:* ${details}\n`
+                + `⏱ *التوقيت:* ${new Date().toLocaleTimeString('ar-SA')} - ${new Date().toLocaleDateString('ar-SA')}\n\n`
+                + `يرجى المتابعة والاطلاع.`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_SETTINGS.chatId,
+        text: message,
+        parse_mode: "Markdown"
+      })
+    });
+  } catch (err) {
+    console.error("فشل إرسال إشعار تلغرام:", err);
+  }
+}
+
+// رصد آلي لأي عملية حفظ أو إسناد في كافة صفحات النظام
+document.addEventListener('DOMContentLoaded', () => {
+  // رصد إرسال النماذج (Forms)
+  document.addEventListener('submit', function (e) {
+    const pageTitle = e.target.closest('section')?.querySelector('h2')?.innerText || 'إجراء في النظام';
+    const btnText = e.target.querySelector('button[type="submit"]')?.innerText || 'حفظ بيانات';
+    sendTelegramAlert(pageTitle, `تم الضغط على: ${btnText}`);
+  });
+
+  // رصد أزرار الإضافة والحفظ المباشرة
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const txt = btn.innerText.trim();
+    if (txt.includes('حفظ') || txt.includes('إسناد') || txt.includes('إضافة أمر') || txt.includes('تحديث')) {
+      const activeSection = document.querySelector('section.page:not(.hidden)') || btn.closest('section');
+      const sectionName = activeSection?.querySelector('h2')?.innerText || 'أوامر العمل / النظام';
+      sendTelegramAlert(sectionName, `تم تنفيذ إجراء: [${txt}]`);
+    }
+  });
+});
+</script>
 </body>
 </html>
