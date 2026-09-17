@@ -358,8 +358,9 @@
   <!-- كود إرسال إشعارات التلغرام التلقائية لمختبر أساس -->
 <script>
 const TELEGRAM_SETTINGS = {
-botToken: "8603330071:AAHv1LrYQL0ACqCaKYZ9Zc4xCVM68kttcrI",
-chatId: "-1003927157003"
+  botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
+  chatId: "-1003927157003"
+};
 
 // دالة الإرسال المباشر للتلغرام
 async function sendTelegramAlert(actionTitle, details) {
