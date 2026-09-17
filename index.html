@@ -357,54 +357,156 @@
   </script>
   <!-- كود إرسال إشعارات التلغرام التلقائية لمختبر أساس -->
 <script>
+// إعدادات البوت والربط الآمن
 const TELEGRAM_SETTINGS = {
   botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
   chatId: "-1003927157003"
 };
 
-// دالة الإرسال المباشر للتلغرام
-async function sendTelegramAlert(actionTitle, details) {
-  const message = `📋 *إشعار نظام مختبر أساس*\n\n`
-                + `🔹 *القسم / الإجراء:* ${actionTitle}\n`
-                + `📝 *التفاصيل:* ${details}\n`
-                + `⏱ *التوقيت:* ${new Date().toLocaleTimeString('ar-SA')} - ${new Date().toLocaleDateString('ar-SA')}\n\n`
-                + `يرجى المتابعة والاطلاع.`;
+// 1. نظام التنبيه الداخلي في واجهة البرنامج (In-App Toast)
+function showInAppAlert(title, message) {
+  let toast = document.getElementById('asas-live-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'asas-live-toast';
+    toast.style.cssText = `
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.35); z-index: 999999; font-family: inherit;
+      display: flex; align-items: center; gap: 12px; direction: rtl; border-right: 5px solid #10b981;
+      opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
+    `;
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `<span style="font-size: 20px;">🔔</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${message}</span></div>`;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(10px)';
+  }, 4000);
+}
+
+// 2. دالة إرسال التقرير المفصل إلى تليجرام
+async function sendDetailedTelegram(headerTitle, detailsBlock) {
+  const timeString = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+  const dateString = new Date().toLocaleDateString('ar-SA');
+
+  const fullMessage = `📋 *${headerTitle}*\n`
+                    + `━━━━━━━━━━━━━━━━━━━\n`
+                    + `${detailsBlock}\n`
+                    + `━━━━━━━━━━━━━━━━━━━\n`
+                    + `⏱ *التوقيت:* ${timeString} -${dateString}\n`
+                    + `🏢 *نظام إدارة مختبر أساس (LIMS)*`;
 
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: TELEGRAM_SETTINGS.chatId,
-        text: message,
+        text: fullMessage,
         parse_mode: "Markdown"
       })
     });
+    if (res.ok) {
+      showInAppAlert("تم بث الإشعار بنجاح", "تم إرسال نسخة من العملية إلى مجموعة تليجرام");
+    }
   } catch (err) {
-    console.error("فشل إرسال إشعار تلغرام:", err);
+    console.error("خطأ إرسال التنبيه:", err);
   }
 }
 
-// رصد آلي لأي عملية حفظ أو إسناد في كافة صفحات النظام
+// 3. مراقبة العمليات الكبرى المحددة فقط
 document.addEventListener('DOMContentLoaded', () => {
-  // رصد إرسال النماذج (Forms)
+
+  // رصد النماذج المباشرة (إضافة عميل / زيارة ميدانية / تقارير)
   document.addEventListener('submit', function (e) {
-    const pageTitle = e.target.closest('section')?.querySelector('h2')?.innerText || 'إجراء في النظام';
-    const btnText = e.target.querySelector('button[type="submit"]')?.innerText || 'حفظ بيانات';
-    sendTelegramAlert(pageTitle, `تم الضغط على: ${btnText}`);
+    const form = e.target;
+    const section = form.closest('section') || document.querySelector('section.page:not(.hidden)');
+    const sectionText = (section?.innerText || '') + (form.innerText || '');
+
+    // أ) الزيارة الميدانية (تفاصيل شاملة: إحداثيات، موقع، صور)
+    if (sectionText.includes('الميداني') || sectionText.includes('زيارة')) {
+      let filesCount = form.querySelectorAll('input[type="file"]');
+      let totalFiles = 0;
+      filesCount.forEach(f => totalFiles += (f.files ? f.files.length : 0));
+
+      const inputs = Array.from(form.querySelectorAll('input, select, textarea'))
+        .filter(i => i.value && i.type !== 'hidden' && i.type !== 'submit' && i.type !== 'file')
+        .map(i => {
+          const label = i.closest('label')?.innerText || i.placeholder || i.name || 'حقل';
+          return `▫️ *${label.trim()}:*${i.value.trim()}`;
+        }).slice(0, 6).join('\n');
+
+      const locInput = form.querySelector('[name*="coord"], [name*="loc"], [id*="gps"], [id*="location"]')?.value;
+      const photoStatus = totalFiles > 0 ? `📸 *الصور الميدانية:* تم إرفاق (${totalFiles}) صور موثقة` : `📸 *الصور الميدانية:* لا توجد مرفقات صور`;
+      const coordsText = locInput ? `📍 *الإحداثيات الجغرافية:* \`${locInput}\`` : `📍 *الموقع:* تم توثيقه مع السجل الميداني`;
+
+      const body = `🚨 *تسجيل زيارة ميدانية جديدة*\n\n`
+                 + `${inputs || 'تم اعتماد تفاصيل الزيارة الميدانية'}\n`
+                 + `${coordsText}\n`
+                 + `${photoStatus}`;
+
+      sendDetailedTelegram("إشعار البرنامج الميداني", body);
+      return;
+    }
+
+    // ب) إضافة عميل جديد
+    if (sectionText.includes('عميل') || sectionText.includes('العملاء')) {
+      const clientName = form.querySelector('input[name*="name"], input[placeholder*="اسم"]')?.value || 'عميل جديد';
+      const clientPhone = form.querySelector('input[type="tel"], input[name*="phone"], input[placeholder*="جوال"]')?.value || 'غير محدد';
+      const body = `👤 *إضافة عميل جديد للنظام*\n\n`
+                 + `▫️ *اسم العميل:* ${clientName}\n`
+                 + `▫️ *رقم التواصل:* ${clientPhone}\n`
+                 + `▫️ *حالة الحساب:* تم القيد بنجاح`;
+
+      sendDetailedTelegram("إدارة شؤون العملاء", body);
+      return;
+    }
   });
 
-  // رصد أزرار الإضافة والحفظ المباشرة
+  // رصد أزرار الإسناد المباشر للفنيين واعتماد التقارير
   document.addEventListener('click', function (e) {
     const btn = e.target.closest('button');
     if (!btn) return;
     const txt = btn.innerText.trim();
-    if (txt.includes('حفظ') || txt.includes('إسناد') || txt.includes('إضافة أمر') || txt.includes('تحديث')) {
-      const activeSection = document.querySelector('section.page:not(.hidden)') || btn.closest('section');
-      const sectionName = activeSection?.querySelector('h2')?.innerText || 'أوامر العمل / النظام';
-      sendTelegramAlert(sectionName, `تم تنفيذ إجراء: [${txt}]`);
+
+    // ج) إسناد أمر أو اختبار لفني
+    if (txt.includes('إسناد') || txt.includes('إسناد لفني')) {
+      const row = btn.closest('tr') || btn.closest('.card') || btn.closest('div');
+      const rowData = row ? Array.from(row.querySelectorAll('td, span, p')).map(el => el.innerText.trim()).filter(Boolean) : [];
+      
+      const testName = rowData[2] || rowData[1] || 'اختبار معملي/ميداني';
+      const techName = rowData[3] || 'فني المختبر المختص';
+      const orderNo = rowData[0] || 'أمر مباشر';
+
+      const body = `⚙️ *إسناد مهمة عمل إلى فني مختبر*\n\n`
+                 + `▫️ *رقم الأمر / المرجع:* ${orderNo}\n`
+                 + `▫️ *نوع الفحص:* ${testName}\n`
+                 + `▫️ *المسؤول المكلف:* ${techName}\n`
+                 + `▫️ *حالة الإسناد:* قيد التنفيذ والمتابعة`;
+
+      sendDetailedTelegram("توجيه وإسناد أوامر العمل", body);
+      return;
+    }
+
+    // د) اعتماد أو إصدار التقارير
+    if (txt.includes('اعتماد التقرير') || txt.includes('إصدار التقرير')) {
+      const activeSection = document.querySelector('section.page:not(.hidden)');
+      const reportName = activeSection?.querySelector('h2, h3')?.innerText || 'تقرير نتائج فحص';
+
+      const body = `📑 *اعتماد وإصدار تقرير فني*\n\n`
+                 + `▫️ *البيان:* تم اعتماد وثيقة التقرير الفني النهائي\n`
+                 + `▫️ *القسم:* ${reportName}\n`
+                 + `▫️ *الصلاحية:* صادر ومعتمد من إدارة المختبر`;
+
+      sendDetailedTelegram("إدارة التقارير والاعتمادات", body);
+      return;
     }
   });
+
 });
 </script>
 </body>
