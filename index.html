@@ -354,9 +354,7 @@
         navigator.serviceWorker.register('sw.js?v=8-7-4-live-sync-audit', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
 });
     }
-  </script>
-
- <script>
+  <script>
 (function() {
   // إعدادات الربط المشفرة
   const TELEGRAM_SETTINGS = {
@@ -376,98 +374,153 @@
     } catch (err) {}
   }, true);
 
-  // استخراج اسم الفني الميداني المسجل
-  function getActiveTechnicianName() {
-    const userEl = document.querySelector('.user-profile, .user-name, header, nav, #user-info');
-    if (userEl) {
-      const match = userEl.innerText.match(/Eng\.[^\n\r-]+/) || userEl.innerText.match(/م\.[^\n\r-]+/);
-      if (match) return match[0].trim();
-    }
-    const techInput = document.querySelector('input[name*="tech"], select[name*="tech"], [id*="tech"]');
-    if (techInput && techInput.value.trim()) return techInput.value.trim();
-    return "Eng. Osama Ismail - مدير النظام";
-  }
-
-  // محرك فحص ديناميكي شامل لجميع الاختبارات ونتائجها
-  function extractAllDynamicTests(container) {
-    let list = [];
-    // الحالة المعتمدة عند ترك النتيجة فارغة أو عدم تحديدها
-    const PENDING_TEXT = 'تحت الإجراء ⏳';
-
-    // 1. فحص صفوف الجداول في قسم الميداني
-    const rows = container.querySelectorAll('table tbody tr, table tr');
-    rows.forEach(r => {
-      if (r.querySelector('th')) return; // تجاهل ترويسة الجدول
-      const cells = Array.from(r.querySelectorAll('td'));
-      if (cells.length >= 2) {
-        const rowText = r.innerText;
-        
-        // استخراج اسم الاختبار من الخلية أو عناصر الإدخال
-        let testName = '';
-        const testSelect = r.querySelector('select, input[type="text"]');
-        if (testSelect && testSelect.value && !testSelect.value.includes('ناجح') && !testSelect.value.includes('راسب')) {
-          testName = testSelect.options ? (testSelect.options[testSelect.selectedIndex]?.text || testSelect.value) : testSelect.value;
-        } else {
-          testName = cells[2]?.innerText.trim() || cells[1]?.innerText.trim() || cells[0]?.innerText.trim();
-        }
-
-        // تحديد حالة النتيجة (ناجح / راسب / تحت الإجراء)
-        let badge = PENDING_TEXT;
-        const resSelect = r.querySelector('select[name*="res"], select[name*="status"], select:not([name*="test"])');
-        let resVal = resSelect ? (resSelect.options[resSelect.selectedIndex]?.text || resSelect.value) : '';
-        
-        if (!resVal) {
-          resVal = rowText;
-        }
-
-        if (resVal.includes('ناجح') || resVal.includes('مطابق') || resVal.toLowerCase().includes('pass')) {
-          badge = 'ناجح ✅';
-        } else if (resVal.includes('راسب') || resVal.includes('فاشل') || resVal.includes('غير مطابق') || resVal.toLowerCase().includes('fail')) {
-          badge = 'راسب ❌';
-        }
-
-        // تنظيف اسم الاختبار من النصوص الإدارية
-        testName = testName.replace(/[\n\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
-        if (testName && testName.length > 2 && !testName.includes('حذف') && !testName.includes('تعديل')) {
-          list.push(`🕳 الاختبار الرسمي : ${testName} : ${badge}`);
+  // 1. نظام كشف الهوية التلقائي للمرسل الحقيقي (بدون أي اسم ثابت مسبقاً)
+  function detectActualSender(container) {
+    // أ) الفحص من النموذج الميداني (حقل الفني المنفذ أو المكلف)
+    const techSelectors = [
+      'select[name*="tech"]', 'select[name*="fani"]', 'select[name*="inspector"]',
+      'input[name*="tech"]', 'input[name*="fani"]', 'input[name*="inspector"]',
+      '#technician', '#field_tech', '#inspector', '[data-field="technician"]'
+    ];
+    for (const sel of techSelectors) {
+      const el = container.querySelector(sel);
+      if (el) {
+        const val = el.tagName === 'SELECT' 
+          ? (el.options[el.selectedIndex]?.text || el.value) 
+          : el.value;
+        if (val && !val.includes('اختر') && val.trim().length > 1) {
+          return val.trim();
         }
       }
-    });
-
-    // 2. فحص الكروت أو بنود النماذج الميدانية خارج الجداول
-    if (list.length === 0) {
-      const items = container.querySelectorAll('.test-item, .test-row, .field-test-card, [data-test]');
-      items.forEach(it => {
-        const titleEl = it.querySelector('.title, h4, h5, label, strong') || it;
-        const testName = titleEl.innerText.split('\n')[0].trim();
-        const text = it.innerText;
-
-        let badge = PENDING_TEXT;
-        if (text.includes('ناجح') || text.includes('مطابق')) badge = 'ناجح ✅';
-        else if (text.includes('راسب') || text.includes('فاشل') || text.includes('غير مطابق')) badge = 'راسب ❌';
-
-        if (testName) list.push(`🕳 الاختبار الرسمي : ${testName} : ${badge}`);
-      });
     }
 
-    // 3. فحص القوائم المنسدلة المباشرة
-    if (list.length === 0) {
-      container.querySelectorAll('select').forEach(sel => {
-        const label = sel.closest('label')?.innerText || sel.previousElementSibling?.innerText || '';
-        if (label.includes('اختبار') || label.includes('فحص')) {
-          const opt = sel.options[sel.selectedIndex]?.text || sel.value;
-          if (opt && !opt.includes('اختر')) {
-            list.push(`🕳 الاختبار الرسمي : ${opt.trim()} : ${PENDING_TEXT}`);
+    // ب) الفحص من بيانات الجلسة والمستخدم المسجل حالياً في الذاكرة (LocalStorage / SessionStorage)
+    const userStorageKeys = ['currentUser', 'current_user', 'activeUser', 'user', 'userData', 'auth', 'asas_user', 'user_profile'];
+    for (const k of userStorageKeys) {
+      const stored = localStorage.getItem(k) || sessionStorage.getItem(k);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const name = parsed.name || parsed.fullName || parsed.full_name || parsed.displayName || parsed.username;
+          const role = parsed.role || parsed.job_title || parsed.title || '';
+          if (name && typeof name === 'string' && name.trim().length > 1) {
+            return role ? `${name.trim()} (${role.trim()})` : name.trim();
+          }
+        } catch (e) {
+          if (typeof stored === 'string' && stored.trim().length > 1 && !stored.startsWith('{')) {
+            return stored.trim();
           }
         }
-      });
+      }
     }
 
-    list = [...new Set(list)];
-    return list.length > 0 ? list.join('\n') : `🕳 الاختبار الرسمي : فحص الموقع الميداني : ${PENDING_TEXT}`;
+    // ج) الفحص من شريط المستخدم العلوي في واجهة النظام (Avatar & User Info)
+    const topProfile = document.querySelector('.user-profile, .user-name, [class*="profile"], header, nav');
+    if (topProfile) {
+      const allText = topProfile.innerText;
+      const lines = allText.split('\n')
+        .map(l => l.trim())
+        .filter(l => l && 
+          !l.includes('تغيير كلمة') && 
+          !l.includes('تسجيل الخروج') && 
+          !l.includes('توقيت') && 
+          !l.includes('مزامنة') && 
+          !l.includes('الموقع الرسمي') && 
+          !l.includes('عن الشركة') && 
+          !l.includes('المشاريع')
+        );
+
+      // استخراج السطر الذي يحتوي على الاسم (سواء مسبوقاً بـ Eng أو م. أو اسماً عربياً عادياً)
+      const senderLine = lines.find(l => !l.startsWith('@') && l.length > 2);
+      const usernameLine = lines.find(l => l.startsWith('@'));
+
+      if (senderLine && usernameLine) {
+        return `${senderLine} [${usernameLine}]`;
+      } else if (senderLine) {
+        return senderLine;
+      } else if (usernameLine) {
+        return usernameLine;
+      }
+    }
+
+    // د) في حال عدم العثور على أي اسم، يظهر حساب المستخدم النشط دون أي تزوير
+    return "فني المختبر الميداني المناوب";
   }
 
-  // سحب الموقع الحي للجهاز لحظة الضغط
+  // 2. محرك فحص ديناميكي شامل لجميع الاختبارات (تربة، خرسانة، أسفلت، كيميائي، فيزيائي)
+  function extractAllDynamicTests(container) {
+    let collectedTests = [];
+    const PENDING_LABEL = 'تحت الإجراء ⏳';
+
+    const allRows = container.querySelectorAll('table tbody tr, table tr, .test-row, .field-test-item');
+    allRows.forEach(row => {
+      if (row.querySelector('th')) return; // تجاهل العناوين
+
+      let testTitle = '';
+      let testStandard = '';
+
+      const selectTest = row.querySelector('select:not([name*="res"]):not([name*="status"])');
+      if (selectTest && selectTest.value) {
+        testTitle = selectTest.options[selectTest.selectedIndex]?.text || selectTest.value;
+      }
+
+      const cells = Array.from(row.querySelectorAll('td'));
+      if (!testTitle && cells.length >= 2) {
+        const cellTexts = cells.map(c => c.innerText.trim()).filter(Boolean);
+        const foundAstm = cellTexts.find(t => /ASTM/i.test(t) || /AASHTO/i.test(t) || /^[DC]\s*\d+/i.test(t));
+        if (foundAstm) testStandard = foundAstm;
+
+        const foundName = cellTexts.find(t => 
+          t.includes('تربة') || t.includes('خرسانة') || t.includes('أسفلت') || t.includes('اسفلت') || 
+          t.includes('كيميائ') || t.includes('فيزيائ') || t.includes('كثافة') || t.includes('هبوط') || 
+          t.includes('بروكتور') || t.includes('ضغط') || t.includes('شد') || t.includes('تدرج') || 
+          t.includes('مارشال') || t.includes('تصنيف') || t.includes('حدود')
+        );
+
+        if (foundName) {
+          testTitle = foundName;
+        } else if (cells[2]?.innerText.trim()) {
+          testTitle = cells[2].innerText.trim();
+        } else if (cells[1]?.innerText.trim()) {
+          testTitle = cells[1].innerText.trim();
+        }
+      }
+
+      if (!testTitle || testTitle.includes('حذف') || testTitle.includes('تعديل') || testTitle.includes('إجراء') || testTitle.length < 3) {
+        return;
+      }
+
+      if (testStandard && !testTitle.includes(testStandard)) {
+        testTitle = `${testTitle} (${testStandard})`;
+      }
+
+      // تحديد نتيجة الاختبار
+      let badge = PENDING_LABEL;
+      const resSelect = row.querySelector('select[name*="res"], select[name*="status"], select.result-select');
+      let resText = resSelect ? (resSelect.options[resSelect.selectedIndex]?.text || resSelect.value) : '';
+
+      if (!resText) {
+        const checkedRadio = row.querySelector('input[type="radio"]:checked');
+        resText = checkedRadio ? checkedRadio.value : row.innerText;
+      }
+
+      if (resText.includes('ناجح') || resText.includes('مطابق') || resText.toLowerCase().includes('pass')) {
+        badge = 'ناجح ✅';
+      } else if (resText.includes('راسب') || resText.includes('فاشل') || resText.includes('غير مطابق') || resText.toLowerCase().includes('fail')) {
+        badge = 'راسب ❌';
+      } else {
+        badge = PENDING_LABEL;
+      }
+
+      testTitle = testTitle.replace(/[\n\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+      collectedTests.push(`🕳 الاختبار الرسمي : ${testTitle} : ${badge}`);
+    });
+
+    collectedTests = [...new Set(collectedTests)];
+    return collectedTests.length > 0 ? collectedTests.join('\n') : `🕳 الاختبار الرسمي : فحص المواد والموقع الميداني : ${PENDING_LABEL}`;
+  }
+
+  // 3. سحب الموقع الحي للجهاز لحظة الضغط
   function getLiveLocation() {
     return new Promise((resolve) => {
       if (!navigator.geolocation) return resolve(null);
@@ -479,26 +532,26 @@
     });
   }
 
-  // إرسال المسودة في الخلفية
+  // 4. بناء المسودة وإرسالها بالاسم الفعلي للمرسل
   async function triggerFieldTelegramAlert(triggerEl) {
     try {
       const container = triggerEl.closest('section') || triggerEl.closest('form') || document.querySelector('section.page:not(.hidden)') || document.body;
 
-      // مزامنة الوقت والتاريخ لحظياً
+      // الوقت والتاريخ المباشر
       const now = new Date();
       const liveDate = now.toLocaleDateString('ar-SA');
       const liveTime = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
 
-      // اسم الفني
-      const techName = getActiveTechnicianName();
+      // التقاط اسم المرسل الحقيقي تلقائياً
+      const actualSender = detectActualSender(container);
 
-      // الموقع
+      // الموقع الجغرافي الحي
       const liveGPS = await getLiveLocation();
       const manualLoc = container.querySelector('input[placeholder*="الموقع"], [name*="location"]')?.value?.trim();
       const finalCoords = (liveGPS || manualLoc || "25.878659,43.520465").replace(/\s+/g, '');
       const mapsLink = `https://www.google.com/maps?q=${finalCoords}`;
 
-      // استخراج حقول النموذج
+      // استخراج الحقول الإنشائية
       const getVal = (keys, def) => {
         for (const k of keys) {
           const el = container.querySelector(`[name*="${k}"], [id*="${k}"], [placeholder*="${k}"]`);
@@ -515,11 +568,11 @@
       const projCode   = getVal(['معرف المشروع', 'project_id'], '1');
       const sampleCode = getVal(['معرف العينة', 'sample_id'], '1');
 
-      // استخراج كافة الاختبارات مع نتائجها
+      // استخراج الاختبارات
       const testsBlock = extractAllDynamicTests(container);
 
-      // صياغة المسودة الميدانية المعتمدة بدون أي نتيجة عامة في الأسفل
-      const captionText = `👤 *المرسل الميداني:* ${techName}\n`
+      // صياغة المسودة المعتمدة باسم المرسل الحقيقي وبدون كلمة ناجح في الأسفل
+      const captionText = `👤 *المرسل الميداني:* ${actualSender}\n`
                         + `───────────────────\n`
                         + `🕳 رقم الرخصة : ${licenseNo}\n`
                         + `🕳 المقاول : ${contractor}\n`
@@ -547,7 +600,7 @@
       const botUrl = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
 
       if (photosToSend.length > 1) {
-        // إرسال ألبوم مجمع للصور
+        // إرسال كألبوم صور مجمّع
         const fd = new FormData();
         fd.append('chat_id', TELEGRAM_SETTINGS.chatId);
         const media = [];
@@ -564,7 +617,7 @@
         await fetch(`${botUrl}/sendMediaGroup`, { method: 'POST', body: fd });
 
       } else if (photosToSend.length === 1) {
-        // إرسال صورة واحدة
+        // إرسال صورة واحدة مع المسودة
         const fd = new FormData();
         fd.append('chat_id', TELEGRAM_SETTINGS.chatId);
         fd.append('photo', photosToSend[0]);
@@ -588,11 +641,11 @@
 
       capturedPhotos = []; // تفريغ الذاكرة
     } catch (err) {
-      console.warn("تنبيه خلفي في تليجرام:", err);
+      console.warn("تنبيه تليجرام في الخلفية:", err);
     }
   }
 
-  // الاستماع لأزرار التنزيل والحفظ الميداني فقط
+  // الاستماع فقط عند الضغط على أزرار التنزيل أو الحفظ الميداني
   document.addEventListener('click', function(e) {
     const btn = e.target.closest('button');
     if (!btn) return;
