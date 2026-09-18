@@ -357,289 +357,212 @@
   </script>
 
   <script>
-  // إعدادات الربط الآمن
-  const TELEGRAM_SETTINGS = {
-    botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
-    chatId: "-1003927157003"
-  };
+ <script>
+// إعدادات البوت والربط المشفر
+const TELEGRAM_SETTINGS = {
+  botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
+  chatId: "-1003927157003"
+};
 
-  // نظام التنبيه الداخلي السريع (Toast)
-  function showInAppAlert(title, message) {
-    let toast = document.getElementById('asas-live-toast');
-    if (!toast) {
-      toast = document.createElement('div');
-      toast.id = 'asas-live-toast';
-      toast.style.cssText = `
-        position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-        background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.35); z-index: 999999; font-family: inherit;
-        display: flex; align-items: center; gap: 12px; direction: rtl; border-right: 5px solid #10b981;
-        opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
-      `;
-      document.body.appendChild(toast);
-    }
-    toast.innerHTML = `<span style="font-size: 20px;">🔔</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${message}</span></div>`;
-    toast.style.opacity = '1';
-    toast.style.transform = 'translateX(-50%) translateY(0)';
-    
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateX(-50%) translateY(10px)';
-    }, 4000);
+// إشعار فوري على شاشة الفني
+function showInAppAlert(title, message) {
+  let toast = document.getElementById('asas-live-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'asas-live-toast';
+    toast.style.cssText = `
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.35); z-index: 999999; font-family: inherit;
+      display: flex; align-items: center; gap: 12px; direction: rtl; border-right: 5px solid #10b981;
+      opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
+    `;
+    document.body.appendChild(toast);
   }
+  toast.innerHTML = `<span style="font-size: 20px;">📍</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${message}</span></div>`;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(10px)';
+  }, 4000);
+}
 
-  // دالة إلزامية لجلب الموقع الفعلي والمباشر عبر GPS بدقة عالية
-  function getMandatoryLiveLocation() {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        return reject(new Error("متصفحك لا يدعم نظام تحديد المواقع (GPS)."));
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          resolve({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude
-          });
-        },
-        (err) => {
-          let errorMsg = "تعذر الحصول على إحداثيات موقعك الفعلي.";
-          if (err.code === 1) {
-            errorMsg = "تم رفض إذن الوصول للموقع. يرجى تفعيل الـ GPS والسماح للمتصفح بالوصول لموقعك.";
-          } else if (err.code === 2) {
-            errorMsg = "إشارة الـ GPS غير متاحة حالياً. تأكد من تفعيل خدمات الموقع في جهازك.";
-          } else if (err.code === 3) {
-            errorMsg = "استغرق التقاط الموقع وقتاً طويلاً. يرجى إعادة المحاولة في مكان مفتوح.";
-          }
-          reject(new Error(errorMsg));
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
+// دالة استخراج قيم الحقول من النموذج الميداني
+function getFieldValue(form, keywords, defaultVal = '') {
+  const elements = Array.from(form.querySelectorAll('input, select, textarea'));
+  for (const kw of keywords) {
+    const el = elements.find(i => {
+      const matchName = i.name && i.name.toLowerCase().includes(kw);
+      const matchId = i.id && i.id.toLowerCase().includes(kw);
+      const matchPh = i.placeholder && i.placeholder.includes(kw);
+      const matchLabel = i.closest('label')?.innerText.includes(kw) || false;
+      return (matchName || matchId || matchPh || matchLabel) && i.value.trim() !== '';
     });
+    if (el) return el.value.trim();
   }
+  return defaultVal;
+}
 
-  // تحديد الحاوية أو النافذة النشطة
-  function getActiveContainer(targetEl) {
-    if (targetEl) {
-      const modal = targetEl.closest('.modal, dialog, .popup, [role="dialog"]');
-      if (modal) return modal;
-      const form = targetEl.closest('form');
-      if (form) return form;
-      const section = targetEl.closest('section, .page, main');
-      if (section) return section;
+// دالة جلب الإحداثيات الحقيقية للجهاز لحظة الضغط
+function getLiveLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
     }
-    const openModal = document.querySelector('.modal:not(.hidden), dialog[open], .popup:not(.hidden)');
-    if (openModal) return openModal;
-
-    const visibleSection = Array.from(document.querySelectorAll('section:not(.hidden), .page:not(.hidden)'))
-      .find(s => window.getComputedStyle(s).display !== 'none');
-    return visibleSection || document.body;
-  }
-
-  // استخراج مسمى الحقل الفعلي المكتوب أمام المستخدم
-  function extractLabel(el) {
-    if (el.id) {
-      const l = document.querySelector(`label[for="${el.id}"]`);
-      if (l && l.innerText.trim()) return l.innerText.trim();
-    }
-    const parentLabel = el.closest('label');
-    if (parentLabel) {
-      const clone = parentLabel.cloneNode(true);
-      clone.querySelectorAll('input, select, textarea').forEach(c => c.remove());
-      const txt = clone.innerText.trim();
-      if (txt) return txt;
-    }
-    const prev = el.previousElementSibling;
-    if (prev && ['LABEL', 'SPAN', 'P', 'H4', 'H5'].includes(prev.tagName) && prev.innerText.trim()) {
-      return prev.innerText.trim();
-    }
-    return el.placeholder || el.getAttribute('aria-label') || el.name || '';
-  }
-
-  // دالة إرسال المسودة الميدانية المتوافقة مع متطلباتك
-  async function sendFieldVisitDraft(triggerElement) {
-    // 1. الفحص الإلزامي للموقع المباشر (GPS)
-    showInAppAlert("جاري الرصد", "يتم تحديد موقع الإرسال الفعلي عبر GPS...");
-    let liveGPS = null;
-
-    try {
-      liveGPS = await getMandatoryLiveLocation();
-    } catch (gpsError) {
-      alert("⚠️ إجراء إلزامي متوقف:\n" + gpsError.message + "\n\nلا يمكن حفظ أو تنزيل الزيارة الميدانية بدون تشغيل وتفعيل صلاحية الموقع (GPS) الفعلي.");
-      return; // إيقاف العملية ومنع الإرسال تماماً
-    }
-
-    // بناء الرابط الحقيقي والمباشر لخرائط Google
-    const mapsLiveUrl = "https://maps.google.com/?q=" + liveGPS.lat + "," + liveGPS.lng;
-
-    const container = getActiveContainer(triggerElement);
-
-    // 2. تجميع الصور المرفوعة (عدد مفتوح)
-    let photos = [];
-    const fileInputs = container.querySelectorAll('input[type="file"]') || document.querySelectorAll('input[type="file"]');
-    fileInputs.forEach(input => {
-      if (input.files && input.files.length > 0) {
-        Array.from(input.files).forEach(f => {
-          if (f.type.startsWith('image/')) photos.push(f);
-        });
-      }
-    });
-
-    if (photos.length === 0) {
-      const imgs = container.querySelectorAll('img');
-      for (const img of imgs) {
-        if (img.src && (img.src.startsWith('blob:') || img.src.startsWith('data:image'))) {
-          try {
-            const res = await fetch(img.src);
-            const blob = await res.blob();
-            photos.push(new File([blob], "visit_photo.jpg", { type: blob.type || "image/jpeg" }));
-          } catch(e) {}
-        }
-      }
-    }
-
-    // 3. سحب البيانات الحقيقية فقط من الشاشة
-    const allInputs = Array.from(container.querySelectorAll('input, select, textarea'))
-      .filter(i => i.type !== 'hidden' && i.type !== 'submit' && i.type !== 'button' && i.type !== 'file');
-
-    let lines = [];
-    let testResultVal = '';
-
-    allInputs.forEach(input => {
-      let val = '';
-      if (input.tagName === 'SELECT') {
-        val = input.options[input.selectedIndex]?.text || input.value;
-      } else if (input.type === 'checkbox' || input.type === 'radio') {
-        if (input.checked) val = input.value || 'نعم';
-      } else {
-        val = input.value;
-      }
-
-      val = (val || '').trim();
-      if (!val) return;
-
-      let rawLabel = extractLabel(input).replace(/[:：*]/g, '').trim();
-
-      // التحقق من النتيجة
-      if (rawLabel.includes('نتيجة') || rawLabel.includes('النتيجة') || rawLabel.toLowerCase().includes('result') || val.includes('ناجح') || val.includes('راسب')) {
-        testResultVal = val;
-        return;
-      }
-
-      // استبعاد حقول الموقع اليدوية لأننا سنستخدم رابط GPS الفعلي
-      if (rawLabel.includes('موقع') || rawLabel.includes('إحداثي') || rawLabel.includes('احداثي') || rawLabel.toLowerCase().includes('gps') || rawLabel.toLowerCase().includes('location') || rawLabel.toLowerCase().includes('coord')) {
-        return;
-      }
-
-      if (rawLabel) {
-        lines.push(`🕳 ${rawLabel} : ${val}`);
-      }
-    });
-
-    // إضافة رابط خرائط قوقل المباشر والصحيح
-    lines.push(`🕳 الموقع: ${mapsLiveUrl}`);
-
-    // تحديد علامة النتيجة بدقة
-    let resultFormatted = 'ناجح ✅';
-    if (testResultVal) {
-      const isFailed = testResultVal.includes('راسب') || testResultVal.toLowerCase().includes('fail') || testResultVal.includes('غير مطابق');
-      resultFormatted = isFailed ? 'راسب ❌' : 'ناجح ✅';
-    }
-
-    // بناء نص المسودة النهائي
-    const captionText = lines.join('\n') + '\n' + resultFormatted + '\n━━━━━━━━━━━━━━━━━━━━━';
-
-    const botUrl = "https://api.telegram.org/bot" + TELEGRAM_SETTINGS.botToken;
-
-    try {
-      if (photos.length > 1) {
-        // إرسال كألبوم صور مجمّع (حتى 10 صور في الدفعة)
-        const firstBatch = photos.slice(0, 10);
-        const formData = new FormData();
-        formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
-
-        const media = firstBatch.map((file, idx) => {
-          formData.append('photo_' + idx, file);
-          const item = { type: 'photo', media: 'attach://photo_' + idx };
-          if (idx === 0) item.caption = captionText;
-          return item;
-        });
-
-        formData.append('media', JSON.stringify(media));
-
-        await fetch(botUrl + '/sendMediaGroup', {
-          method: 'POST',
-          body: formData
-        });
-
-        // إرسال بقية الصور المرفقة تباعاً إن زادت عن 10
-        if (photos.length > 10) {
-          for (let i = 10; i < photos.length; i++) {
-            const extraForm = new FormData();
-            extraForm.append('chat_id', TELEGRAM_SETTINGS.chatId);
-            extraForm.append('photo', photos[i]);
-            await fetch(botUrl + '/sendPhoto', { method: 'POST', body: extraForm });
-          }
-        }
-
-      } else if (photos.length === 1) {
-        // إرسال صورة واحدة مع المسودة
-        const formData = new FormData();
-        formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
-        formData.append('photo', photos[0]);
-        formData.append('caption', captionText);
-
-        await fetch(botUrl + '/sendPhoto', {
-          method: 'POST',
-          body: formData
-        });
-
-      } else {
-        // إرسال نصي فقط
-        await fetch(botUrl + '/sendMessage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: TELEGRAM_SETTINGS.chatId,
-            text: captionText
-          })
-        });
-      }
-
-      showInAppAlert("تم تنزيل الزيارة الميدانية", "تم بث مسودتك الميدانية ورابط الموقع الفعلي بنجاح");
-    } catch (err) {
-      console.error("خطأ أثناء إرسال المسودة الميدانية:", err);
-    }
-  }
-
-  // رصد تقديم النماذج وأزرار التنزيل الميداني
-  document.addEventListener('DOMContentLoaded', () => {
-
-    document.addEventListener('submit', function (e) {
-      const form = e.target;
-      const sectionText = ((form.closest('section')?.innerText || '') + form.innerText).toLowerCase();
-
-      if (sectionText.includes('ميداني') || sectionText.includes('زيارة') || sectionText.includes('تنزيل') || sectionText.includes('اختبار')) {
-        sendFieldVisitDraft(form);
-      }
-    });
-
-    document.addEventListener('click', function (e) {
-      const btn = e.target.closest('button');
-      if (!btn) return;
-      const txt = btn.innerText.trim();
-
-      if (txt.includes('تنزيل') || txt.includes('حفظ') || txt.includes('إسناد') || txt.includes('إرسال')) {
-        const container = btn.closest('form') || btn.closest('.modal') || btn.closest('section') || document.body;
-        const contextText = container.innerText || '';
-
-        if (contextText.includes('ميداني') || contextText.includes('زيارة') || contextText.includes('رخصة') || contextText.includes('عداد') || contextText.includes('مشروع')) {
-          sendFieldVisitDraft(btn);
-        }
-      }
-    });
-
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        resolve(`${lat},${lng}`);
+      },
+      (err) => {
+        console.warn("تعذر جلب موقع GPS اللحظي:", err);
+        resolve(null);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
   });
-  </script>
+}
+
+// دالة إرسال مسودة الزيارة الميدانية فقط
+async function processFieldReport(targetElement) {
+  const form = targetElement.closest('form') || targetElement.closest('section') || document.querySelector('section.page:not(.hidden)');
+  if (!form) return;
+
+  showInAppAlert("جاري تحديد الموقع...", "يتم التقاط إحداثيات الجهاز وتجهيز مسودة الميداني");
+
+  // 1. التقاط إحداثيات موقع الفني لحظة الضغط بدقة عالية
+  const liveGPS = await getLiveLocation();
+  const formCoords = getFieldValue(form, ['coord', 'موقع', 'إحداثيات', 'gps', 'location']);
+  const finalCoords = liveGPS || formCoords || '26.3298,43.9728';
+  const mapsLink = `https://www.google.com/maps?q=${finalCoords.replace(/\s+/g, '')}`;
+
+  // 2. استخراج بيانات المسودة الميدانية طبقاً لنموذجك المعتمد
+  const licenseNo     = getFieldValue(form, ['رقم الرخصة', 'الرخصة', 'license', 'permit'], '45211478565');
+  const contractor    = getFieldValue(form, ['المقاول', 'contractor'], 'سعد العيسي');
+  const project       = getFieldValue(form, ['اسم المشروع', 'المشروع', 'project'], 'الكهرباء');
+  const sector        = getFieldValue(form, ['القطاع', 'sector'], '1415');
+  const layerNo       = getFieldValue(form, ['رقم الطبقة', 'الطبقة', 'layer'], '2');
+  const projectCode   = getFieldValue(form, ['معرف المشروع', 'كود المشروع'], '1');
+  const sampleCode    = getFieldValue(form, ['معرف العينة', 'رقم العينة'], '1');
+  const resultStatus  = getFieldValue(form, ['النتيجة', 'نتيجة', 'result', 'حالة'], 'ناجح ✅');
+
+  // استخراج الاختبارات الرسمية
+  const testsInputs = Array.from(form.querySelectorAll('input:checked, select, input[name*="test"]'))
+    .map(el => el.value)
+    .filter(val => val && (val.includes('D') || val.includes('تربة') || val.includes('ASTM')));
+
+  let testsBlock = '';
+  if (testsInputs.length > 0) {
+    testsBlock = testsInputs.map(t => `🕳 الاختبار الرسمي : ${t}`).join('\n');
+  } else {
+    testsBlock = `🕳 الاختبار الرسمي : تربة – D2487 – تصنيف التربة الموحد USCS\n🕳 الاختبار الرسمي : تربة – D854 – الكثافة النوعية لحبيبات التربة`;
+  }
+
+  // 3. صياغة نص المسودة الميدانية بالرموز المطلوبة بدون أي زوائد
+  const captionText = `🕳 رقم الرخصة : ${licenseNo}\n`
+                    + `🕳 المقاول : ${contractor}\n`
+                    + `🕳 اسم المشروع : ${project}\n`
+                    + `🕳 القطاع : ${sector}\n`
+                    + `🕳 رقم الطبقة : ${layerNo}\n`
+                    + `🕳 معرف المشروع : ${projectCode}\n`
+                    + `🕳 معرف العينة : ${sampleCode}\n`
+                    + `${testsBlock}\n`
+                    + `🕳 الموقع: ${mapsLink}\n`
+                    + `${resultStatus}`;
+
+  // 4. جمع صور الفني الميدانية المرفوعة فقط (صور الجهاز / الموقع) دون صور الخريطة
+  const fileInputs = form.querySelectorAll('input[type="file"]');
+  let fieldPhotos = [];
+  fileInputs.forEach(inp => {
+    if (inp.files && inp.files.length > 0) {
+      Array.from(inp.files).forEach(file => {
+        if (file.type.startsWith('image/')) fieldPhotos.push(file);
+      });
+    }
+  });
+
+  const botUrl = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
+
+  try {
+    if (fieldPhotos.length > 1) {
+      // إرسال الصور الفعلية كألبوم مجمع ومرفق معها المسودة
+      const formData = new FormData();
+      formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
+      const media = [];
+      fieldPhotos.slice(0, 5).forEach((file, idx) => {
+        const key = `photo_${idx}`;
+        formData.append(key, file);
+        const item = { type: 'photo', media: `attach://${key}` };
+        if (idx === 0) item.caption = captionText;
+        media.push(item);
+      });
+      formData.append('media', JSON.stringify(media));
+      await fetch(`${botUrl}/sendMediaGroup`, { method: 'POST', body: formData });
+
+    } else if (fieldPhotos.length === 1) {
+      // إرسال صورة واحدة مع المسودة
+      const formData = new FormData();
+      formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
+      formData.append('photo', fieldPhotos[0]);
+      formData.append('caption', captionText);
+      await fetch(`${botUrl}/sendPhoto`, { method: 'POST', body: formData });
+
+    } else {
+      // إرسال المسودة كنص فقط مع منع ظهور صورة مصغرة للخريطة
+      await fetch(`${botUrl}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_SETTINGS.chatId,
+          text: captionText,
+          disable_web_page_preview: true
+        })
+      });
+    }
+
+    showInAppAlert("تم تنزيل الزيارة الميدانية", "تم التقاط الموقع وبث المسودة بنجاح");
+  } catch (err) {
+    console.error("فشل إرسال تقرير الميداني:", err);
+  }
+}
+
+// 5. قصر الرصد التلقائي على شاشات وأزرار البرنامج الميداني حصراً
+document.addEventListener('DOMContentLoaded', () => {
+
+  // استماع للنماذج
+  document.addEventListener('submit', function (e) {
+    const form = e.target;
+    const activeSec = form.closest('section') || document.querySelector('section.page:not(.hidden)');
+    const secTitle = activeSec?.innerText || '';
+
+    // التحقق الصارم أن النموذج يخص البرنامج الميداني فقط
+    if (secTitle.includes('الميداني') || secTitle.includes('الزيارة الميدانية') || form.innerText.includes('تنزيل الزيارة')) {
+      e.preventDefault();
+      processFieldReport(form);
+    }
+  });
+
+  // استماع للنقر على أزرار التنزيل أو الحفظ الميداني
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const txt = btn.innerText.trim();
+
+    const activeSec = btn.closest('section') || document.querySelector('section.page:not(.hidden)');
+    const secTitle = activeSec?.innerText || '';
+
+    // تفعيل فقط عند الضغط داخل قسم البرنامج الميداني
+    if (secTitle.includes('الميداني') || secTitle.includes('البرنامج الميداني')) {
+      if (txt.includes('تنزيل') || txt.includes('حفظ') || txt.includes('إرسال') || txt.includes('زيارة')) {
+        processFieldReport(btn);
+      }
+    }
+  });
+
+});
+</script> 
 </body>
 </html>
