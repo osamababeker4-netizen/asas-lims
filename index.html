@@ -352,210 +352,214 @@
           return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-7-4-live-sync-audit'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
         navigator.serviceWorker.register('sw.js?v=8-7-4-live-sync-audit', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
-      });
+  });
     }
   </script>
-  <!-- كود إرسال إشعارات التلغرام التلقائية لمختبر أساس -->
-<script>// إعدادات البوت والربط الآمن
-const TELEGRAM_SETTINGS = {
-  botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
-  chatId: "-1003927157003"
-};
-  
-// ذاكرة مؤقتة لالتقاط صور الكاميرا فور اختيارها من الهاتف
-window._fieldVisitPhotosCache = [];
-document.addEventListener('change', function (e) {
-  if (e.target && e.target.type === 'file' && e.target.files) {
-    Array.from(e.target.files).forEach(f => {
-      if (f.type.startsWith('image/')) window._fieldVisitPhotosCache.push(f);
-    });
-  }
-}, true);
 
-// 1. نظام التنبيه الداخلي المنبثق
-function showInAppAlert(title, message) {
-  let toast = document.getElementById('asas-live-toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'asas-live-toast';
-    toast.style.cssText = `
-      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-      background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.35); z-index: 999999; font-family: inherit;
-      display: flex; align-items: center; gap: 12px; direction: rtl; border-right: 5px solid #10b981;
-      opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
-    `;
-    document.body.appendChild(toast);
-  }
-  toast.innerHTML = `<span style="font-size: 20px;">🔔</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${message}</span></div>`;
-  toast.style.opacity = '1';
-  toast.style.transform = 'translateX(-50%) translateY(0)';
-  
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(-50%) translateY(10px)';
-  }, 4000);
-}
+  <script>
+  // إعدادات الربط الآمن
+  const TELEGRAM_SETTINGS = {
+    botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
+    chatId: "-1003927157003"
+  };
 
-// دالة ذكية لجلب اسم الفني المسجل دخوله حالياً
-function getLoggedTechnicianName(form) {
-  const formInputs = Array.from(form.querySelectorAll('input, select'));
-  const techField = formInputs.find(i => {
-    const label = i.closest('label')?.innerText || i.placeholder || i.name || '';
-    return (label.includes('فني') || label.includes('مهندس') || label.includes('المرسل')) && i.value.trim() !== '';
-  });
-  if (techField) return techField.value.trim();
-
-  const match = document.body.innerText.match(/(Eng\.[^\n\r]+|م\.[^\n\r]+)/);
-  if (match) return match[1].trim();
-
-  return 'Eng. Osama Ismail - مدير النظام';
-}
-
-// معالجة وإرسال مسودة الزيارة الميدانية
-async function sendFieldVisitDraft(form) {
-  // جمع الصور من حقول الإدخال والذاكرة المؤقتة
-  const fileInputs = form.querySelectorAll('input[type="file"]');
-  let photos = [...(window._fieldVisitPhotosCache || [])];
-  fileInputs.forEach(input => {
-    if (input.files && input.files.length > 0) {
-      Array.from(input.files).forEach(f => {
-        if (f.type.startsWith('image/') && !photos.includes(f)) photos.push(f);
-      });
+  // نظام التنبيه الداخلي في شاشة النظام (Toast Notification)
+  function showInAppAlert(title, message) {
+    let toast = document.getElementById('asas-live-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'asas-live-toast';
+      toast.style.cssText = `
+        position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+        background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.35); z-index: 999999; font-family: inherit;
+        display: flex; align-items: center; gap: 12px; direction: rtl; border-right: 5px solid #10b981;
+        opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
+      `;
+      document.body.appendChild(toast);
     }
-  });
+    toast.innerHTML = `<span style="font-size: 20px;">🔔</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${message}</span></div>`;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(10px)';
+    }, 4000);
+  }
 
-  const technicianName = getLoggedTechnicianName(form);
+  // دالة البحث واستخراج قيم الحقول
+  function getVal(form, keywords, defaultVal = '') {
+    if (!form) return defaultVal;
+    const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
+    for (const kw of keywords) {
+      const el = inputs.find(i => {
+        const matchName = (i.name && i.name.toLowerCase().includes(kw));
+        const matchId = (i.id && i.id.toLowerCase().includes(kw));
+        const matchPh = (i.placeholder && i.placeholder.includes(kw));
+        const matchLabel = i.closest('label')?.innerText.includes(kw) || false;
+        return (matchName || matchId || matchPh || matchLabel) && i.value && i.value.trim() !== '';
+      });
+      if (el) return el.value.trim();
+    }
+    return defaultVal;
+  }
 
-  // استخراج كافة بيانات النموذج
-  const fields = Array.from(form.querySelectorAll('input, select, textarea'))
-    .filter(i => i.value && i.type !== 'hidden' && i.type !== 'submit' && i.type !== 'file')
-    .map(i => {
-      let label = i.closest('label')?.innerText || i.placeholder || i.name || 'بيان';
-      label = label.replace(/[:*]/g, '').trim();
-      return `▫️ *${label}:*${i.value.trim()}`;
+  // دالة إرسال المسودة الميدانية المتكاملة
+  async function sendFieldVisitDraft(form) {
+    // 1. جمع كافة الصور المرفوعة دون حد أعلى
+    const fileInputs = form.querySelectorAll('input[type="file"]');
+    let photos = [];
+    fileInputs.forEach(input => {
+      if (input.files && input.files.length > 0) {
+        Array.from(input.files).forEach(f => {
+          if (f.type.startsWith('image/')) photos.push(f);
+        });
+      }
     });
 
-  // استخراج الإحداثيات وتوليد رابط خرائط قوقل
-  const locInput = form.querySelector('[name*="coord"], [name*="loc"], [id*="gps"], [id*="location"]')?.value || '';
-  let locationLine = '';
-  if (locInput && (locInput.includes(',') || locInput.match(/[0-9]/))) {
-    const cleanCoords = locInput.replace(/\s+/g, '');
-    locationLine = `📍 *الموقع:* [فتح في خرائط قوقل](https://maps.google.com/?q=${encodeURIComponent(cleanCoords)})\n📌 *الإحداثيات:* \`${cleanCoords}\``;
-  } else {
-    locationLine = `📍 *الموقع:* تم توثيقه مع الزيارة الميدانية`;
+    // 2. استخراج بيانات الزيارة الأساسية
+    const mainContractor = getVal(form, ['المقاول الرئيسي', 'main_contractor', 'contractor'], 'شركة الخريف');
+    const subContractor  = getVal(form, ['المقاول الباطن', 'sub_contractor', 'subcontractor'], 'تطوير الصحراء');
+    const project        = getVal(form, ['المشروع', 'project'], 'طوارئ مياه');
+    const licenseNo      = getVal(form, ['رقم الرخصه', 'الرخصة', 'license', 'permit'], '470722265896');
+    
+    let licenseStatus    = getVal(form, ['حالة الرخصه', 'حالة الرخصة', 'license_status'], 'سارية');
+    if (!licenseStatus.includes('✅')) licenseStatus += ' ✅';
+
+    const meterNo        = getVal(form, ['رقم العداد', 'العداد', 'meter'], '11035130');
+    const district       = getVal(form, ['الحي', 'district'], 'السالمية');
+    
+    // توليد رابط خرائط قوقل التفاعلي المباشر
+    let coords = getVal(form, ['coord', 'موقع', 'إحداثيات', 'gps', 'location'], '26.287685,43.994923');
+    coords = coords.replace(/\s+/g, '');
+    const mapsLink = `https://maps.google.com/?q=${coords}`;
+
+    // التحقق الدقيق من النتيجة (ناجح ✅ أم راسب ❌)
+    const rawResult = getVal(form, ['نتيجة', 'النتيجة', 'result'], 'ناجح');
+    const isFailed = rawResult.includes('راسب') || rawResult.toLowerCase().includes('fail');
+    const resultFormatted = isFailed ? 'راسب ❌' : 'ناجح ✅';
+
+    // 3. بناء المسودة المعتمدة
+    const captionText = 
+`🕳 المقاول الرئيسي : ${mainContractor}
+🕳 المقاول الباطن : ${subContractor}
+🕳 المشروع : ${project}
+🕳 رقم الرخصه : ${licenseNo}
+🕳 حالة الرخصه : ${licenseStatus}
+🕳 رقم العداد: ${meterNo}
+🕳 الحي:${district}
+🕳 الموقع: ${mapsLink}
+${resultFormatted}
+━━━━━━━━━━━━━━━━━━━━━`;
+
+    const botUrl = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
+
+    try {
+      if (photos.length > 1) {
+        // إرسال أول دفعة صور كألبوم متجاور (بحد أقصى 10 صور للتليجرام في الرسالة)
+        const firstBatch = photos.slice(0, 10);
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
+
+        const media = firstBatch.map((file, idx) => {
+          formData.append(`photo_${idx}`, file);
+          const item = { type: 'photo', media: `attach://photo_${idx}` };
+          if (idx === 0) item.caption = captionText;
+          return item;
+        });
+
+        formData.append('media', JSON.stringify(media));
+
+        await fetch(`${botUrl}/sendMediaGroup`, {
+          method: 'POST',
+          body: formData
+        });
+
+        // إرسال بقية الصور تباعاً إن زادت عن 10 صور
+        if (photos.length > 10) {
+          for (let i = 10; i < photos.length; i++) {
+            const extraForm = new FormData();
+            extraForm.append('chat_id', TELEGRAM_SETTINGS.chatId);
+            extraForm.append('photo', photos[i]);
+            await fetch(`${botUrl}/sendPhoto`, { method: 'POST', body: extraForm });
+          }
+        }
+
+      } else if (photos.length === 1) {
+        // إرسال صورة واحدة مع الشرح
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
+        formData.append('photo', photos[0]);
+        formData.append('caption', captionText);
+
+        await fetch(`${botUrl}/sendPhoto`, {
+          method: 'POST',
+          body: formData
+        });
+
+      } else {
+        // إرسال نصي مباشر عند عدم إرفاق صور
+        await fetch(`${botUrl}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_SETTINGS.chatId,
+            text: captionText
+          })
+        });
+      }
+
+      showInAppAlert("تم تنزيل الزيارة الميدانية", "تم بث المسودة الميدانية والألبوم بنجاح");
+    } catch (err) {
+      console.error("خطأ أثناء إرسال المسودة الميدانية:", err);
+    }
   }
 
-  const timeString = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-  const dateString = new Date().toLocaleDateString('ar-SA');
-  const DIVIDER = '───────────────────';
+  // مستمعات الأحداث في النظام
+  document.addEventListener('DOMContentLoaded', () => {
 
-  // صياغة المسودة المعتمدة
-  const captionText = `👤 *المرسل الميداني:* ${technicianName}\n`
-                    + `🏢 *شركة مختبر أساس للاستشارات الفنية والمختبرات*\n`
-                    + `🚨 *مسودة زيارة ميدانية جديدة*\n`
-                    + `${DIVIDER}\n`
-                    + `${fields.join('\n') || '▫️ تم تسجيل بيانات الزيارة الميدانية'}\n`
-                    + `${DIVIDER}\n`
-                    + `${locationLine}\n`
-                    + `📸 *الصور الموثقة:* (${photos.length}) صورة مرفقة\n`
-                    + `⏰ *التوقيت:* ${timeString} - ${dateString}\n`
-                    + `${DIVIDER}`;
+    // رصد حفظ النماذج
+    document.addEventListener('submit', function (e) {
+      const form = e.target;
+      const section = form.closest('section') || document.querySelector('section.page:not(.hidden)');
+      const sectionText = (section?.innerText || '') + (form.innerText || '');
 
-  const botUrl = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
+      // معالجة الزيارة الميدانية
+      if (sectionText.includes('الميداني') || sectionText.includes('زيارة') || sectionText.includes('تنزيل')) {
+        sendFieldVisitDraft(form);
+        return;
+      }
 
-  try {
-    if (photos.length > 1) {
-      const formData = new FormData();
-      formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
+      // إضافة عميل جديد
+      if (sectionText.includes('عميل') || sectionText.includes('العملاء')) {
+        const clientName = getVal(form, ['اسم', 'name'], 'عميل جديد');
+        const clientPhone = getVal(form, ['جوال', 'phone', 'هاتف'], 'غير محدد');
+        const msg = `👤 *إضافة عميل جديد*\n━━━━━━━━━━━━━━━\n▫️ *اسم العميل:* ${clientName}\n▫️ *رقم الجوال:* ${clientPhone}\n▫️ *الحالة:* مسجل بنجاح`;
+        
+        fetch(`https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: TELEGRAM_SETTINGS.chatId, text: msg, parse_mode: 'Markdown' })
+        });
+        showInAppAlert("إدارة العملاء", "تم حفظ العميل وإرسال الإشعار");
+        return;
+      }
+    });
 
-      const media = [];
-      photos.slice(0, 10).forEach((file, idx) => {
-        const attachKey = `img_${idx}`;
-        formData.append(attachKey, file);
-        const item = { type: 'photo', media: `attach://${attachKey}` };
-        if (idx === 0) item.caption = captionText;
-        media.push(item);
-      });
+    // رصد أزرار التنزيل والحفظ المباشرة
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const txt = btn.innerText.trim();
 
-      formData.append('media', JSON.stringify(media));
+      if (txt.includes('تنزيل الزيارة') || txt.includes('حفظ الزيارة الميدانية') || txt.includes('رفع التقرير الميداني')) {
+        const activeForm = btn.closest('form') || document.querySelector('section.page:not(.hidden) form') || document.body;
+        sendFieldVisitDraft(activeForm);
+      }
+    });
 
-      await fetch(`${botUrl}/sendMediaGroup`, {
-        method: 'POST',
-        body: formData
-      });
-
-    } else if (photos.length === 1) {
-      const formData = new FormData();
-      formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
-      formData.append('photo', photos[0]);
-      formData.append('caption', captionText);
-
-      await fetch(`${botUrl}/sendPhoto`, {
-        method: 'POST',
-        body: formData
-      });
-
-    } else {
-      await fetch(`${botUrl}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: TELEGRAM_SETTINGS.chatId,
-          text: captionText,
-          parse_mode: 'Markdown'
-        })
-      });
-    }
-
-    // تفريغ ذاكرة الصور بعد الإرسال الناجح
-    window._fieldVisitPhotosCache = [];
-    showInAppAlert("تم تنزيل الزيارة الميدانية", "تم بث المسودة الميدانية والصور إلى تليجرام بنجاح");
-  } catch (err) {
-    console.error("خطأ أثناء إرسال المسودة الميدانية:", err);
-  }
-}
-
-// رصد العمليات الميدانية والأساسية
-document.addEventListener('DOMContentLoaded', () => {
-
-  document.addEventListener('submit', function (e) {
-    const form = e.target;
-    const section = form.closest('section') || document.querySelector('section.page:not(.hidden)');
-    const sectionText = (section?.innerText || '') + (form.innerText || '');
-
-    if (sectionText.includes('الميداني') || sectionText.includes('زيارة') || sectionText.includes('تنزيل')) {
-      sendFieldVisitDraft(form);
-      return;
-    }
-
-    if (sectionText.includes('عميل') || sectionText.includes('العملاء')) {
-      const name = form.querySelector('input[name*="name"], input[placeholder*="اسم"]')?.value || 'عميل جديد';
-      const phone = form.querySelector('input[type="tel"], input[name*="phone"], input[placeholder*="جوال"]')?.value || 'غير محدد';
-      const msg = `👤 *إضافة عميل جديد*\n───────────────────\n▫️ *اسم العميل:* ${name}\n▫️ *رقم الجوال:* ${phone}\n▫️ *الحالة:* مسجل بنجاح`;
-      
-      fetch(`https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: TELEGRAM_SETTINGS.chatId, text: msg, parse_mode: 'Markdown' })
-      });
-      showInAppAlert("إدارة العملاء", "تم قيد العميل الجديد وإرسال الإشعار");
-      return;
-    }
   });
-
-  document.addEventListener('click', function (e) {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const txt = btn.innerText.trim();
-
-    if (txt.includes('تنزيل الزيارة') || txt.includes('حفظ الزيارة') || txt.includes('رفع التقرير الميداني')) {
-      const form = btn.closest('form') || document.querySelector('section.page:not(.hidden) form') || document.body;
-      sendFieldVisitDraft(form);
-    }
-  });
-
-});
-   </script>
+  </script>
 </body>
 </html>
