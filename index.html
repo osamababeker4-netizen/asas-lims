@@ -352,12 +352,12 @@
           return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-7-4-live-sync-audit'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
         navigator.serviceWorker.register('sw.js?v=8-7-4-live-sync-audit', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
- });
+});
     }
   </script>
 
   <script>
-  // إعدادات الربط الآمن مع البوت
+  // إعدادات الربط الآمن
   const TELEGRAM_SETTINGS = {
     botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
     chatId: "-1003927157003"
@@ -388,7 +388,30 @@
     }, 4000);
   }
 
-  // دالة تحديد الحاوية أو النافذة النشطة حالياً
+  // دالة التقاط موقع GPS الفعلي والمباشر للمرسل بدقة عالية
+  function getSenderLiveLocation() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          });
+        },
+        (err) => {
+          console.warn("تعذر الحصول على GPS المباشر:", err.message);
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  }
+
+  // دالة استخراج الحاوية النشطة في الشاشة
   function getActiveContainer(targetEl) {
     if (targetEl) {
       const modal = targetEl.closest('.modal, dialog, .popup, [role="dialog"]');
@@ -406,7 +429,7 @@
     return visibleSection || document.body;
   }
 
-  // استخراج مسمى الحقل الفعلي المكتوب في الواجهة
+  // استخراج مسمى الحقل الفعلي
   function extractLabel(el) {
     if (el.id) {
       const l = document.querySelector(`label[for="${el.id}"]`);
@@ -426,11 +449,15 @@
     return el.placeholder || el.getAttribute('aria-label') || el.name || '';
   }
 
-  // دالة إرسال المسودة الميدانية وسحب بيانات المستخدم الحقيقية فقط
+  // دالة إرسال المسودة الميدانية بالموقع المباشر والصور الحقيقية
   async function sendFieldVisitDraft(triggerElement) {
+    showInAppAlert("جاري الرصد", "يتم تحديد موقعك المباشر ورفع المسودة...");
     const container = getActiveContainer(triggerElement);
 
-    // 1. جمع كافة الصور (من مدخلات الملفات ومعاينات الصور الملتقطة)
+    // 1. تحديد موقع الفني المباشر عبر GPS
+    const gpsLocation = await getSenderLiveLocation();
+
+    // 2. جمع ملفات ومعاينات الصور المرفوعة
     let photos = [];
     const fileInputs = container.querySelectorAll('input[type="file"]') || document.querySelectorAll('input[type="file"]');
     fileInputs.forEach(input => {
@@ -441,7 +468,6 @@
       }
     });
 
-    // إذا تم حفظ الصور كمعاينة Blob أو Data URL
     if (photos.length === 0) {
       const imgs = container.querySelectorAll('img');
       for (const img of imgs) {
@@ -455,13 +481,13 @@
       }
     }
 
-    // 2. سحب الحقول الحقيقية التي كتبها المستخدم في الشاشة فقط (بدون أي بيانات افتراضية)
+    // 3. قراءة البيانات المدخلة في الشاشة حصراً
     const allInputs = Array.from(container.querySelectorAll('input, select, textarea'))
       .filter(i => i.type !== 'hidden' && i.type !== 'submit' && i.type !== 'button' && i.type !== 'file');
 
     let lines = [];
-    let coordsVal = '';
     let testResultVal = '';
+    let manualCoords = '';
 
     allInputs.forEach(input => {
       let val = '';
@@ -474,19 +500,24 @@
       }
 
       val = (val || '').trim();
-      if (!val) return; // تجاوز أي حقل فارغ
+      if (!val) return;
 
       let rawLabel = extractLabel(input).replace(/[:：*]/g, '').trim();
 
-      // رصد الإحداثيات الجغرافية
-      if (rawLabel.includes('موقع') || rawLabel.includes('إحداثي') || rawLabel.includes('احداثي') || rawLabel.toLowerCase().includes('gps') || rawLabel.toLowerCase().includes('coord') || val.match(/^[0-9.]+\s*,\s*[0-9.]+$/)) {
-        coordsVal = val.replace(/\s+/g, '');
+      // فحص النتيجة (ناجح أو راسب)
+      if (rawLabel.includes('نتيجة') || rawLabel.includes('النتيجة') || rawLabel.toLowerCase().includes('result') || val.includes('ناجح') || val.includes('راسب')) {
+        testResultVal = val;
         return;
       }
 
-      // رصد نتيجة الاختبار
-      if (rawLabel.includes('نتيجة') || rawLabel.includes('النتيجة') || rawLabel.toLowerCase().includes('result') || val.includes('ناجح') || val.includes('راسب')) {
-        testResultVal = val;
+      // إذا كان هناك إحداثيات مكتوبة يدوياً كبديل
+      if (rawLabel.includes('إحداثي') || rawLabel.includes('احداثي') || rawLabel.toLowerCase().includes('coord') || val.match(/^[0-9.]+\s*,\s*[0-9.]+$/)) {
+        manualCoords = val.replace(/\s+/g, '');
+        return;
+      }
+
+      // استبعاد حقل الموقع من التكرار لأننا سنضع الرابط المباشر
+      if (rawLabel.includes('موقع') || rawLabel.toLowerCase().includes('location') || rawLabel.toLowerCase().includes('gps')) {
         return;
       }
 
@@ -495,24 +526,37 @@
       }
     });
 
-    // تجهيز رابط قوقل ماب إذا وُجدت إحداثيات حقيقية
-    if (coordsVal) {
-      lines.push(`🕳 الموقع: https://maps.google.com/?q=0{coordsVal}`);
+    // 4. بناء رابط التتبع المباشر لخرائط Google
+    let finalLat = null;
+    let finalLng = null;
+    let mapsDirectUrl = '';
+
+    if (gpsLocation) {
+      finalLat = gpsLocation.lat;
+      finalLng = gpsLocation.lng;
+      mapsDirectUrl = 'https://maps.google.com/?q=' + finalLat + ',' + finalLng;
+    } else if (manualCoords) {
+      mapsDirectUrl = 'https://maps.google.com/?q=' + manualCoords;
+      const parts = manualCoords.split(',');
+      finalLat = parseFloat(parts[0]);
+      finalLng = parseFloat(parts[1]);
     }
 
-    // تحديد علامة النتيجة الحقيقية
-    let resultLine = '';
+    if (mapsDirectUrl) {
+      lines.push(`🕳 الموقع: ${mapsDirectUrl}`);
+    }
+
+    // 5. تقييم النتيجة بدقة
+    let resultLine = 'ناجح ✅';
     if (testResultVal) {
       const isFailed = testResultVal.includes('راسب') || testResultVal.toLowerCase().includes('fail') || testResultVal.includes('غير مطابق');
       resultLine = isFailed ? 'راسب ❌' : 'ناجح ✅';
-    } else {
-      resultLine = 'ناجح ✅';
     }
 
-    // بناء نص المسودة النهائي من مدخلاتك الحقيقية فقط
-    const captionText = lines.join('\n') + `\n${resultLine}\n━━━━━━━━━━━━━━━━━━━━━`;
+    // صياغة المسودة النهائية النظيفة
+    const captionText = lines.join('\n') + '\n' + resultLine + '\n━━━━━━━━━━━━━━━━━━━━━';
 
-    const botUrl = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
+    const botUrl = 'https://api.telegram.org/bot' + TELEGRAM_SETTINGS.botToken;
 
     try {
       if (photos.length > 1) {
@@ -522,26 +566,26 @@
         formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
 
         const media = firstBatch.map((file, idx) => {
-          formData.append(`photo_${idx}`, file);
-          const item = { type: 'photo', media: `attach://photo_${idx}` };
+          formData.append('photo_' + idx, file);
+          const item = { type: 'photo', media: 'attach://photo_' + idx };
           if (idx === 0) item.caption = captionText;
           return item;
         });
 
         formData.append('media', JSON.stringify(media));
 
-        await fetch(`${botUrl}/sendMediaGroup`, {
+        await fetch(botUrl + '/sendMediaGroup', {
           method: 'POST',
           body: formData
         });
 
-        // إرسال أي صور إضافية أخرى إن تجاوزت 10
+        // إرسال بقية الصور المرفقة إن وجدت
         if (photos.length > 10) {
           for (let i = 10; i < photos.length; i++) {
             const extraForm = new FormData();
             extraForm.append('chat_id', TELEGRAM_SETTINGS.chatId);
             extraForm.append('photo', photos[i]);
-            await fetch(`${botUrl}/sendPhoto`, { method: 'POST', body: extraForm });
+            await fetch(botUrl + '/sendPhoto', { method: 'POST', body: extraForm });
           }
         }
 
@@ -552,14 +596,14 @@
         formData.append('photo', photos[0]);
         formData.append('caption', captionText);
 
-        await fetch(`${botUrl}/sendPhoto`, {
+        await fetch(botUrl + '/sendPhoto', {
           method: 'POST',
           body: formData
         });
 
       } else {
-        // إرسال نصي بالبيانات الحقيقية في حال لم ترفق صور
-        await fetch(`${botUrl}/sendMessage`, {
+        // إرسال نصي فقط
+        await fetch(botUrl + '/sendMessage', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -569,7 +613,20 @@
         });
       }
 
-      showInAppAlert("تم تنزيل الزيارة الميدانية", "تم إرسال بياناتك الحقيقية والألبوم بنجاح");
+      // 6. إرسال بطاقة موقع تفاعلية مباشرة (Telegram Location Pin) لمعرفة مكان الحفرية على الخريطة
+      if (finalLat && finalLng) {
+        await fetch(botUrl + '/sendLocation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_SETTINGS.chatId,
+            latitude: finalLat,
+            longitude: finalLng
+          })
+        });
+      }
+
+      showInAppAlert("تم تنزيل الزيارة الميدانية", "تم إرسال المسودة ورابط الموقع المباشر بنجاح");
     } catch (err) {
       console.error("خطأ أثناء إرسال المسودة الميدانية:", err);
     }
