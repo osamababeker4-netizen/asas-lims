@@ -352,18 +352,18 @@
           return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-7-4-live-sync-audit'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
         navigator.serviceWorker.register('sw.js?v=8-7-4-live-sync-audit', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
-  });
+ });
     }
   </script>
 
   <script>
-  // إعدادات الربط الآمن
+  // إعدادات الربط الآمن مع البوت
   const TELEGRAM_SETTINGS = {
     botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
     chatId: "-1003927157003"
   };
 
-  // نظام التنبيه الداخلي في شاشة النظام (Toast Notification)
+  // نظام التنبيه الداخلي في شاشة النظام (Toast)
   function showInAppAlert(title, message) {
     let toast = document.getElementById('asas-live-toast');
     if (!toast) {
@@ -388,28 +388,51 @@
     }, 4000);
   }
 
-  // دالة البحث واستخراج قيم الحقول
-  function getVal(form, keywords, defaultVal = '') {
-    if (!form) return defaultVal;
-    const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
-    for (const kw of keywords) {
-      const el = inputs.find(i => {
-        const matchName = (i.name && i.name.toLowerCase().includes(kw));
-        const matchId = (i.id && i.id.toLowerCase().includes(kw));
-        const matchPh = (i.placeholder && i.placeholder.includes(kw));
-        const matchLabel = i.closest('label')?.innerText.includes(kw) || false;
-        return (matchName || matchId || matchPh || matchLabel) && i.value && i.value.trim() !== '';
-      });
-      if (el) return el.value.trim();
+  // دالة تحديد الحاوية أو النافذة النشطة حالياً
+  function getActiveContainer(targetEl) {
+    if (targetEl) {
+      const modal = targetEl.closest('.modal, dialog, .popup, [role="dialog"]');
+      if (modal) return modal;
+      const form = targetEl.closest('form');
+      if (form) return form;
+      const section = targetEl.closest('section, .page, main');
+      if (section) return section;
     }
-    return defaultVal;
+    const openModal = document.querySelector('.modal:not(.hidden), dialog[open], .popup:not(.hidden)');
+    if (openModal) return openModal;
+
+    const visibleSection = Array.from(document.querySelectorAll('section:not(.hidden), .page:not(.hidden)'))
+      .find(s => window.getComputedStyle(s).display !== 'none');
+    return visibleSection || document.body;
   }
 
-  // دالة إرسال المسودة الميدانية المتكاملة
-  async function sendFieldVisitDraft(form) {
-    // 1. جمع كافة الصور المرفوعة دون حد أعلى
-    const fileInputs = form.querySelectorAll('input[type="file"]');
+  // استخراج مسمى الحقل الفعلي المكتوب في الواجهة
+  function extractLabel(el) {
+    if (el.id) {
+      const l = document.querySelector(`label[for="${el.id}"]`);
+      if (l && l.innerText.trim()) return l.innerText.trim();
+    }
+    const parentLabel = el.closest('label');
+    if (parentLabel) {
+      const clone = parentLabel.cloneNode(true);
+      clone.querySelectorAll('input, select, textarea').forEach(c => c.remove());
+      const txt = clone.innerText.trim();
+      if (txt) return txt;
+    }
+    const prev = el.previousElementSibling;
+    if (prev && ['LABEL', 'SPAN', 'P', 'H4', 'H5'].includes(prev.tagName) && prev.innerText.trim()) {
+      return prev.innerText.trim();
+    }
+    return el.placeholder || el.getAttribute('aria-label') || el.name || '';
+  }
+
+  // دالة إرسال المسودة الميدانية وسحب بيانات المستخدم الحقيقية فقط
+  async function sendFieldVisitDraft(triggerElement) {
+    const container = getActiveContainer(triggerElement);
+
+    // 1. جمع كافة الصور (من مدخلات الملفات ومعاينات الصور الملتقطة)
     let photos = [];
+    const fileInputs = container.querySelectorAll('input[type="file"]') || document.querySelectorAll('input[type="file"]');
     fileInputs.forEach(input => {
       if (input.files && input.files.length > 0) {
         Array.from(input.files).forEach(f => {
@@ -418,46 +441,82 @@
       }
     });
 
-    // 2. استخراج بيانات الزيارة الأساسية
-    const mainContractor = getVal(form, ['المقاول الرئيسي', 'main_contractor', 'contractor'], 'شركة الخريف');
-    const subContractor  = getVal(form, ['المقاول الباطن', 'sub_contractor', 'subcontractor'], 'تطوير الصحراء');
-    const project        = getVal(form, ['المشروع', 'project'], 'طوارئ مياه');
-    const licenseNo      = getVal(form, ['رقم الرخصه', 'الرخصة', 'license', 'permit'], '470722265896');
-    
-    let licenseStatus    = getVal(form, ['حالة الرخصه', 'حالة الرخصة', 'license_status'], 'سارية');
-    if (!licenseStatus.includes('✅')) licenseStatus += ' ✅';
+    // إذا تم حفظ الصور كمعاينة Blob أو Data URL
+    if (photos.length === 0) {
+      const imgs = container.querySelectorAll('img');
+      for (const img of imgs) {
+        if (img.src && (img.src.startsWith('blob:') || img.src.startsWith('data:image'))) {
+          try {
+            const res = await fetch(img.src);
+            const blob = await res.blob();
+            photos.push(new File([blob], "visit_photo.jpg", { type: blob.type || "image/jpeg" }));
+          } catch(e) {}
+        }
+      }
+    }
 
-    const meterNo        = getVal(form, ['رقم العداد', 'العداد', 'meter'], '11035130');
-    const district       = getVal(form, ['الحي', 'district'], 'السالمية');
-    
-    // توليد رابط خرائط قوقل التفاعلي المباشر
-    let coords = getVal(form, ['coord', 'موقع', 'إحداثيات', 'gps', 'location'], '26.287685,43.994923');
-    coords = coords.replace(/\s+/g, '');
-    const mapsLink = `https://maps.google.com/?q=${coords}`;
+    // 2. سحب الحقول الحقيقية التي كتبها المستخدم في الشاشة فقط (بدون أي بيانات افتراضية)
+    const allInputs = Array.from(container.querySelectorAll('input, select, textarea'))
+      .filter(i => i.type !== 'hidden' && i.type !== 'submit' && i.type !== 'button' && i.type !== 'file');
 
-    // التحقق الدقيق من النتيجة (ناجح ✅ أم راسب ❌)
-    const rawResult = getVal(form, ['نتيجة', 'النتيجة', 'result'], 'ناجح');
-    const isFailed = rawResult.includes('راسب') || rawResult.toLowerCase().includes('fail');
-    const resultFormatted = isFailed ? 'راسب ❌' : 'ناجح ✅';
+    let lines = [];
+    let coordsVal = '';
+    let testResultVal = '';
 
-    // 3. بناء المسودة المعتمدة
-    const captionText = 
-`🕳 المقاول الرئيسي : ${mainContractor}
-🕳 المقاول الباطن : ${subContractor}
-🕳 المشروع : ${project}
-🕳 رقم الرخصه : ${licenseNo}
-🕳 حالة الرخصه : ${licenseStatus}
-🕳 رقم العداد: ${meterNo}
-🕳 الحي:${district}
-🕳 الموقع: ${mapsLink}
-${resultFormatted}
-━━━━━━━━━━━━━━━━━━━━━`;
+    allInputs.forEach(input => {
+      let val = '';
+      if (input.tagName === 'SELECT') {
+        val = input.options[input.selectedIndex]?.text || input.value;
+      } else if (input.type === 'checkbox' || input.type === 'radio') {
+        if (input.checked) val = input.value || 'نعم';
+      } else {
+        val = input.value;
+      }
+
+      val = (val || '').trim();
+      if (!val) return; // تجاوز أي حقل فارغ
+
+      let rawLabel = extractLabel(input).replace(/[:：*]/g, '').trim();
+
+      // رصد الإحداثيات الجغرافية
+      if (rawLabel.includes('موقع') || rawLabel.includes('إحداثي') || rawLabel.includes('احداثي') || rawLabel.toLowerCase().includes('gps') || rawLabel.toLowerCase().includes('coord') || val.match(/^[0-9.]+\s*,\s*[0-9.]+$/)) {
+        coordsVal = val.replace(/\s+/g, '');
+        return;
+      }
+
+      // رصد نتيجة الاختبار
+      if (rawLabel.includes('نتيجة') || rawLabel.includes('النتيجة') || rawLabel.toLowerCase().includes('result') || val.includes('ناجح') || val.includes('راسب')) {
+        testResultVal = val;
+        return;
+      }
+
+      if (rawLabel) {
+        lines.push(`🕳 ${rawLabel} : ${val}`);
+      }
+    });
+
+    // تجهيز رابط قوقل ماب إذا وُجدت إحداثيات حقيقية
+    if (coordsVal) {
+      lines.push(`🕳 الموقع: https://maps.google.com/?q=0{coordsVal}`);
+    }
+
+    // تحديد علامة النتيجة الحقيقية
+    let resultLine = '';
+    if (testResultVal) {
+      const isFailed = testResultVal.includes('راسب') || testResultVal.toLowerCase().includes('fail') || testResultVal.includes('غير مطابق');
+      resultLine = isFailed ? 'راسب ❌' : 'ناجح ✅';
+    } else {
+      resultLine = 'ناجح ✅';
+    }
+
+    // بناء نص المسودة النهائي من مدخلاتك الحقيقية فقط
+    const captionText = lines.join('\n') + `\n${resultLine}\n━━━━━━━━━━━━━━━━━━━━━`;
 
     const botUrl = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
 
     try {
       if (photos.length > 1) {
-        // إرسال أول دفعة صور كألبوم متجاور (بحد أقصى 10 صور للتليجرام في الرسالة)
+        // إرسال كألبوم صور مجمّع ومفتوح
         const firstBatch = photos.slice(0, 10);
         const formData = new FormData();
         formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
@@ -476,7 +535,7 @@ ${resultFormatted}
           body: formData
         });
 
-        // إرسال بقية الصور تباعاً إن زادت عن 10 صور
+        // إرسال أي صور إضافية أخرى إن تجاوزت 10
         if (photos.length > 10) {
           for (let i = 10; i < photos.length; i++) {
             const extraForm = new FormData();
@@ -487,7 +546,7 @@ ${resultFormatted}
         }
 
       } else if (photos.length === 1) {
-        // إرسال صورة واحدة مع الشرح
+        // صورة واحدة مع المسودة
         const formData = new FormData();
         formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
         formData.append('photo', photos[0]);
@@ -499,7 +558,7 @@ ${resultFormatted}
         });
 
       } else {
-        // إرسال نصي مباشر عند عدم إرفاق صور
+        // إرسال نصي بالبيانات الحقيقية في حال لم ترفق صور
         await fetch(`${botUrl}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -510,52 +569,38 @@ ${resultFormatted}
         });
       }
 
-      showInAppAlert("تم تنزيل الزيارة الميدانية", "تم بث المسودة الميدانية والألبوم بنجاح");
+      showInAppAlert("تم تنزيل الزيارة الميدانية", "تم إرسال بياناتك الحقيقية والألبوم بنجاح");
     } catch (err) {
       console.error("خطأ أثناء إرسال المسودة الميدانية:", err);
     }
   }
 
-  // مستمعات الأحداث في النظام
+  // مراقبة أزرار الحفظ والإجراءات في النظام
   document.addEventListener('DOMContentLoaded', () => {
 
-    // رصد حفظ النماذج
+    // رصد تقديم النماذج
     document.addEventListener('submit', function (e) {
       const form = e.target;
-      const section = form.closest('section') || document.querySelector('section.page:not(.hidden)');
-      const sectionText = (section?.innerText || '') + (form.innerText || '');
+      const sectionText = ((form.closest('section')?.innerText || '') + form.innerText).toLowerCase();
 
-      // معالجة الزيارة الميدانية
-      if (sectionText.includes('الميداني') || sectionText.includes('زيارة') || sectionText.includes('تنزيل')) {
+      if (sectionText.includes('ميداني') || sectionText.includes('زيارة') || sectionText.includes('تنزيل') || sectionText.includes('اختبار')) {
         sendFieldVisitDraft(form);
-        return;
-      }
-
-      // إضافة عميل جديد
-      if (sectionText.includes('عميل') || sectionText.includes('العملاء')) {
-        const clientName = getVal(form, ['اسم', 'name'], 'عميل جديد');
-        const clientPhone = getVal(form, ['جوال', 'phone', 'هاتف'], 'غير محدد');
-        const msg = `👤 *إضافة عميل جديد*\n━━━━━━━━━━━━━━━\n▫️ *اسم العميل:* ${clientName}\n▫️ *رقم الجوال:* ${clientPhone}\n▫️ *الحالة:* مسجل بنجاح`;
-        
-        fetch(`https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: TELEGRAM_SETTINGS.chatId, text: msg, parse_mode: 'Markdown' })
-        });
-        showInAppAlert("إدارة العملاء", "تم حفظ العميل وإرسال الإشعار");
-        return;
       }
     });
 
-    // رصد أزرار التنزيل والحفظ المباشرة
+    // رصد النقر على أزرار التنزيل أو الحفظ الميداني
     document.addEventListener('click', function (e) {
       const btn = e.target.closest('button');
       if (!btn) return;
       const txt = btn.innerText.trim();
 
-      if (txt.includes('تنزيل الزيارة') || txt.includes('حفظ الزيارة الميدانية') || txt.includes('رفع التقرير الميداني')) {
-        const activeForm = btn.closest('form') || document.querySelector('section.page:not(.hidden) form') || document.body;
-        sendFieldVisitDraft(activeForm);
+      if (txt.includes('تنزيل') || txt.includes('حفظ') || txt.includes('إسناد') || txt.includes('إرسال')) {
+        const container = btn.closest('form') || btn.closest('.modal') || btn.closest('section') || document.body;
+        const contextText = container.innerText || '';
+
+        if (contextText.includes('ميداني') || contextText.includes('زيارة') || contextText.includes('رخصة') || contextText.includes('عداد') || contextText.includes('مشروع')) {
+          sendFieldVisitDraft(btn);
+        }
       }
     });
 
