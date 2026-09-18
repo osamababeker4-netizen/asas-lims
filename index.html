@@ -356,56 +356,54 @@
     }
   </script>
 
-  <script>
- <script>
-// إعدادات البوت والربط المشفر
+   <script>
+// إعدادات الربط الآمن مع بوت التلغرام
 const TELEGRAM_SETTINGS = {
   botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
   chatId: "-1003927157003"
 };
 
-// إشعار فوري على شاشة الفني
-function showInAppAlert(title, message) {
+// شريط تنبيه داخلي في شاشة النظام
+function showInAppAlert(title, message, isError = false) {
   let toast = document.getElementById('asas-live-toast');
   if (!toast) {
     toast = document.createElement('div');
     toast.id = 'asas-live-toast';
-    toast.style.cssText = `
-      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-      background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.35); z-index: 999999; font-family: inherit;
-      display: flex; align-items: center; gap: 12px; direction: rtl; border-right: 5px solid #10b981;
-      opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
-    `;
     document.body.appendChild(toast);
   }
-  toast.innerHTML = `<span style="font-size: 20px;">📍</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${message}</span></div>`;
-  toast.style.opacity = '1';
-  toast.style.transform = 'translateX(-50%) translateY(0)';
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(-50%) translateY(10px)';
-  }, 4000);
+  toast.style.cssText = `
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.4); z-index: 999999; font-family: inherit;
+    display: flex; align-items: center; gap: 12px; direction: rtl;
+    border-right: 5px solid ${isError ? '#ef4444' : '#10b981'};
+    opacity: 1; transition: all 0.3s ease;
+  `;
+  toast.innerHTML = `<span style="font-size: 20px;">${isError ? '⚠️' : '📍'}</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${message}</span></div>`;
+  setTimeout(() => { toast.style.opacity = '0'; }, 4500);
 }
 
-// دالة استخراج قيم الحقول من النموذج الميداني
+// استخراج قيم الحقول من شاشة النظام
 function getFieldValue(form, keywords, defaultVal = '') {
-  const elements = Array.from(form.querySelectorAll('input, select, textarea'));
+  const elements = Array.from(form.querySelectorAll('input, select, textarea, span, div'));
   for (const kw of keywords) {
     const el = elements.find(i => {
       const matchName = i.name && i.name.toLowerCase().includes(kw);
       const matchId = i.id && i.id.toLowerCase().includes(kw);
       const matchPh = i.placeholder && i.placeholder.includes(kw);
       const matchLabel = i.closest('label')?.innerText.includes(kw) || false;
-      return (matchName || matchId || matchPh || matchLabel) && i.value.trim() !== '';
+      return (matchName || matchId || matchPh || matchLabel) && (i.value || i.innerText);
     });
-    if (el) return el.value.trim();
+    if (el) {
+      const val = (el.value !== undefined ? el.value : el.innerText).trim();
+      if (val) return val;
+    }
   }
   return defaultVal;
 }
 
-// دالة جلب الإحداثيات الحقيقية للجهاز لحظة الضغط
-function getLiveLocation() {
+// جلب الموقع اللحظي الفعلي من حساسات GPS بالجهاز
+function getExactLiveGPS() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve(null);
@@ -413,33 +411,58 @@ function getLiveLocation() {
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        // إذا كانت الدقة أفضل من 1000 متر نعتمدها كموقع فعلي للجهاز
         const lat = pos.coords.latitude.toFixed(6);
         const lng = pos.coords.longitude.toFixed(6);
-        resolve(`${lat},${lng}`);
+        const accuracy = Math.round(pos.coords.accuracy);
+        resolve({ coords: `${lat},${lng}`, accuracy: accuracy });
       },
       (err) => {
-        console.warn("تعذر جلب موقع GPS اللحظي:", err);
+        console.warn("تعذر التقاط GPS اللحظي:", err);
         resolve(null);
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   });
 }
 
-// دالة إرسال مسودة الزيارة الميدانية فقط
+// معالجة وإرسال مسودة البرنامج الميداني
 async function processFieldReport(targetElement) {
   const form = targetElement.closest('form') || targetElement.closest('section') || document.querySelector('section.page:not(.hidden)');
   if (!form) return;
 
-  showInAppAlert("جاري تحديد الموقع...", "يتم التقاط إحداثيات الجهاز وتجهيز مسودة الميداني");
+  showInAppAlert("جاري تحديد الموقع...", "يتم الآن قراءة إحداثيات الجهاز الحقيقية للزيارة الميدانية");
 
-  // 1. التقاط إحداثيات موقع الفني لحظة الضغط بدقة عالية
-  const liveGPS = await getLiveLocation();
-  const formCoords = getFieldValue(form, ['coord', 'موقع', 'إحداثيات', 'gps', 'location']);
-  const finalCoords = liveGPS || formCoords || '26.3298,43.9728';
-  const mapsLink = `https://www.google.com/maps?q=${finalCoords.replace(/\s+/g, '')}`;
+  // 1. فحص الإحداثيات (أولوية للـ GPS الحي الفعلي ثم المدخل يدوياً)
+  const liveGPS = await getExactLiveGPS();
+  let manualInput = form.querySelector('input[placeholder*="الموقع"], [name*="location"], [id*="location"]')?.value?.trim();
 
-  // 2. استخراج بيانات المسودة الميدانية طبقاً لنموذجك المعتمد
+  let finalCoords = '';
+  if (liveGPS && liveGPS.accuracy < 2000) {
+    // موقع حقيقي ملتقط من الجوال بدقة عالية
+    finalCoords = liveGPS.coords;
+  } else if (manualInput && manualInput.includes(',')) {
+    // إحداثيات كتبها المستخدم بيده في خانة الموقع
+    finalCoords = manualInput;
+  } else if (liveGPS) {
+    // في حال عدم توفر أفضل من ذلك
+    finalCoords = liveGPS.coords;
+  } else {
+    // قراءة القيم الموجودة في الشاشة إذا وجدت
+    const latElem = form.querySelector('#lat, [name="lat"], .lat-val')?.innerText || '';
+    const lngElem = form.querySelector('#lng, [name="lng"], .lng-val')?.innerText || '';
+    if (latElem && lngElem) finalCoords = `${latElem.trim()},${lngElem.trim()}`;
+  }
+
+  // إذا كانت النتيجة لا تزال غير محددة
+  if (!finalCoords || finalCoords === '26.329800,43.972800') {
+    finalCoords = '26.3298,43.9728';
+  }
+
+  const cleanCoords = finalCoords.replace(/\s+/g, '');
+  const mapsLink = `https://maps.google.com/?q=${cleanCoords}`;
+
+  // 2. استخراج بيانات الزيارة الميدانية بحسب الكليشة المعتمدة
   const licenseNo     = getFieldValue(form, ['رقم الرخصة', 'الرخصة', 'license', 'permit'], '45211478565');
   const contractor    = getFieldValue(form, ['المقاول', 'contractor'], 'سعد العيسي');
   const project       = getFieldValue(form, ['اسم المشروع', 'المشروع', 'project'], 'الكهرباء');
@@ -447,9 +470,9 @@ async function processFieldReport(targetElement) {
   const layerNo       = getFieldValue(form, ['رقم الطبقة', 'الطبقة', 'layer'], '2');
   const projectCode   = getFieldValue(form, ['معرف المشروع', 'كود المشروع'], '1');
   const sampleCode    = getFieldValue(form, ['معرف العينة', 'رقم العينة'], '1');
-  const resultStatus  = getFieldValue(form, ['النتيجة', 'نتيجة', 'result', 'حالة'], 'ناجح ✅');
+  const resultStatus  = getFieldValue(form, ['النتيجة', 'نتيجة', 'result'], 'ناجح ✅');
 
-  // استخراج الاختبارات الرسمية
+  // استخراج أسماء الاختبارات
   const testsInputs = Array.from(form.querySelectorAll('input:checked, select, input[name*="test"]'))
     .map(el => el.value)
     .filter(val => val && (val.includes('D') || val.includes('تربة') || val.includes('ASTM')));
@@ -461,7 +484,7 @@ async function processFieldReport(targetElement) {
     testsBlock = `🕳 الاختبار الرسمي : تربة – D2487 – تصنيف التربة الموحد USCS\n🕳 الاختبار الرسمي : تربة – D854 – الكثافة النوعية لحبيبات التربة`;
   }
 
-  // 3. صياغة نص المسودة الميدانية بالرموز المطلوبة بدون أي زوائد
+  // 3. صياغة نص المسودة المطابق لطلبك بالكامل
   const captionText = `🕳 رقم الرخصة : ${licenseNo}\n`
                     + `🕳 المقاول : ${contractor}\n`
                     + `🕳 اسم المشروع : ${project}\n`
@@ -473,7 +496,7 @@ async function processFieldReport(targetElement) {
                     + `🕳 الموقع: ${mapsLink}\n`
                     + `${resultStatus}`;
 
-  // 4. جمع صور الفني الميدانية المرفوعة فقط (صور الجهاز / الموقع) دون صور الخريطة
+  // 4. جمع صور الكاميرا والاستديو المرفوعة
   const fileInputs = form.querySelectorAll('input[type="file"]');
   let fieldPhotos = [];
   fileInputs.forEach(inp => {
@@ -488,7 +511,6 @@ async function processFieldReport(targetElement) {
 
   try {
     if (fieldPhotos.length > 1) {
-      // إرسال الصور الفعلية كألبوم مجمع ومرفق معها المسودة
       const formData = new FormData();
       formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
       const media = [];
@@ -503,7 +525,6 @@ async function processFieldReport(targetElement) {
       await fetch(`${botUrl}/sendMediaGroup`, { method: 'POST', body: formData });
 
     } else if (fieldPhotos.length === 1) {
-      // إرسال صورة واحدة مع المسودة
       const formData = new FormData();
       formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
       formData.append('photo', fieldPhotos[0]);
@@ -511,7 +532,7 @@ async function processFieldReport(targetElement) {
       await fetch(`${botUrl}/sendPhoto`, { method: 'POST', body: formData });
 
     } else {
-      // إرسال المسودة كنص فقط مع منع ظهور صورة مصغرة للخريطة
+      // إرسال المسودة كنص مع إخفاء معاينة صورة الخريطة
       await fetch(`${botUrl}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -523,46 +544,38 @@ async function processFieldReport(targetElement) {
       });
     }
 
-    showInAppAlert("تم تنزيل الزيارة الميدانية", "تم التقاط الموقع وبث المسودة بنجاح");
+    showInAppAlert("تم تنزيل الزيارة الميدانية", `تم التقاط الموقع بنجاح (${cleanCoords})`);
   } catch (err) {
     console.error("فشل إرسال تقرير الميداني:", err);
   }
 }
 
-// 5. قصر الرصد التلقائي على شاشات وأزرار البرنامج الميداني حصراً
+// 5. حصر الرصد في شاشة البرنامج الميداني فقط
 document.addEventListener('DOMContentLoaded', () => {
-
-  // استماع للنماذج
   document.addEventListener('submit', function (e) {
     const form = e.target;
-    const activeSec = form.closest('section') || document.querySelector('section.page:not(.hidden)');
-    const secTitle = activeSec?.innerText || '';
-
-    // التحقق الصارم أن النموذج يخص البرنامج الميداني فقط
-    if (secTitle.includes('الميداني') || secTitle.includes('الزيارة الميدانية') || form.innerText.includes('تنزيل الزيارة')) {
+    const sec = form.closest('section') || document.querySelector('section.page:not(.hidden)');
+    const txt = (sec?.innerText || '') + (form.innerText || '');
+    if (txt.includes('الميداني') || txt.includes('زيارة') || txt.includes('تنزيل')) {
       e.preventDefault();
       processFieldReport(form);
     }
   });
 
-  // استماع للنقر على أزرار التنزيل أو الحفظ الميداني
   document.addEventListener('click', function (e) {
     const btn = e.target.closest('button');
     if (!btn) return;
     const txt = btn.innerText.trim();
+    const sec = btn.closest('section') || document.querySelector('section.page:not(.hidden)');
+    const secTxt = sec?.innerText || '';
 
-    const activeSec = btn.closest('section') || document.querySelector('section.page:not(.hidden)');
-    const secTitle = activeSec?.innerText || '';
-
-    // تفعيل فقط عند الضغط داخل قسم البرنامج الميداني
-    if (secTitle.includes('الميداني') || secTitle.includes('البرنامج الميداني')) {
+    if (secTxt.includes('الميداني') || secTxt.includes('البرنامج الميداني')) {
       if (txt.includes('تنزيل') || txt.includes('حفظ') || txt.includes('إرسال') || txt.includes('زيارة')) {
         processFieldReport(btn);
       }
     }
   });
-
-});
+  </
 </script> 
 </body>
 </html>
