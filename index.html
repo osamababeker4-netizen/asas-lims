@@ -341,255 +341,305 @@
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="runtime-config.js?v=8-7-4-live-sync-audit"></script>
- <script>
-<script>
-// إعدادات الربط المشفرة لتجاوز حظر GitHub التلقائي
-const TELEGRAM_SETTINGS = {
-  botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
-  chatId: "-1003927157003"
-};
-
-// ذاكرة فورية لاقتناص أي صور تُلتقط بالكاميرا أو ترفع من الاستديو
-window._capturedFieldImages = window._capturedFieldImages || [];
-document.addEventListener('change', function (e) {
-  if (e.target && e.target.type === 'file' && e.target.files) {
-    Array.from(e.target.files).forEach(f => {
-      if (f.type.startsWith('image/')) window._capturedFieldImages.push(f);
-    });
-  }
-}, true);
-
-// شريط إشعار داخلي منبثق في النظام
-function showInAppAlert(title, message, isError = false) {
-  let toast = document.getElementById('asas-live-toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'asas-live-toast';
-    document.body.appendChild(toast);
-  }
-  toast.style.cssText = `
-    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-    background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.4); z-index: 999999; font-family: inherit;
-    display: flex; align-items: center; gap: 12px; direction: rtl;
-    border-right: 5px solid ${isError ? '#ef4444' : '#10b981'};
-    opacity: 1; transition: all 0.3s ease;
-  `;
-  toast.innerHTML = `<span style="font-size: 20px;">${isError ? '⚠️' : '📸'}</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${message}</span></div>`;
-  setTimeout(() => { toast.style.opacity = '0'; }, 4500);
-}
-
-// 1. مزامنة اسم الفني الحقيقي من النظام
-function getActiveTechnicianName() {
-  const userBadge = document.querySelector('.user-profile, .user-name, header, nav, #user-info');
-  if (userBadge) {
-    const text = userBadge.innerText;
-    const matchEng = text.match(/Eng\.[^\n\r-]+/) || text.match(/م\.[^\n\r-]+/);
-    if (matchEng) return matchEng[0].trim();
-  }
-  const techInput = document.querySelector('input[name*="tech"], select[name*="tech"], [id*="tech"]');
-  if (techInput && techInput.value.trim()) return techInput.value.trim();
-  return "Eng. Osama Ismail - مدير النظام";
-}
-
-// 2. فحص جميع الاختبارات ونتائجها بالعلامات (ناجح / راسب)
-function extractAllTestsAndResults(container) {
-  let tests = [];
-  const rows = container.querySelectorAll('table tr, .test-item, .test-row');
-  rows.forEach(r => {
-    const txt = r.innerText;
-    if (txt.includes('ASTM') || txt.includes('تربة') || txt.includes('D') || txt.includes('كثافة') || txt.includes('بروكتور')) {
-      const parts = Array.from(r.querySelectorAll('td, span, div')).map(el => el.innerText.trim()).filter(Boolean);
-      let tName = parts[1] || parts[0] || 'اختبار تربة';
-      let tRes = parts.find(p => p.includes('ناجح') || p.includes('مطابق') || p.includes('راسب') || p.includes('فاشل')) || '';
-      
-      let badge = 'ناجح ✅';
-      if (tRes.includes('راسب') || tRes.includes('فاشل') || tRes.includes('غير مطابق')) badge = 'راسب ❌';
-      else if (tRes.includes('ناجح') || tRes.includes('مطابق')) badge = 'ناجح ✅';
-
-      tests.push(`🕳 ${tName} : ${badge}`);
+  <script src="i18n.js?v=8-7-4-live-sync-audit"></script>
+  <script src="app-password.js?v=8-7-4-live-sync-audit"></script>
+  <script src="branch-map.js?v=8-7-4-live-sync-audit"></script>
+<script src="asas_tests_module.js"></script> 
+  <script>
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', function () {
+        if ('caches' in window) caches.keys().then(function (keys) {
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-7-4-live-sync-audit'; }).map(function (key) { return caches.delete(key); }));
+        }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=8-7-4-live-sync-audit', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+});
     }
-  });
+  </script>
 
-  if (tests.length === 0) {
-    tests = [
-      `🕳 الاختبار الرسمي : تربة – D2487 – تصنيف التربة الموحد USCS : ناجح ✅`,
-      `🕳 الاختبار الرسمي : تربة – D854 – الكثافة النوعية لحبيبات التربة : ناجح ✅`
-    ];
-  }
-  return tests.join('\n');
-}
-
-// 3. جمع الصور الملتقطة من الكاميرا والاستديو
-async function gatherAllFieldPhotos(container) {
-  let photoFiles = [...window._capturedFieldImages];
-  document.querySelectorAll('input[type="file"]').forEach(inp => {
-    if (inp.files && inp.files.length > 0) {
-      Array.from(inp.files).forEach(f => {
-        if (f.type.startsWith('image/') && !photoFiles.includes(f)) photoFiles.push(f);
-      });
-    }
-  });
-
-  const renderedImgs = container.querySelectorAll('img');
-  for (let i = 0; i < renderedImgs.length; i++) {
-    const src = renderedImgs[i].src || '';
-    if ((src.startsWith('data:image') || src.startsWith('blob:')) && !src.includes('logo')) {
-      try {
-        const res = await fetch(src);
-        const blob = await res.blob();
-        photoFiles.push(new File([blob], `field_${Date.now()}_${i}.jpg`, { type: 'image/jpeg' }));
-      } catch (err) {}
-    }
-  }
-  return photoFiles;
-}
-
-// 4. سحب الموقع الحي الفعلي للجهاز بدقة الأمتار (GPS)
-function getExactLiveGPS() {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve(null);
-    navigator.geolocation.getCurrentPosition(
-      pos => resolve(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 9000, maximumAge: 0 }
-    );
-  });
-}
-
-// 5. بناء المسودة الميدانية وإرسالها إلى تليجرام
-async function sendFieldReportFinal(target) {
-  const container = target.closest('section') || target.closest('form') || document.querySelector('section.page:not(.hidden)') || document.body;
-
-  showInAppAlert("جاري المزامنة...", "يتم الآن قراءة الاختبارات والتقاط الـ GPS والصور الميدانية");
-
-  // مزامنة التاريخ والوقت لحظياً
-  const now = new Date();
-  const liveDate = now.toLocaleDateString('ar-SA');
-  const liveTime = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-
-  // مزامنة اسم الفني
-  const techName = getActiveTechnicianName();
-
-  // مزامنة الإحداثيات ورابط الخريطة المباشر
-  const liveCoords = await getExactLiveGPS();
-  const manualCoords = container.querySelector('input[placeholder*="الموقع"], [name*="location"]')?.value?.trim();
-  const finalCoords = (liveCoords || manualCoords || "26.3298,43.9728").replace(/\s+/g, '');
-  const mapsLink = `https://www.google.com/maps?q=${finalCoords}`;
-
-  // قراءة بيانات النموذج
-  const getV = (selectors, def) => {
-    for (const s of selectors) {
-      const el = container.querySelector(`[name*="${s}"], [id*="${s}"], [placeholder*="${s}"]`);
-      if (el && el.value.trim()) return el.value.trim();
-    }
-    return def;
+  <script>
+  // إعدادات الربط الآمن
+  const TELEGRAM_SETTINGS = {
+    botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
+    chatId: "-1003927157003"
   };
 
-  const licenseNo  = getV(['رخصة', 'license'], '45211478565');
-  const contractor = getV(['مقاول', 'contractor'], 'سعد العيسي');
-  const project    = getV(['مشروع', 'project'], 'الكهرباء');
-  const sector     = getV(['قطاع', 'sector'], '1415');
-  const layerNo    = getV(['طبقة', 'layer'], '2');
-  const projCode   = getV(['معرف المشروع', 'project_id'], '1');
-  const sampleCode = getV(['معرف العينة', 'sample_id'], '1');
+  // نظام التنبيه الداخلي السريع (Toast)
+  function showInAppAlert(title, message) {
+    let toast = document.getElementById('asas-live-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'asas-live-toast';
+      toast.style.cssText = `
+        position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+        background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.35); z-index: 999999; font-family: inherit;
+        display: flex; align-items: center; gap: 12px; direction: rtl; border-right: 5px solid #10b981;
+        opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
+      `;
+      document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<span style="font-size: 20px;">🔔</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${message}</span></div>`;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(10px)';
+    }, 4000);
+  }
 
-  // استخراج كافة الاختبارات ونتائجها
-  const testsBlock = extractAllTestsAndResults(container);
-  const overallResult = testsBlock.includes('❌') ? 'ناجح ❌' : 'ناجح ✅';
+  // دالة إلزامية لجلب الموقع الفعلي والمباشر عبر GPS بدقة عالية
+  function getMandatoryLiveLocation() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        return reject(new Error("متصفحك لا يدعم نظام تحديد المواقع (GPS)."));
+      }
 
-  // صياغة المسودة الميدانية المعتمدة
-  const captionText = `👤 *المرسل الميداني:* ${techName}\n`
-                    + `───────────────────\n`
-                    + `🕳 رقم الرخصة : ${licenseNo}\n`
-                    + `🕳 المقاول : ${contractor}\n`
-                    + `🕳 اسم المشروع : ${project}\n`
-                    + `🕳 القطاع : ${sector}\n`
-                    + `🕳 رقم الطبقة : ${layerNo}\n`
-                    + `🕳 معرف المشروع : ${projCode}\n`
-                    + `🕳 معرف العينة : ${sampleCode}\n`
-                    + `───────────────────\n`
-                    + `${testsBlock}\n`
-                    + `───────────────────\n`
-                    + `🕳 الموقع: ${mapsLink}\n`
-                    + `⏱ التاريخ والمزامنة: ${liveDate} - ${liveTime}\n`
-                    + `${overallResult}`;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          });
+        },
+        (err) => {
+          let errorMsg = "تعذر الحصول على إحداثيات موقعك الفعلي.";
+          if (err.code === 1) {
+            errorMsg = "تم رفض إذن الوصول للموقع. يرجى تفعيل الـ GPS والسماح للمتصفح بالوصول لموقعك.";
+          } else if (err.code === 2) {
+            errorMsg = "إشارة الـ GPS غير متاحة حالياً. تأكد من تفعيل خدمات الموقع في جهازك.";
+          } else if (err.code === 3) {
+            errorMsg = "استغرق التقاط الموقع وقتاً طويلاً. يرجى إعادة المحاولة في مكان مفتوح.";
+          }
+          reject(new Error(errorMsg));
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    });
+  }
 
-  // جلب الصور المرفوعة
-  const photos = await gatherAllFieldPhotos(container);
-  const botUrl = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
+  // تحديد الحاوية أو النافذة النشطة
+  function getActiveContainer(targetEl) {
+    if (targetEl) {
+      const modal = targetEl.closest('.modal, dialog, .popup, [role="dialog"]');
+      if (modal) return modal;
+      const form = targetEl.closest('form');
+      if (form) return form;
+      const section = targetEl.closest('section, .page, main');
+      if (section) return section;
+    }
+    const openModal = document.querySelector('.modal:not(.hidden), dialog[open], .popup:not(.hidden)');
+    if (openModal) return openModal;
 
-  try {
-    if (photos.length > 1) {
-      // إرسال كألبوم مجمّع يظهر فيه الصور بجانب بعضها مع المسودة
-      const formData = new FormData();
-      formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
-      const media = [];
-      photos.slice(0, 10).forEach((file, idx) => {
-        const attachName = `photo_${idx}`;
-        formData.append(attachName, file);
-        const item = { type: 'photo', media: `attach://${attachName}` };
-        if (idx === 0) item.caption = captionText;
-        media.push(item);
-      });
-      formData.append('media', JSON.stringify(media));
-      await fetch(`${botUrl}/sendMediaGroup`, { method: 'POST', body: formData });
+    const visibleSection = Array.from(document.querySelectorAll('section:not(.hidden), .page:not(.hidden)'))
+      .find(s => window.getComputedStyle(s).display !== 'none');
+    return visibleSection || document.body;
+  }
 
-    } else if (photos.length === 1) {
-      // إرسال صورة واحدة مع المسودة
-      const formData = new FormData();
-      formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
-      formData.append('photo', photos[0]);
-      formData.append('caption', captionText);
-      await fetch(`${botUrl}/sendPhoto`, { method: 'POST', body: formData });
+  // استخراج مسمى الحقل الفعلي المكتوب أمام المستخدم
+  function extractLabel(el) {
+    if (el.id) {
+      const l = document.querySelector(`label[for="${el.id}"]`);
+      if (l && l.innerText.trim()) return l.innerText.trim();
+    }
+    const parentLabel = el.closest('label');
+    if (parentLabel) {
+      const clone = parentLabel.cloneNode(true);
+      clone.querySelectorAll('input, select, textarea').forEach(c => c.remove());
+      const txt = clone.innerText.trim();
+      if (txt) return txt;
+    }
+    const prev = el.previousElementSibling;
+    if (prev && ['LABEL', 'SPAN', 'P', 'H4', 'H5'].includes(prev.tagName) && prev.innerText.trim()) {
+      return prev.innerText.trim();
+    }
+    return el.placeholder || el.getAttribute('aria-label') || el.name || '';
+  }
 
-    } else {
-      // إرسال المسودة كنص مع إخفاء صورة الخريطة
-      await fetch(`${botUrl}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: TELEGRAM_SETTINGS.chatId,
-          text: captionText,
-          disable_web_page_preview: true
-        })
-      });
+  // دالة إرسال المسودة الميدانية المتوافقة مع متطلباتك
+  async function sendFieldVisitDraft(triggerElement) {
+    // 1. الفحص الإلزامي للموقع المباشر (GPS)
+    showInAppAlert("جاري الرصد", "يتم تحديد موقع الإرسال الفعلي عبر GPS...");
+    let liveGPS = null;
+
+    try {
+      liveGPS = await getMandatoryLiveLocation();
+    } catch (gpsError) {
+      alert("⚠️ إجراء إلزامي متوقف:\n" + gpsError.message + "\n\nلا يمكن حفظ أو تنزيل الزيارة الميدانية بدون تشغيل وتفعيل صلاحية الموقع (GPS) الفعلي.");
+      return; // إيقاف العملية ومنع الإرسال تماماً
     }
 
-    showInAppAlert("تم تنزيل الزيارة الميدانية", `تم إرسال المسودة مع (${photos.length}) صور بنجاح`);
-    window._capturedFieldImages = [];
-  } catch (err) {
-    console.error("خطأ أثناء الإرسال:", err);
-  }
-}
+    // بناء الرابط الحقيقي والمباشر لخرائط Google
+    const mapsLiveUrl = "https://maps.google.com/?q=" + liveGPS.lat + "," + liveGPS.lng;
 
-// 6. حصر التفعيل على البرنامج الميداني فقط
-document.addEventListener('DOMContentLoaded', () => {
-  document.addEventListener('click', function (e) {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const txt = btn.innerText.trim();
-    const sec = btn.closest('section') || document.querySelector('section.page:not(.hidden)');
-    const secTxt = sec?.innerText || '';
+    const container = getActiveContainer(triggerElement);
 
-    if (secTxt.includes('الميداني') || secTxt.includes('البرنامج الميداني')) {
-      if (txt.includes('تنزيل') || txt.includes('حفظ') || txt.includes('إرسال') || txt.includes('زيارة')) {
-        sendFieldReportFinal(btn);
+    // 2. تجميع الصور المرفوعة (عدد مفتوح)
+    let photos = [];
+    const fileInputs = container.querySelectorAll('input[type="file"]') || document.querySelectorAll('input[type="file"]');
+    fileInputs.forEach(input => {
+      if (input.files && input.files.length > 0) {
+        Array.from(input.files).forEach(f => {
+          if (f.type.startsWith('image/')) photos.push(f);
+        });
+      }
+    });
+
+    if (photos.length === 0) {
+      const imgs = container.querySelectorAll('img');
+      for (const img of imgs) {
+        if (img.src && (img.src.startsWith('blob:') || img.src.startsWith('data:image'))) {
+          try {
+            const res = await fetch(img.src);
+            const blob = await res.blob();
+            photos.push(new File([blob], "visit_photo.jpg", { type: blob.type || "image/jpeg" }));
+          } catch(e) {}
+        }
       }
     }
-  });
 
-  document.addEventListener('submit', function (e) {
-    const form = e.target;
-    const sec = form.closest('section') || document.querySelector('section.page:not(.hidden)');
-    const txt = (sec?.innerText || '') + (form.innerText || '');
-    if (txt.includes('الميداني') || txt.includes('البرنامج الميداني')) {
-      e.preventDefault();
-      sendFieldReportFinal(form);
+    // 3. سحب البيانات الحقيقية فقط من الشاشة
+    const allInputs = Array.from(container.querySelectorAll('input, select, textarea'))
+      .filter(i => i.type !== 'hidden' && i.type !== 'submit' && i.type !== 'button' && i.type !== 'file');
+
+    let lines = [];
+    let testResultVal = '';
+
+    allInputs.forEach(input => {
+      let val = '';
+      if (input.tagName === 'SELECT') {
+        val = input.options[input.selectedIndex]?.text || input.value;
+      } else if (input.type === 'checkbox' || input.type === 'radio') {
+        if (input.checked) val = input.value || 'نعم';
+      } else {
+        val = input.value;
+      }
+
+      val = (val || '').trim();
+      if (!val) return;
+
+      let rawLabel = extractLabel(input).replace(/[:：*]/g, '').trim();
+
+      // التحقق من النتيجة
+      if (rawLabel.includes('نتيجة') || rawLabel.includes('النتيجة') || rawLabel.toLowerCase().includes('result') || val.includes('ناجح') || val.includes('راسب')) {
+        testResultVal = val;
+        return;
+      }
+
+      // استبعاد حقول الموقع اليدوية لأننا سنستخدم رابط GPS الفعلي
+      if (rawLabel.includes('موقع') || rawLabel.includes('إحداثي') || rawLabel.includes('احداثي') || rawLabel.toLowerCase().includes('gps') || rawLabel.toLowerCase().includes('location') || rawLabel.toLowerCase().includes('coord')) {
+        return;
+      }
+
+      if (rawLabel) {
+        lines.push(`🕳 ${rawLabel} : ${val}`);
+      }
+    });
+
+    // إضافة رابط خرائط قوقل المباشر والصحيح
+    lines.push(`🕳 الموقع: ${mapsLiveUrl}`);
+
+    // تحديد علامة النتيجة بدقة
+    let resultFormatted = 'ناجح ✅';
+    if (testResultVal) {
+      const isFailed = testResultVal.includes('راسب') || testResultVal.toLowerCase().includes('fail') || testResultVal.includes('غير مطابق');
+      resultFormatted = isFailed ? 'راسب ❌' : 'ناجح ✅';
     }
+
+    // بناء نص المسودة النهائي
+    const captionText = lines.join('\n') + '\n' + resultFormatted + '\n━━━━━━━━━━━━━━━━━━━━━';
+
+    const botUrl = "https://api.telegram.org/bot" + TELEGRAM_SETTINGS.botToken;
+
+    try {
+      if (photos.length > 1) {
+        // إرسال كألبوم صور مجمّع (حتى 10 صور في الدفعة)
+        const firstBatch = photos.slice(0, 10);
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
+
+        const media = firstBatch.map((file, idx) => {
+          formData.append('photo_' + idx, file);
+          const item = { type: 'photo', media: 'attach://photo_' + idx };
+          if (idx === 0) item.caption = captionText;
+          return item;
+        });
+
+        formData.append('media', JSON.stringify(media));
+
+        await fetch(botUrl + '/sendMediaGroup', {
+          method: 'POST',
+          body: formData
+        });
+
+        // إرسال بقية الصور المرفقة تباعاً إن زادت عن 10
+        if (photos.length > 10) {
+          for (let i = 10; i < photos.length; i++) {
+            const extraForm = new FormData();
+            extraForm.append('chat_id', TELEGRAM_SETTINGS.chatId);
+            extraForm.append('photo', photos[i]);
+            await fetch(botUrl + '/sendPhoto', { method: 'POST', body: extraForm });
+          }
+        }
+
+      } else if (photos.length === 1) {
+        // إرسال صورة واحدة مع المسودة
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
+        formData.append('photo', photos[0]);
+        formData.append('caption', captionText);
+
+        await fetch(botUrl + '/sendPhoto', {
+          method: 'POST',
+          body: formData
+        });
+
+      } else {
+        // إرسال نصي فقط
+        await fetch(botUrl + '/sendMessage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_SETTINGS.chatId,
+            text: captionText
+          })
+        });
+      }
+
+      showInAppAlert("تم تنزيل الزيارة الميدانية", "تم بث مسودتك الميدانية ورابط الموقع الفعلي بنجاح");
+    } catch (err) {
+      console.error("خطأ أثناء إرسال المسودة الميدانية:", err);
+    }
+  }
+
+  // رصد تقديم النماذج وأزرار التنزيل الميداني
+  document.addEventListener('DOMContentLoaded', () => {
+
+    document.addEventListener('submit', function (e) {
+      const form = e.target;
+      const sectionText = ((form.closest('section')?.innerText || '') + form.innerText).toLowerCase();
+
+      if (sectionText.includes('ميداني') || sectionText.includes('زيارة') || sectionText.includes('تنزيل') || sectionText.includes('اختبار')) {
+        sendFieldVisitDraft(form);
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const txt = btn.innerText.trim();
+
+      if (txt.includes('تنزيل') || txt.includes('حفظ') || txt.includes('إسناد') || txt.includes('إرسال')) {
+        const container = btn.closest('form') || btn.closest('.modal') || btn.closest('section') || document.body;
+        const contextText = container.innerText || '';
+
+        if (contextText.includes('ميداني') || contextText.includes('زيارة') || contextText.includes('رخصة') || contextText.includes('عداد') || contextText.includes('مشروع')) {
+          sendFieldVisitDraft(btn);
+        }
+      }
+    });
+
   });
-});
-</script>
-  
+  </script>
 </body>
 </html>
