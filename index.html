@@ -363,7 +363,17 @@ const TELEGRAM_SETTINGS = {
   chatId: "-1003927157003"
 };
 
-// 1. نظام التنبيه المنبثق داخل شاشة البرنامج
+// ذاكرة تخزين مؤقتة لالتقاط صور الكاميرا والاستوديو فور اختيارها
+window._fieldVisitPhotosCache = [];
+document.addEventListener('change', function (e) {
+  if (e.target && e.target.type === 'file' && e.target.files) {
+    Array.from(e.target.files).forEach(f => {
+      if (f.type.startsWith('image/')) window._fieldVisitPhotosCache.push(f);
+    });
+  }
+}, true);
+
+// 1. نظام التنبيه الداخلي المنبثق
 function showInAppAlert(title, message) {
   let toast = document.getElementById('asas-live-toast');
   if (!toast) {
@@ -387,28 +397,35 @@ function showInAppAlert(title, message) {
   }, 4000);
 }
 
-// دالة مساعدة لتأمين النصوص البرمجية
 function escapeHtml(text) {
   if (!text) return '';
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// 2. معالجة وإرسال مسودة الزيارة الميدانية مع الصور والإحداثيات
+// استخراج اسم المرسل النشط في النظام
+function getActiveSenderName() {
+  const pageText = document.body.innerText;
+  const match = pageText.match(/Eng\.[^\n\r\|—]+/i) || pageText.match(/م\.[^\n\r\|—]+/i);
+  return match ? match[0].trim() : "Eng. Osama Ismail (مدير النظام)";
+}
+
+// 2. معالجة مسودة الزيارة الميدانية بالصور والإحداثيات الدقيقة
 async function processFieldVisit(container) {
-  console.log("جاري معالجة الزيارة الميدانية...");
-  
-  // استخراج ملفات الصور المرفوعة
-  let photoFiles = [];
+  const botBase = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
+  const senderName = getActiveSenderName();
+
+  // أ) جمع الصور (من الذاكرة المؤقتة، المعاينة، أو عناصر الإدخال)
+  let photoFiles = [...window._fieldVisitPhotosCache];
   const fileInputs = container.querySelectorAll('input[type="file"]');
   fileInputs.forEach(input => {
-    if (input.files && input.files.length > 0) {
+    if (input.files) {
       Array.from(input.files).forEach(f => {
         if (f.type.startsWith('image/')) photoFiles.push(f);
       });
     }
   });
 
-  // إذا لم توجد ملفات، نبحث عن صور المعاينة داخل الواجهة
+  // البحث عن صور Base64 في المعاينة إن وُجدت
   if (photoFiles.length === 0) {
     const previewImgs = container.querySelectorAll('img[src^="data:image"]');
     previewImgs.forEach((img, idx) => {
@@ -419,149 +436,156 @@ async function processFieldVisit(container) {
         let n = bstr.length;
         const u8arr = new Uint8Array(n);
         while (n--) u8arr[n] = bstr.charCodeAt(n);
-        photoFiles.push(new File([u8arr], `field_photo_${idx + 1}.jpg`, { type: mime }));
+        photoFiles.push(new File([u8arr], `visit_photo_${idx + 1}.jpg`, { type: mime }));
       } catch (e) {}
     });
   }
 
-  // استخراج الحقول المكتوبة
+  // ب) استخراج الموقع والإحداثيات بدقة عالية من شاشة النظام
+  const fullText = (container.innerText || '') + ' ' + (document.body.innerText || '');
+  const latMatch = fullText.match(/خط العرض[^\d]*([\d\.]+)/);
+  const lngMatch = fullText.match(/خط الطول[^\d]*([\d\.]+)/);
+  const accMatch = fullText.match(/الدقة[^\d]*([±\s\d]+م?)/);
+  
+  const cityInput = container.querySelector('input[placeholder*="الموقع"], input[value*="الرس"]')?.value || 'الرس';
+  const lat = latMatch ? latMatch[1] : '';
+  const lng = lngMatch ? lngMatch[1] : '';
+  const acc = accMatch ? accMatch[1].trim() : '';
+
+  let locationBlock = `📍 <b>المدينة / النطاق:</b> ${escapeHtml(cityInput)}\n`;
+  if (lat && lng) {
+    locationBlock += `🛰 <b>إحداثيات GPS:</b> <code>${lat} , ${lng}</code>\n`
+                  + `🎯 <b>دقة التحديد:</b> ${acc || 'عالية'}\n`
+                  + `🗺 <b>رابط الموقع المباشر:</b> <a href="https://www.google.com/maps?q=${lat},${lng}">فتح الموقع عبر خرائط Google</a>`;
+  } else {
+    locationBlock += `📍 <b>الموقع:</b> تم اعتماده من الجهاز الميداني`;
+  }
+
+  // ج) استخراج بيانات النموذج
   const inputs = Array.from(container.querySelectorAll('input, select, textarea'))
     .filter(i => i.value && i.type !== 'hidden' && i.type !== 'submit' && i.type !== 'file' && i.type !== 'button')
     .map(i => {
-      const label = i.closest('label')?.innerText || i.placeholder || i.getAttribute('aria-label') || i.name || 'حقل';
+      const label = i.closest('label')?.innerText || i.placeholder || i.name || 'حقل';
       return `▫️ <b>${escapeHtml(label.trim())}:</b> ${escapeHtml(i.value.trim())}`;
     }).slice(0, 6).join('\n');
-
-  // استخراج الإحداثيات ورابط الموقع
-  const locInput = container.querySelector('[name*="coord"], [id*="coord"], [name*="gps"], [id*="gps"], [name*="loc"], [id*="location"]')?.value || '';
-  let mapsLink = locInput
-    ? `\n📍 <b>الموقع:</b> <a href="https://www.google.com/maps?q=${encodeURIComponent(locInput.trim())}">عرض الموقع على خرائط Google</a>\n📌 <b>الإحداثيات:</b> <code>${escapeHtml(locInput.trim())}</code>`
-    : `\n📍 <b>الموقع:</b> تم توثيقه مع الزيارة`;
 
   const timeString = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
   const dateString = new Date().toLocaleDateString('ar-SA');
 
-  const captionText = `🚨 <b>مسودة زيارة ميدانية جديدة</b>\n`
-                    + `━━━━━━━━━━━━━━━━━━━\n`
-                    + `${inputs || '▫️ توثيق بيانات المعاينة الميدانية'}\n`
-                    + `${mapsLink}\n`
-                    + `📸 <b>الصور الميدانية:</b> (${photoFiles.length}) صورة مرفقة\n`
-                    + `━━━━━━━━━━━━━━━━━━━\n`
-                    + `⏱ <b>التوقيت:</b> ${timeString} - ${dateString}`;
-
-  const botBase = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
+  // د) بناء نص المسودة مع الفواصل وتحديد هوية المرسل
+  const captionText = 
+`➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+👤 <b>المرسل الميداني:</b> ${escapeHtml(senderName)}
+🏢 <b>شركة مختبر أساس للاستشارات الفنية والمختبرات</b>
+🚨 <b>مسودة زيارة ميدانية جديدة</b>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${inputs || '▫️ توثيق بيانات المعاينة الميدانية'}
+────────────────────────────────
+${locationBlock}
+📸 <b>الصور الموثقة:</b> (${photoFiles.length}) صورة مرفقة
+⏱ <b>وقت الإرسال:</b> ${timeString} - ${dateString}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏁 <b>نهاية المسودة الميدانية</b>
+➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖`;
 
   try {
     if (photoFiles.length > 0) {
+      // إرسال حتى 10 صور كألبوم مجمع واحد
+      const mediaList = [];
       const formData = new FormData();
       formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
-      formData.append('photo', photoFiles[0]);
-      formData.append('caption', captionText);
-      formData.append('parse_mode', 'HTML');
 
-      await fetch(`${botBase}/sendPhoto`, { method: "POST", body: formData });
-
-      // إرسال بقية الصور إن وجدت
-      for (let i = 1; i < Math.min(photoFiles.length, 4); i++) {
-        const extraData = new FormData();
-        extraData.append('chat_id', TELEGRAM_SETTINGS.chatId);
-        extraData.append('photo', photoFiles[i]);
-        extraData.append('caption', `📸 <b>مرفق زيارة ميدانية (${i + 1}/${photoFiles.length})</b>`);
-        extraData.append('parse_mode', 'HTML');
-        await fetch(`${botBase}/sendPhoto`, { method: "POST", body: extraData });
+      const maxPhotos = Math.min(photoFiles.length, 10);
+      for (let i = 0; i < maxPhotos; i++) {
+        const fieldName = `photo_${i}`;
+        formData.append(fieldName, photoFiles[i]);
+        mediaList.push({
+          type: 'photo',
+          media: `attach://${fieldName}`,
+          caption: i === 0 ? captionText : undefined,
+          parse_mode: 'HTML'
+        });
       }
+
+      formData.append('media', JSON.stringify(mediaList));
+      await fetch(`${botBase}/sendMediaGroup`, { method: "POST", body: formData });
     } else {
+      // إرسال نصي في حال عدم وجود صور
       await fetch(`${botBase}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: TELEGRAM_SETTINGS.chatId, text: captionText, parse_mode: "HTML" })
+        body: JSON.stringify({
+          chat_id: TELEGRAM_SETTINGS.chatId,
+          text: captionText,
+          parse_mode: "HTML",
+          disable_web_page_preview: false
+        })
       });
     }
 
-    showInAppAlert("الزيارة الميدانية", "تم بث مسودة التقرير والصور بنجاح إلى التلغرام");
+    // تفريغ كاش الصور بعد الإرسال الناجح
+    window._fieldVisitPhotosCache = [];
+    showInAppAlert("البرنامج الميداني", "تم إرسال المسودة الكاملة بالصور والموقع إلى التلغرام");
   } catch (err) {
-    console.error("فشل إرسال الزيارة الميدانية:", err);
+    console.error("فشل إرسال المسودة الميدانية:", err);
   }
 }
 
-// 3. إرسال الإجراءات الإدارية المحددة (إسناد / إضافة عميل / اعتماد)
-async function sendAdminNotification(title, content) {
+// 3. الإجراءات الإدارية المحددة الأخرى
+async function sendAdminNotice(title, content) {
+  const sender = getActiveSenderName();
   const time = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-  const msg = `📋 <b>${title}</b>\n━━━━━━━━━━━━━━━━━━━\n${content}\n━━━━━━━━━━━━━━━━━━━\n⏱ <b>التوقيت:</b> ${time}`;
-  
+  const msg = 
+`➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+👤 <b>المرسل:</b> ${escapeHtml(sender)}
+📋 <b>${title}</b>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${content}
+⏱ <b>التوقيت:</b> ${time}
+➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖`;
+
   try {
-    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}/sendMessage`, {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: TELEGRAM_SETTINGS.chatId, text: msg, parse_mode: "HTML" })
     });
-    if (res.ok) showInAppAlert("إشعار النظام", "تم توثيق العملية في مجموعة التلغرام بنجاح");
-  } catch (e) {
-    console.error(e);
-  }
+    showInAppAlert("إشعار النظام", "تم توثيق العملية في مجموعة التلغرام بنجاح");
+  } catch (e) {}
 }
 
-// 4. مراقبة العمليات الرئيسية فقط عبر النقر والإرسال
+// 4. تفعيل الرصد للعمليات الرئيسية
 function initAsasTelegramIntegration() {
-  // رصد نقرات الأزرار
   document.addEventListener('click', function (e) {
     const btn = e.target.closest('button, .btn, input[type="button"], input[type="submit"]');
     if (!btn) return;
 
     const bText = (btn.innerText || btn.value || '').trim();
     const activeSec = btn.closest('section') || document.querySelector('section:not(.hidden)') || document.body;
-    const fullContext = (activeSec.innerText || '') + ' ' + bText;
 
-    // أ) حفظ أو تنزيل الزيارة الميدانية
-    if (
-      bText.includes('زيارة') || 
-      bText.includes('الميداني') || 
-      (bText.includes('حفظ') && (fullContext.includes('الميداني') || fullContext.includes('زيارة')))
-    ) {
+    // حفظ الزيارة الميدانية أو إرسال المسودة
+    if (bText.includes('حفظ الزيارة') || bText.includes('تنزيل الزيارة') || bText === 'إرسال') {
       processFieldVisit(activeSec);
       return;
     }
 
-    // ب) إسناد أمر أو فحص لفني
+    // إسناد فني
     if (bText.includes('إسناد') || bText.includes('إسناد لفني')) {
       const row = btn.closest('tr') || btn.closest('.card') || btn.closest('div');
       const data = row ? Array.from(row.querySelectorAll('td, span')).map(el => el.innerText.trim()).filter(Boolean) : [];
-      const test = data[2] || data[1] || 'فحص معملي';
-      const tech = data[3] || 'فني المختبر المختص';
-      const ref = data[0] || 'أمر تشغيلي';
-      sendAdminNotification("إسناد مهمة إلى فني", `⚙️ <b>نوع الفحص:</b> ${escapeHtml(test)}\n👷 <b>الفني المكلف:</b> ${escapeHtml(tech)}\n🔖 <b>رقم المرجع:</b> ${escapeHtml(ref)}`);
+      sendAdminNotice("إسناد مهمة إلى فني", `⚙️ <b>نوع الفحص:</b> ${escapeHtml(data[2] || data[1] || 'فحص معملي')}\n👷 <b>الفني المكلف:</b> ${escapeHtml(data[3] || 'فني مختبر')}\n🔖 <b>رقم المرجع:</b> ${escapeHtml(data[0] || 'أمر مباشر')}`);
       return;
     }
 
-    // ج) إضافة عميل جديد
-    if (
-      (bText.includes('حفظ') || bText.includes('إضافة')) && 
-      (fullContext.includes('عميل') || fullContext.includes('العملاء'))
-    ) {
+    // إضافة عميل
+    if ((bText.includes('حفظ') || bText.includes('إضافة')) && activeSec.innerText.includes('العملاء')) {
       const name = activeSec.querySelector('input[name*="name"], input[placeholder*="اسم"]')?.value || 'عميل جديد';
       const phone = activeSec.querySelector('input[type="tel"], input[name*="phone"], input[placeholder*="جوال"]')?.value || 'غير مسجل';
-      sendAdminNotification("إدارة العملاء", `👤 <b>اسم العميل:</b> ${escapeHtml(name)}\n📞 <b>رقم التواصل:</b> ${escapeHtml(phone)}`);
-      return;
-    }
-
-    // د) اعتماد التقارير
-    if (bText.includes('اعتماد') && fullContext.includes('تقرير')) {
-      sendAdminNotification("اعتماد تقرير فني", `📑 <b>البيان:</b> تم إصدار واعتماد التقرير الفني النهائي`);
-      return;
-    }
-  }, true);
-
-  // رصد تقديم النماذج كإجراء احتياطي
-  document.addEventListener('submit', function (e) {
-    const form = e.target;
-    const txt = (form.closest('section')?.innerText || '') + form.innerText;
-    if (txt.includes('الميداني') || txt.includes('زيارة')) {
-      processFieldVisit(form);
+      sendAdminNotice("إدارة العملاء", `👤 <b>اسم العميل:</b> ${escapeHtml(name)}\n📞 <b>رقم التواصل:</b> ${escapeHtml(phone)}`);
     }
   }, true);
 }
 
-// تشغيل النظام فور جاهزية الصفحة
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initAsasTelegramIntegration);
 } else {
