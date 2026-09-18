@@ -363,7 +363,7 @@
     chatId: "-1003927157003"
   };
 
-  // نظام التنبيه الداخلي في شاشة النظام (Toast)
+  // نظام التنبيه الداخلي السريع (Toast)
   function showInAppAlert(title, message) {
     let toast = document.getElementById('asas-live-toast');
     if (!toast) {
@@ -388,13 +388,13 @@
     }, 4000);
   }
 
-  // دالة التقاط موقع GPS الفعلي والمباشر للمرسل بدقة عالية
-  function getSenderLiveLocation() {
-    return new Promise((resolve) => {
+  // دالة إلزامية لجلب الموقع الفعلي والمباشر عبر GPS بدقة عالية
+  function getMandatoryLiveLocation() {
+    return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        resolve(null);
-        return;
+        return reject(new Error("متصفحك لا يدعم نظام تحديد المواقع (GPS)."));
       }
+
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           resolve({
@@ -403,15 +403,22 @@
           });
         },
         (err) => {
-          console.warn("تعذر الحصول على GPS المباشر:", err.message);
-          resolve(null);
+          let errorMsg = "تعذر الحصول على إحداثيات موقعك الفعلي.";
+          if (err.code === 1) {
+            errorMsg = "تم رفض إذن الوصول للموقع. يرجى تفعيل الـ GPS والسماح للمتصفح بالوصول لموقعك.";
+          } else if (err.code === 2) {
+            errorMsg = "إشارة الـ GPS غير متاحة حالياً. تأكد من تفعيل خدمات الموقع في جهازك.";
+          } else if (err.code === 3) {
+            errorMsg = "استغرق التقاط الموقع وقتاً طويلاً. يرجى إعادة المحاولة في مكان مفتوح.";
+          }
+          reject(new Error(errorMsg));
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     });
   }
 
-  // دالة استخراج الحاوية النشطة في الشاشة
+  // تحديد الحاوية أو النافذة النشطة
   function getActiveContainer(targetEl) {
     if (targetEl) {
       const modal = targetEl.closest('.modal, dialog, .popup, [role="dialog"]');
@@ -429,7 +436,7 @@
     return visibleSection || document.body;
   }
 
-  // استخراج مسمى الحقل الفعلي
+  // استخراج مسمى الحقل الفعلي المكتوب أمام المستخدم
   function extractLabel(el) {
     if (el.id) {
       const l = document.querySelector(`label[for="${el.id}"]`);
@@ -449,15 +456,25 @@
     return el.placeholder || el.getAttribute('aria-label') || el.name || '';
   }
 
-  // دالة إرسال المسودة الميدانية بالموقع المباشر والصور الحقيقية
+  // دالة إرسال المسودة الميدانية المتوافقة مع متطلباتك
   async function sendFieldVisitDraft(triggerElement) {
-    showInAppAlert("جاري الرصد", "يتم تحديد موقعك المباشر ورفع المسودة...");
+    // 1. الفحص الإلزامي للموقع المباشر (GPS)
+    showInAppAlert("جاري الرصد", "يتم تحديد موقع الإرسال الفعلي عبر GPS...");
+    let liveGPS = null;
+
+    try {
+      liveGPS = await getMandatoryLiveLocation();
+    } catch (gpsError) {
+      alert("⚠️ إجراء إلزامي متوقف:\n" + gpsError.message + "\n\nلا يمكن حفظ أو تنزيل الزيارة الميدانية بدون تشغيل وتفعيل صلاحية الموقع (GPS) الفعلي.");
+      return; // إيقاف العملية ومنع الإرسال تماماً
+    }
+
+    // بناء الرابط الحقيقي والمباشر لخرائط Google
+    const mapsLiveUrl = "https://maps.google.com/?q=" + liveGPS.lat + "," + liveGPS.lng;
+
     const container = getActiveContainer(triggerElement);
 
-    // 1. تحديد موقع الفني المباشر عبر GPS
-    const gpsLocation = await getSenderLiveLocation();
-
-    // 2. جمع ملفات ومعاينات الصور المرفوعة
+    // 2. تجميع الصور المرفوعة (عدد مفتوح)
     let photos = [];
     const fileInputs = container.querySelectorAll('input[type="file"]') || document.querySelectorAll('input[type="file"]');
     fileInputs.forEach(input => {
@@ -481,13 +498,12 @@
       }
     }
 
-    // 3. قراءة البيانات المدخلة في الشاشة حصراً
+    // 3. سحب البيانات الحقيقية فقط من الشاشة
     const allInputs = Array.from(container.querySelectorAll('input, select, textarea'))
       .filter(i => i.type !== 'hidden' && i.type !== 'submit' && i.type !== 'button' && i.type !== 'file');
 
     let lines = [];
     let testResultVal = '';
-    let manualCoords = '';
 
     allInputs.forEach(input => {
       let val = '';
@@ -504,20 +520,14 @@
 
       let rawLabel = extractLabel(input).replace(/[:：*]/g, '').trim();
 
-      // فحص النتيجة (ناجح أو راسب)
+      // التحقق من النتيجة
       if (rawLabel.includes('نتيجة') || rawLabel.includes('النتيجة') || rawLabel.toLowerCase().includes('result') || val.includes('ناجح') || val.includes('راسب')) {
         testResultVal = val;
         return;
       }
 
-      // إذا كان هناك إحداثيات مكتوبة يدوياً كبديل
-      if (rawLabel.includes('إحداثي') || rawLabel.includes('احداثي') || rawLabel.toLowerCase().includes('coord') || val.match(/^[0-9.]+\s*,\s*[0-9.]+$/)) {
-        manualCoords = val.replace(/\s+/g, '');
-        return;
-      }
-
-      // استبعاد حقل الموقع من التكرار لأننا سنضع الرابط المباشر
-      if (rawLabel.includes('موقع') || rawLabel.toLowerCase().includes('location') || rawLabel.toLowerCase().includes('gps')) {
+      // استبعاد حقول الموقع اليدوية لأننا سنستخدم رابط GPS الفعلي
+      if (rawLabel.includes('موقع') || rawLabel.includes('إحداثي') || rawLabel.includes('احداثي') || rawLabel.toLowerCase().includes('gps') || rawLabel.toLowerCase().includes('location') || rawLabel.toLowerCase().includes('coord')) {
         return;
       }
 
@@ -526,41 +536,24 @@
       }
     });
 
-    // 4. بناء رابط التتبع المباشر لخرائط Google
-    let finalLat = null;
-    let finalLng = null;
-    let mapsDirectUrl = '';
+    // إضافة رابط خرائط قوقل المباشر والصحيح
+    lines.push(`🕳 الموقع: ${mapsLiveUrl}`);
 
-    if (gpsLocation) {
-      finalLat = gpsLocation.lat;
-      finalLng = gpsLocation.lng;
-      mapsDirectUrl = 'https://maps.google.com/?q=' + finalLat + ',' + finalLng;
-    } else if (manualCoords) {
-      mapsDirectUrl = 'https://maps.google.com/?q=' + manualCoords;
-      const parts = manualCoords.split(',');
-      finalLat = parseFloat(parts[0]);
-      finalLng = parseFloat(parts[1]);
-    }
-
-    if (mapsDirectUrl) {
-      lines.push(`🕳 الموقع: ${mapsDirectUrl}`);
-    }
-
-    // 5. تقييم النتيجة بدقة
-    let resultLine = 'ناجح ✅';
+    // تحديد علامة النتيجة بدقة
+    let resultFormatted = 'ناجح ✅';
     if (testResultVal) {
       const isFailed = testResultVal.includes('راسب') || testResultVal.toLowerCase().includes('fail') || testResultVal.includes('غير مطابق');
-      resultLine = isFailed ? 'راسب ❌' : 'ناجح ✅';
+      resultFormatted = isFailed ? 'راسب ❌' : 'ناجح ✅';
     }
 
-    // صياغة المسودة النهائية النظيفة
-    const captionText = lines.join('\n') + '\n' + resultLine + '\n━━━━━━━━━━━━━━━━━━━━━';
+    // بناء نص المسودة النهائي
+    const captionText = lines.join('\n') + '\n' + resultFormatted + '\n━━━━━━━━━━━━━━━━━━━━━';
 
-    const botUrl = 'https://api.telegram.org/bot' + TELEGRAM_SETTINGS.botToken;
+    const botUrl = "https://api.telegram.org/bot" + TELEGRAM_SETTINGS.botToken;
 
     try {
       if (photos.length > 1) {
-        // إرسال كألبوم صور مجمّع ومفتوح
+        // إرسال كألبوم صور مجمّع (حتى 10 صور في الدفعة)
         const firstBatch = photos.slice(0, 10);
         const formData = new FormData();
         formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
@@ -579,7 +572,7 @@
           body: formData
         });
 
-        // إرسال بقية الصور المرفقة إن وجدت
+        // إرسال بقية الصور المرفقة تباعاً إن زادت عن 10
         if (photos.length > 10) {
           for (let i = 10; i < photos.length; i++) {
             const extraForm = new FormData();
@@ -590,7 +583,7 @@
         }
 
       } else if (photos.length === 1) {
-        // صورة واحدة مع المسودة
+        // إرسال صورة واحدة مع المسودة
         const formData = new FormData();
         formData.append('chat_id', TELEGRAM_SETTINGS.chatId);
         formData.append('photo', photos[0]);
@@ -613,29 +606,15 @@
         });
       }
 
-      // 6. إرسال بطاقة موقع تفاعلية مباشرة (Telegram Location Pin) لمعرفة مكان الحفرية على الخريطة
-      if (finalLat && finalLng) {
-        await fetch(botUrl + '/sendLocation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: TELEGRAM_SETTINGS.chatId,
-            latitude: finalLat,
-            longitude: finalLng
-          })
-        });
-      }
-
-      showInAppAlert("تم تنزيل الزيارة الميدانية", "تم إرسال المسودة ورابط الموقع المباشر بنجاح");
+      showInAppAlert("تم تنزيل الزيارة الميدانية", "تم بث مسودتك الميدانية ورابط الموقع الفعلي بنجاح");
     } catch (err) {
       console.error("خطأ أثناء إرسال المسودة الميدانية:", err);
     }
   }
 
-  // مراقبة أزرار الحفظ والإجراءات في النظام
+  // رصد تقديم النماذج وأزرار التنزيل الميداني
   document.addEventListener('DOMContentLoaded', () => {
 
-    // رصد تقديم النماذج
     document.addEventListener('submit', function (e) {
       const form = e.target;
       const sectionText = ((form.closest('section')?.innerText || '') + form.innerText).toLowerCase();
@@ -645,7 +624,6 @@
       }
     });
 
-    // رصد النقر على أزرار التنزيل أو الحفظ الميداني
     document.addEventListener('click', function (e) {
       const btn = e.target.closest('button');
       if (!btn) return;
