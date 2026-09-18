@@ -356,7 +356,7 @@
     }
 <script>
 (function() {
-  // إعدادات الربط المشفرة
+  // إعدادات البوت والربط المشفر الآمن
   const TELEGRAM_SETTINGS = {
     botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
     chatId: "-1003927157003"
@@ -374,47 +374,54 @@
     } catch (err) {}
   }, true);
 
-  // 1. التعرف التلقائي على هوية المرسل الحقيقي دون أي اسم ثابت
+  // شريط تنبيه داخلي على شاشة الفني
+  function showToast(title, msg, isErr = false) {
+    let toast = document.getElementById('asas-live-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'asas-live-toast';
+      document.body.appendChild(toast);
+    }
+    toast.style.cssText = `
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: #0f172a; color: #f8fafc; padding: 14px 24px; border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4); z-index: 999999; font-family: inherit;
+      display: flex; align-items: center; gap: 12px; direction: rtl;
+      border-right: 5px solid ${isErr ? '#ef4444' : '#10b981'};
+      opacity: 1; transition: all 0.3s ease;
+    `;
+    toast.innerHTML = `<span style="font-size: 20px;">${isErr ? '⚠️' : '🚀'}</span><div><strong style="display:block; color:#38bdf8;">${title}</strong><span style="font-size: 13px; color:#cbd5e1;">${msg}</span></div>`;
+    setTimeout(() => { toast.style.opacity = '0'; }, 4000);
+  }
+
+  // 1. استخراج هوية الفني الحقيقي تلقائياً من النظام
   function getActualSenderName(container) {
-    // أ) الفحص من حقل الفني المنفذ داخل النموذج
-    const formTech = getSmartFieldVal(container, ['اسم الفني', 'الفني', 'فني الموقع', 'المفتش', 'technician']);
+    // فحص حقل الفني في النموذج الميداني
+    const formTech = getFieldVal(container, ['اسم الفني', 'الفني', 'فني الموقع', 'المفتش', 'technician']);
     if (formTech && formTech !== 'غير مدخل' && !formTech.includes('اختر')) {
       return formTech;
     }
 
-    // ب) الفحص من شريط المستخدم العلوي (حساب الفني أو المهندس النشط بالجهاز)
-    const headerProfile = document.querySelector('.user-profile, .user-name, header, nav, #user-info');
-    if (headerProfile) {
-      const textLines = headerProfile.innerText.split('\n')
+    // فحص حساب المستخدم المسجل في أعلى الشاشة
+    const profile = document.querySelector('.user-profile, .user-name, header, nav, #user-info');
+    if (profile) {
+      const lines = profile.innerText.split('\n')
         .map(t => t.trim())
-        .filter(t => t && 
-          !t.includes('تغيير كلمة') && 
-          !t.includes('تسجيل الخروج') && 
-          !t.includes('توقيت') && 
-          !t.includes('مزامنة') &&
-          !t.includes('الموقع الرسمي') &&
-          !t.includes('المشاريع') &&
-          !t.includes('عن الشركة')
-        );
-
-      const senderName = textLines.find(t => !t.startsWith('@') && t.length > 2);
-      const userHandle = textLines.find(t => t.startsWith('@'));
-
-      if (senderName && userHandle) return `${senderName} (${userHandle})`;
-      if (senderName) return senderName;
-      if (userHandle) return userHandle;
+        .filter(t => t && !t.includes('تغيير كلمة') && !t.includes('تسجيل الخروج') && !t.includes('توقيت') && !t.includes('مزامنة'));
+      const name = lines.find(l => !l.startsWith('@') && l.length > 2);
+      const user = lines.find(l => l.startsWith('@'));
+      if (name && user) return `${name} (${user})`;
+      if (name) return name;
+      if (user) return user;
     }
 
-    // ج) الفحص من بيانات الجلسة المسجلة بالمتصفح
+    // فحص الذاكرة المحلية للجلسة
     for (let i = 0; i < localStorage.length; i++) {
       try {
         const item = JSON.parse(localStorage.getItem(localStorage.key(i)));
         if (item && typeof item === 'object') {
-          const name = item.name || item.fullName || item.full_name || item.username;
-          if (name && typeof name === 'string' && name.length > 1) {
-            const role = item.role || item.title || '';
-            return role ? `${name} - ${role}` : name;
-          }
+          const n = item.name || item.fullName || item.full_name || item.username;
+          if (n && typeof n === 'string' && n.length > 1) return n;
         }
       } catch (e) {}
     }
@@ -422,62 +429,17 @@
     return "فني الموقع الميداني";
   }
 
-  // 2. دالة استخراج ذكية وشاملة للقيم الحقيقية من واجهة النظام
-  function getSmartFieldVal(container, keywords) {
-    // البحث عبر عناوين الحقول (Labels) وما يتبعها
-    const allLabels = Array.from(container.querySelectorAll('label, .form-label, span, th, dt, div'));
-    for (const kw of keywords) {
-      const targetLabel = allLabels.find(el => {
-        const txt = el.innerText ? el.innerText.trim() : '';
-        return txt && txt.length < 40 && txt.includes(kw);
-      });
-
-      if (targetLabel) {
-        // حقل مرتبط بـ htmlFor
-        if (targetLabel.htmlFor) {
-          const inp = document.getElementById(targetLabel.htmlFor);
-          if (inp && inp.value && inp.value.trim()) return inp.value.trim();
-        }
-
-        // حقل داخل التسمية
-        const nested = targetLabel.querySelector('input, select, textarea');
-        if (nested && nested.value && nested.value.trim()) {
-          return nested.tagName === 'SELECT' ? (nested.options[nested.selectedIndex]?.text || nested.value.trim()) : nested.value.trim();
-        }
-
-        // حقل يلي التسمية مباشرة
-        let nextEl = targetLabel.nextElementSibling;
-        while (nextEl) {
-          if (nextEl.matches && nextEl.matches('input, select, textarea') && nextEl.value && nextEl.value.trim()) {
-            return nextEl.tagName === 'SELECT' ? (nextEl.options[nextEl.selectedIndex]?.text || nextEl.value.trim()) : nextEl.value.trim();
-          }
-          const innerInp = nextEl.querySelector ? nextEl.querySelector('input, select, textarea') : null;
-          if (innerInp && innerInp.value && innerInp.value.trim()) {
-            return innerInp.tagName === 'SELECT' ? (innerInp.options[innerInp.selectedIndex]?.text || innerInp.value.trim()) : innerInp.value.trim();
-          }
-          nextEl = nextEl.nextElementSibling;
-        }
-
-        // حقل داخل الحاوية الأبوية المشتركة
-        const parent = targetLabel.parentElement;
-        if (parent) {
-          const pInp = parent.querySelector('input, select, textarea');
-          if (pInp && pInp !== targetLabel && pInp.value && pInp.value.trim()) {
-            return pInp.tagName === 'SELECT' ? (pInp.options[pInp.selectedIndex]?.text || pInp.value.trim()) : pInp.value.trim();
-          }
-        }
-      }
-    }
-
-    // البحث عبر خصائص الحقول المباشرة (name, id, placeholder)
+  // 2. استخراج الحقول ديناميكياً بدون قيم افتراضية ثابتة
+  function getFieldVal(container, keywords) {
     const inputs = Array.from(container.querySelectorAll('input, select, textarea'));
     for (const kw of keywords) {
       const match = inputs.find(i => {
         const n = (i.name || '').toLowerCase();
         const id = (i.id || '').toLowerCase();
         const ph = (i.placeholder || '').toLowerCase();
+        const lbl = i.closest('label')?.innerText.toLowerCase() || '';
         const k = kw.toLowerCase();
-        return n.includes(k) || id.includes(k) || ph.includes(k);
+        return n.includes(k) || id.includes(k) || ph.includes(k) || lbl.includes(k);
       });
 
       if (match && match.value && match.value.trim()) {
@@ -488,12 +450,10 @@
         return match.value.trim();
       }
     }
-
-    // في حال ترك الفني الحقل فارغاً، تظهر عبارة غير مدخل بدلاً من بيانات وهمية
     return 'غير مدخل';
   }
 
-  // 3. فحص واستخراج كافة الاختبارات ونتائجها بدقة (ASTM تربة، خرسانة، أسفلت، كيمياء)
+  // 3. فحص كافة الاختبارات ونتائجها بدقة (ASTM تربة، خرسانة، أسفلت، كيمياء)
   function extractAllDynamicTests(container) {
     let collectedTests = [];
     const PENDING_LABEL = 'تحت الإجراء ⏳';
@@ -532,13 +492,8 @@
         }
       }
 
-      if (!testTitle || testTitle.includes('حذف') || testTitle.includes('تعديل') || testTitle.includes('إجراء') || testTitle.length < 3) {
-        return;
-      }
-
-      if (testStandard && !testTitle.includes(testStandard)) {
-        testTitle = `${testTitle} (${testStandard})`;
-      }
+      if (!testTitle || testTitle.includes('حذف') || testTitle.includes('تعديل') || testTitle.length < 3) return;
+      if (testStandard && !testTitle.includes(testStandard)) testTitle = `${testTitle} (${testStandard})`;
 
       let badge = PENDING_LABEL;
       const resSelect = row.querySelector('select[name*="res"], select[name*="status"], select.result-select');
@@ -565,29 +520,31 @@
     return collectedTests.length > 0 ? collectedTests.join('\n') : `🕳 الاختبار الرسمي : فحص المواد والموقع الميداني : ${PENDING_LABEL}`;
   }
 
-  // 4. سحب الموقع الحي للجهاز لحظة الضغط
+  // 4. سحب الموقع الحي للجهاز مع حد زمني سريع لمنع التعليق
   function getLiveLocation() {
     return new Promise((resolve) => {
       if (!navigator.geolocation) return resolve(null);
       navigator.geolocation.getCurrentPosition(
         pos => resolve(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`),
         () => resolve(null),
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
       );
     });
   }
 
-  // 5. بناء المسودة وإرسالها بالمعلومات الحقيقية فقط
+  // 5. بناء وإرسال المسودة لتليجرام
   async function triggerFieldTelegramAlert(triggerEl) {
     try {
+      showToast("جاري التجهيز...", "يتم الآن قراءة البيانات والربط مع التلغرام");
+
       const container = triggerEl.closest('section') || triggerEl.closest('form') || document.querySelector('section.page:not(.hidden)') || document.body;
 
-      // مزامنة التاريخ والوقت الحقيقي
+      // الوقت والتاريخ
       const now = new Date();
       const liveDate = now.toLocaleDateString('ar-SA');
       const liveTime = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
 
-      // اسم المرسل الحقيقي
+      // اسم الفني الحقيقي
       const actualSender = getActualSenderName(container);
 
       // الموقع الجغرافي الفعلي
@@ -596,20 +553,20 @@
       const finalCoords = (liveGPS || manualLoc || "25.878659,43.520465").replace(/\s+/g, '');
       const mapsLink = `https://www.google.com/maps?q=${finalCoords}`;
 
-      // استخراج القيم المدخلة فعلياً في شاشة النظام دون أي قيم افتراضية سابقة
-      const licenseNo  = getSmartFieldVal(container, ['رقم الرخصة', 'رقم الرخصه', 'الرخصة', 'الرخصه', 'license', 'permit']);
-      const contractor = getSmartFieldVal(container, ['المقاول الرئيسي', 'المقاول الباطن', 'المقاول', 'contractor']);
-      const project    = getSmartFieldVal(container, ['اسم المشروع', 'المشروع', 'project']);
-      const sector     = getSmartFieldVal(container, ['القطاع', 'sector', 'zone']);
-      const layerNo    = getSmartFieldVal(container, ['رقم الطبقة', 'الطبقة', 'layer']);
-      const projCode   = getSmartFieldVal(container, ['معرف المشروع', 'كود المشروع', 'project_id', 'proj_id']);
-      const sampleCode = getSmartFieldVal(container, ['معرف العينة', 'رقم العينة', 'sample_id', 'sample_no']);
+      // استخراج القيم الحقيقية المدخلة
+      const licenseNo  = getFieldVal(container, ['رقم الرخصة', 'رقم الرخصه', 'الرخصة', 'الرخصه', 'license', 'permit']);
+      const contractor = getFieldVal(container, ['المقاول الرئيسي', 'المقاول الباطن', 'المقاول', 'contractor']);
+      const project    = getFieldVal(container, ['اسم المشروع', 'المشروع', 'project']);
+      const sector     = getFieldVal(container, ['القطاع', 'sector', 'zone']);
+      const layerNo    = getFieldVal(container, ['رقم الطبقة', 'الطبقة', 'layer']);
+      const projCode   = getFieldVal(container, ['معرف المشروع', 'كود المشروع', 'project_id', 'proj_id']);
+      const sampleCode = getFieldVal(container, ['معرف العينة', 'رقم العينة', 'sample_id', 'sample_no']);
 
-      // استخراج الاختبارات
+      // الاختبارات
       const testsBlock = extractAllDynamicTests(container);
 
-      // صياغة المسودة المعتمدة بالبيانات الحقيقية المدخلة وبدون أي نتيجة عامة مكررة بالأسفل
-      const captionText = `👤 *المرسل الميداني:* ${actualSender}\n`
+      // صياغة المسودة (نص نقي بدون ماركداون لمنع أي تعليق أو رفض من تليجرام)
+      const captionText = `👤 المرسل الميداني: ${actualSender}\n`
                         + `───────────────────\n`
                         + `🕳 رقم الرخصة : ${licenseNo}\n`
                         + `🕳 المقاول : ${contractor}\n`
@@ -635,6 +592,7 @@
       });
 
       const botUrl = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
+      let response;
 
       if (photosToSend.length > 1) {
         const fd = new FormData();
@@ -643,55 +601,69 @@
         photosToSend.slice(0, 6).forEach((file, idx) => {
           fd.append(`pic_${idx}`, file);
           const item = { type: 'photo', media: `attach://pic_${idx}` };
-          if (idx === 0) {
-            item.caption = captionText;
-            item.parse_mode = 'Markdown';
-          }
+          if (idx === 0) item.caption = captionText;
           media.push(item);
         });
         fd.append('media', JSON.stringify(media));
-        await fetch(`${botUrl}/sendMediaGroup`, { method: 'POST', body: fd });
+        response = await fetch(`${botUrl}/sendMediaGroup`, { method: 'POST', body: fd });
 
       } else if (photosToSend.length === 1) {
         const fd = new FormData();
         fd.append('chat_id', TELEGRAM_SETTINGS.chatId);
         fd.append('photo', photosToSend[0]);
         fd.append('caption', captionText);
-        fd.append('parse_mode', 'Markdown');
-        await fetch(`${botUrl}/sendPhoto`, { method: 'POST', body: fd });
+        response = await fetch(`${botUrl}/sendPhoto`, { method: 'POST', body: fd });
 
       } else {
-        await fetch(`${botUrl}/sendMessage`, {
+        response = await fetch(`${botUrl}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: TELEGRAM_SETTINGS.chatId,
             text: captionText,
-            parse_mode: 'Markdown',
             disable_web_page_preview: true
           })
         });
       }
 
-      capturedPhotos = [];
+      if (response && response.ok) {
+        showToast("تم الإرسال بنجاح!", "وصلت المسودة الميدانية إلى مجموعة التلغرام");
+        capturedPhotos = [];
+      } else {
+        const errJson = await response.json();
+        console.error("فشل إرسال تليجرام:", errJson);
+        showToast("تنبيه من تلغرام", errJson.description || "تعذر تسليم الرسالة", true);
+      }
+
     } catch (err) {
-      console.warn("تنبيه تليجرام في الخلفية:", err);
+      console.error("خطأ عام في الإرسال:", err);
+      showToast("خطأ بالاتصال", "تأكد من اتصال الإنترنت بالجهاز", true);
     }
   }
 
-  // الاستماع فقط عند الضغط على أزرار التنزيل أو الحفظ الميداني
+  // 6. رصد شامل للنقر وللـ submit في القسم الميداني
   document.addEventListener('click', function(e) {
-    const btn = e.target.closest('button');
+    const btn = e.target.closest('button, input[type="submit"], .btn');
     if (!btn) return;
-    const txt = btn.innerText.trim();
+    const txt = (btn.innerText || btn.value || '').trim();
 
     const sec = btn.closest('section') || document.querySelector('section.page:not(.hidden)');
     const secTxt = sec?.innerText || '';
 
     if (secTxt.includes('الميداني') || secTxt.includes('البرنامج الميداني')) {
-      if (txt.includes('تنزيل') || txt.includes('حفظ') || txt.includes('زيارة')) {
+      if (txt.includes('تنزيل') || txt.includes('حفظ') || txt.includes('زيارة') || txt.includes('إرسال')) {
         setTimeout(() => triggerFieldTelegramAlert(btn), 300);
       }
+    }
+  });
+
+  document.addEventListener('submit', function(e) {
+    const form = e.target;
+    const sec = form.closest('section') || document.querySelector('section.page:not(.hidden)');
+    const secTxt = (sec?.innerText || '') + (form.innerText || '');
+
+    if (secTxt.includes('الميداني') || secTxt.includes('البرنامج الميداني')) {
+      setTimeout(() => triggerFieldTelegramAlert(form), 300);
     }
   });
 
