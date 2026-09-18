@@ -342,6 +342,7 @@
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="runtime-config.js?v=8-7-4-live-sync-audit"></script>
  <script>
+<script>
 // إعدادات الربط مع البوت
 const TELEGRAM_SETTINGS = {
   botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
@@ -530,20 +531,7 @@ document.addEventListener('click', function (e) {
     }
   }
 });
-</script> <script src="i18n.js?v=8-7-4-live-sync-audit"></script>
-  <script src="app-password.js?v=8-7-4-live-sync-audit"></script>
-  <script src="branch-map.js?v=8-7-4-live-sync-audit"></script>
-<script src="asas_tests_module.js"></script> 
-  <script>
-    if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () {
-        if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-7-4-live-sync-audit'; }).map(function (key) { return caches.delete(key); }));
-        }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=8-7-4-live-sync-audit', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
-});
-    }
-  </script>
+</script>
 
   
 </body>
