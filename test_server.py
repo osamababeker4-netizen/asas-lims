@@ -296,6 +296,10 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertNotIn('شريكك الاستراتيجي في كل اختبارات مشروعك', hero)
         self.assertNotIn('dashboard-brand-actions', hero)
         self.assertIn('.dashboard-logo-only .dashboard-brand-logo', css)
+        self.assertIn('width:100%!important', css)
+        self.assertIn('height:100%!important', css)
+        self.assertIn('object-fit:cover!important', css)
+        self.assertIn('padding:0!important', css)
 
     def test_topbar_uses_fixed_identity_profile_menu_and_back_navigation(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
@@ -311,12 +315,15 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('data-profile-action="password"', html)
         self.assertIn('data-profile-action="language"', html)
         self.assertIn('id="pageBack"', html)
+        self.assertNotIn('class="profile-chevron"', html)
         self.assertIn('function goBackPage()', app)
         self.assertIn('function toggleProfileMenu()', app)
         self.assertIn("setText($('currentUsername'), currentUser.full_name", app)
         self.assertNotIn("setText($('currentUsername'), '@' +", app)
         self.assertIn('.profile-mini-menu', css)
         self.assertIn('.page-back', css)
+        self.assertIn('background:linear-gradient(105deg,#0a4650 0%,#0f6f78 44%,#5e6f73 72%,#df7b2a 100%)!important', css)
+        self.assertIn('.topbar .fixed-profile strong{color:#fff!important}', css)
 
     def test_clean_primary_logo_and_messaging_brand_icons_are_served_and_published(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
