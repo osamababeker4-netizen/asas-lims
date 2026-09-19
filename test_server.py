@@ -113,6 +113,56 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('.equipment-badge.warning', css)
         self.assertIn('.equipment-badge.danger', css)
 
+    def test_telegram_draft_uses_one_album_with_text_and_excludes_global_images(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        server_source = (Path(__file__).parent / 'server.py').read_text(encoding='utf-8')
+        self.assertIn("telegram_send_media_group(photos, text)", server_source)
+        self.assertNotIn("telegram_send_media_group(photos, 'صور الزيارة الميدانية')", server_source)
+        self.assertIn("target.id !== 'fieldCameraInput' && target.id !== 'fieldGalleryInput'", html)
+        self.assertIn("document.querySelectorAll('#fieldPhotoPreview img')", html)
+        self.assertNotIn("<h3>صور الزيارة الميدانية</h3>", html)
+
+        self.server.init()
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        connection.close()
+        token = self.server.create_session(admin)
+        calls = []
+        original_group = self.server.telegram_send_media_group
+        original_text = self.server.telegram_send_text
+        self.server.telegram_send_media_group = lambda photos, caption='': calls.append(('album', list(photos), caption)) or [{'message_id': 701}, {'message_id': 702}]
+        self.server.telegram_send_text = lambda text: calls.append(('text', text)) or {'message_id': 703}
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        try:
+            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+            payload = {
+                'text': '👤 المرسل الميداني: اسم من الواجهة\nبيانات الزيارة والاختبارات',
+                'photos': ['data:image/png;base64,AAAA', 'data:image/png;base64,BBBB']
+            }
+            client.request('POST', '/api/telegram/draft', json.dumps(payload).encode('utf-8'), {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            })
+            response = client.getresponse()
+            result = json.loads(response.read().decode('utf-8'))
+            client.close()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(result['layout'], 'album_then_text')
+            self.assertEqual(result['photos_sent'], 2)
+            self.assertEqual([item[0] for item in calls], ['album'])
+            self.assertEqual(len(calls[0][1]), 2)
+            self.assertTrue(calls[0][2].startswith(admin['full_name'] + '\n'))
+            self.assertNotIn('صور الزيارة الميدانية', calls[0][2])
+        finally:
+            self.server.telegram_send_media_group = original_group
+            self.server.telegram_send_text = original_text
+            self.server.SESSIONS.pop(token, None)
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(timeout=5)
+
     def test_pwa_assets_are_served_by_the_central_service(self):
         self.server.init()
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
