@@ -14,7 +14,7 @@ import threading
 import time
 import zipfile
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
 import urllib.error
@@ -36,6 +36,13 @@ OTP_REQUESTS = {}
 OTP_RESEND_SECONDS = 60
 EVENT_SUBSCRIBERS = set()
 EVENT_SUBSCRIBERS_LOCK = threading.Lock()
+SESSION_TTL_SECONDS = int(os.environ.get('LIMS_SESSION_TTL_SECONDS', str(12 * 60 * 60)))
+MAX_JSON_BODY_BYTES = int(os.environ.get('LIMS_MAX_JSON_BODY_BYTES', str(2 * 1024 * 1024)))
+LOGIN_WINDOW_SECONDS = int(os.environ.get('LIMS_LOGIN_WINDOW_SECONDS', '900'))
+LOGIN_MAX_ATTEMPTS = int(os.environ.get('LIMS_LOGIN_MAX_ATTEMPTS', '5'))
+LOGIN_ATTEMPTS = {}
+LOGIN_ATTEMPTS_LOCK = threading.Lock()
+BACKUP_DIR = os.environ.get('LIMS_BACKUP_DIR', os.path.join(BASE, 'backups'))
 
 PROJECT_STATUSES = {'مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل', 'مفتوح'}
 WORK_ORDER_STATUSES = {'مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'}
@@ -63,6 +70,8 @@ def db():
     connection = sqlite3.connect(DB)
     connection.row_factory = sqlite3.Row
     connection.execute('PRAGMA foreign_keys=ON')
+    connection.execute('PRAGMA busy_timeout=5000')
+    connection.execute('PRAGMA journal_mode=WAL')
     return connection
 
 
@@ -362,8 +371,9 @@ def migrate_schema(connection):
 def refresh_user_sessions(user_id, **changes):
     """Keep identity fields current across every open session for a user."""
     for session in SESSIONS.values():
-        if int(session.get('id', 0)) == int(user_id):
-            session.update(changes)
+        account = session.get('user', session)
+        if int(account.get('id', 0)) == int(user_id):
+            account.update(changes)
 
 
 def init():
@@ -415,14 +425,57 @@ def queue_sync(connection, entity, entity_id, operation, payload):
 
 
 def user_from(handler):
+    token = None
     authorization = handler.headers.get('Authorization', '')
     if authorization.startswith('Bearer '):
-        return SESSIONS.get(authorization[7:])
-    for item in handler.headers.get('Cookie', '').split(';'):
-        item = item.strip()
-        if item.startswith('LIMS_SESSION='):
-            return SESSIONS.get(item.split('=', 1)[1])
-    return None
+        token = authorization[7:]
+    if not token:
+        for item in handler.headers.get('Cookie', '').split(';'):
+            item = item.strip()
+            if item.startswith('LIMS_SESSION='):
+                token = item.split('=', 1)[1]
+                break
+    session = SESSIONS.get(token) if token else None
+    if not session:
+        return None
+    if 'expires_at' not in session:  # Compatibility for sessions created before this release.
+        return session
+    if session['expires_at'] <= time.time():
+        SESSIONS.pop(token, None)
+        return None
+    return session['user']
+
+
+def create_session(user):
+    token = secrets.token_urlsafe(32)
+    SESSIONS[token] = {'user': dict(user), 'expires_at': time.time() + SESSION_TTL_SECONDS}
+    return token
+
+
+def login_attempt_key(handler, login_id):
+    forwarded = handler.headers.get('X-Forwarded-For', '').split(',', 1)[0].strip()
+    client = forwarded or (handler.client_address[0] if handler.client_address else 'unknown')
+    return client + '|' + str(login_id).strip().lower()
+
+
+def login_rate_status(key):
+    now = time.monotonic()
+    with LOGIN_ATTEMPTS_LOCK:
+        attempts = [stamp for stamp in LOGIN_ATTEMPTS.get(key, []) if now - stamp < LOGIN_WINDOW_SECONDS]
+        LOGIN_ATTEMPTS[key] = attempts
+        if len(attempts) < LOGIN_MAX_ATTEMPTS:
+            return 0
+        return max(1, int(LOGIN_WINDOW_SECONDS - (now - attempts[0])))
+
+
+def record_login_failure(key):
+    with LOGIN_ATTEMPTS_LOCK:
+        LOGIN_ATTEMPTS.setdefault(key, []).append(time.monotonic())
+
+
+def clear_login_failures(key):
+    with LOGIN_ATTEMPTS_LOCK:
+        LOGIN_ATTEMPTS.pop(key, None)
 
 
 def twilio_verify_ready():
@@ -867,8 +920,7 @@ def password_login(connection, login_id, password):
     user = connection.execute('select * from users where (username=? or phone=?) and active=1', (login_id, login_id)).fetchone()
     if not user or not checkpw(password, user['password_hash']):
         return None, None, 'invalid_credentials'
-    token = secrets.token_urlsafe(32)
-    SESSIONS[token] = dict(user)
+    token = create_session(user)
     audit(connection, user['id'], 'PASSWORD_LOGIN', 'user', user['id'], 'Password authenticated sign-in')
     connection.commit()
     return user, token, None
@@ -904,6 +956,8 @@ class H(BaseHTTPRequestHandler):
 
     def body(self):
         length = int(self.headers.get('Content-Length', '0'))
+        if length > MAX_JSON_BODY_BYTES:
+            raise ValueError('حجم الطلب يتجاوز الحد المسموح')
         raw = self.rfile.read(length) if length else b'{}'
         return json.loads(raw or b'{}')
 
@@ -1061,6 +1115,15 @@ class H(BaseHTTPRequestHandler):
         if path in static_files:
             return self.static(*static_files[path])
 
+        if path == '/api/health':
+            try:
+                connection = db()
+                connection.execute('select 1').fetchone()
+                connection.close()
+                return self.send_json({'status': 'ok', 'database': 'ready', 'service': 'asas-lims'})
+            except sqlite3.Error:
+                return self.send_json({'status': 'degraded', 'database': 'unavailable', 'service': 'asas-lims'}, 503)
+
         user = user_from(self)
         if path.startswith('/api/') and not user:
             return self.send_json({'error': 'غير مسجل الدخول'}, 401)
@@ -1071,6 +1134,20 @@ class H(BaseHTTPRequestHandler):
                 if not self.require_permission(user, 'dashboard'):
                     return
                 return self.stream_events()
+
+            if path == '/api/system/status':
+                if not self.require_permission(user, 'settings'):
+                    return
+                integrity = connection.execute('PRAGMA quick_check').fetchone()[0]
+                queued = connection.execute("select count(*) from sync_queue where status='queued'").fetchone()[0]
+                return self.send_json({
+                    'status': 'ok' if integrity == 'ok' else 'degraded',
+                    'database_integrity': integrity,
+                    'database_size_bytes': os.path.getsize(DB) if os.path.exists(DB) else 0,
+                    'queued_sync_items': queued,
+                    'active_sessions': len(SESSIONS),
+                    'session_ttl_seconds': SESSION_TTL_SECONDS
+                })
 
             if path == '/api/users':
                 if not self.require_permission(user, 'users'):
@@ -1297,10 +1374,17 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json({'ok': False, 'error': 'invalid_request'}, 400)
             connection = db()
             username = str(data.get('username', '')).strip()
+            attempt_key = login_attempt_key(self, username)
+            retry_after = login_rate_status(attempt_key)
+            if retry_after:
+                connection.close()
+                return self.send_json({'ok': False, 'error': 'too_many_attempts'}, 429, {'Retry-After': str(retry_after)})
             user, token, error = password_login(connection, username, str(data.get('password', '')))
             if error:
+                record_login_failure(attempt_key)
                 connection.close()
                 return self.send_json({'ok': False, 'error': error}, 401)
+            clear_login_failures(attempt_key)
             phone = str(user['phone'] or '').strip()
             connection.close()
             return self.send_json({'ok': True, 'token': token, 'user': {'username': user['username'], 'name': user['full_name'], 'role': user['role'], 'phone': phone, 'avatar_data_url': user['avatar_data_url']}}, extra_headers={'Set-Cookie': 'LIMS_SESSION=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict'})
@@ -1333,8 +1417,7 @@ class H(BaseHTTPRequestHandler):
             if result.get('status') != 'approved':
                 connection.close()
                 return self.send_json({'ok': False, 'error': 'invalid_otp'}, 401)
-            token = secrets.token_urlsafe(32)
-            SESSIONS[token] = dict(user)
+            token = create_session(user)
             audit(connection, user['id'], 'OTP_VERIFIED', 'user', user['id'], 'Twilio Verify approved')
             connection.commit()
             connection.close()
@@ -1367,6 +1450,22 @@ class H(BaseHTTPRequestHandler):
 
         connection = db()
         try:
+            if path == '/api/system/backup':
+                if user.get('role') not in {'admin', 'quality_manager'}:
+                    return self.send_json({'error': 'النسخ الاحتياطي متاح لمدير النظام ومدير الجودة فقط'}, 403)
+                os.makedirs(BACKUP_DIR, exist_ok=True)
+                stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+                filename = 'asas-lims-backup-' + stamp + '.sqlite3'
+                target = os.path.join(BACKUP_DIR, filename)
+                destination = sqlite3.connect(target)
+                try:
+                    connection.backup(destination)
+                finally:
+                    destination.close()
+                audit(connection, user['id'], 'إنشاء نسخة احتياطية', 'system', 0, filename)
+                connection.commit()
+                return self.send_json({'ok': True, 'file_name': filename, 'size_bytes': os.path.getsize(target)})
+
             if path == '/api/telegram/draft':
                 if not self.require_permission(user, 'dashboard'):
                     return
