@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=8-7-4-live-sync-audit">
+  <link rel="stylesheet" href="style.css?v=9-0-0-runtime-fix">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -340,18 +340,18 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=8-7-4-live-sync-audit"></script>
-  <script src="i18n.js?v=8-7-4-live-sync-audit"></script>
-  <script src="app-password.js?v=8-7-4-live-sync-audit"></script>
-  <script src="branch-map.js?v=8-7-4-live-sync-audit"></script>
-<script src="asas_tests_module.js"></script> 
+  <script src="runtime-config.js?v=9-0-0-runtime-fix"></script>
+  <script src="i18n.js?v=9-0-0-runtime-fix"></script>
+  <script src="app-password.js?v=9-0-0-runtime-fix"></script>
+  <script src="branch-map.js?v=9-0-0-runtime-fix"></script>
+<script src="asas_tests_module.js?v=9-0-0-runtime-fix"></script> 
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v8-7-4-live-sync-audit'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v9-0-0-runtime-fix'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=8-7-4-live-sync-audit', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=9-0-0-runtime-fix', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
 });
     }
 <script>
