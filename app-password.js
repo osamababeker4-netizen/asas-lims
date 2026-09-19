@@ -442,7 +442,6 @@ function navigate(page) {
   setText($('pageTitle'), nav ? ((uiTextMemory.get(nav.firstChild) || {}).ar || nav.textContent).trim() : 'أساس LIMS');
   setText($('pageKicker'), page === 'projects' ? 'تنفيذ ومتابعة' : 'إدارة المختبر');
   $('sidebar').classList.remove('open');
-  if (page === 'field') loadFieldRecent();
   if (page === 'settings') loadSystemSettings();
   if (page === 'communications') loadCommunicationLinks();
 }
@@ -1088,11 +1087,10 @@ function fillFieldReadyOptions() {
 }
 
 function renderFieldTests() {
-  const pointOptions = Array.from({length:50}, function(_,i) { const n=String(i+1); return '<option value="'+n+'"'+(String(this.points||'')===n?' selected':'')+'>'+n+'</option>'; });
   setHtml($('fieldTests'), fieldTests.map(function(test,index) {
     const points = Array.from({length:50}, function(_,i) { const n=String(i+1); return '<option value="'+n+'"'+(String(test.points||'')===n?' selected':'')+'>'+n+'</option>'; }).join('');
-    return '<div class="field-test-row"><label>نوع الاختبار<select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="الاختبار الرسمي"><option value="">— اختر اختباراً رسمياً —</option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select></label><label>النتيجة<select data-field-test="' + index + '" data-field-key="result"><option value="">— اختر النتيجة —</option><option value="ناجح"'+(test.result==='ناجح'?' selected':'')+'>ناجح</option><option value="راسب"'+(test.result==='راسب'?' selected':'')+'>راسب</option></select></label><label>عدد النقاط<select data-field-test="' + index + '" data-field-key="points"><option value="">— اختر عدد النقاط —</option>'+points+'</select></label><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
-  }).join('') || '<div class="empty">اختر الاختبارات الرسمية المنفذة في هذه الزيارة.</div>');
+    return '<div class="field-test-row"><label>نوع الاختبار<select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="نوع الاختبار"><option value=""></option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select></label><label>نتيجة الاختبار<select data-field-test="' + index + '" data-field-key="result" aria-label="نتيجة الاختبار"><option value=""></option><option value="ناجح"'+(test.result==='ناجح'?' selected':'')+'>ناجح</option><option value="راسب"'+(test.result==='راسب'?' selected':'')+'>راسب</option></select></label><label>عدد النقاط<select data-field-test="' + index + '" data-field-key="points" aria-label="عدد النقاط"><option value=""></option>'+points+'</select></label><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
+  }).join(''));
 }
 
 function syncFieldTestCatalog(test) {
@@ -1188,19 +1186,6 @@ async function saveFieldVisit() {
     setText($('fieldMessage'), 'تم إرسال الزيارة إلى Telegram' + (fieldPhotos.length ? ' مع ' + fieldPhotos.length + ' صورة' : ''));
     fieldTests = []; fieldPhotos = []; renderFieldTests(); renderFieldPhotos();
   } catch (error) { setText($('fieldMessage'), error.message); showToast(error.message,true); }
-}
-async function loadFieldRecent() {
-  try {
-    const rows = await api('/api/field/recent');
-    setHtml($('fieldRecent'), rows.map(function(item) {
-      return '<article class="field-item"><strong>' + esc(item.license_no) + ' — ' + esc(item.project_name || '') + '</strong><small>' + esc(item.contractor_name || '') + ' · ' + esc(saudiDisplay(item.created_at)) + '</small><div>' + statusChip(item.status) + '</div><div class="field-item-actions"><button class="btn secondary" data-field-status="' + item.id + '|مرسلة" type="button">إرسال</button><button class="btn secondary" data-field-status="' + item.id + '|قيد المراجعة" type="button">مراجعة</button><button class="btn primary" data-field-status="' + item.id + '|معتمدة" type="button">اعتماد</button><button class="btn danger" data-field-status="' + item.id + '|مرفوضة" type="button">رفض</button></div></article>';
-    }).join('') || '<div class="empty">لا توجد زيارات ميدانية بعد.</div>');
-  } catch (error) { setHtml($('fieldRecent'), '<div class="empty">تعذر تحميل الزيارات.</div>'); }
-}
-
-async function setFieldStatus(token) {
-  const parts = token.split('|');
-  try { await api('/api/field/status',{method:'POST',body:JSON.stringify({id:Number(parts[0]),status:parts[1]})}); await loadFieldRecent(); await refresh(); showToast('تم تحديث حالة الزيارة'); } catch (error) { showToast(error.message,true); }
 }
 
 function bindEvents() {
