@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v9-2-2-telegram-send';
-const APP_SHELL = ['./','./index.html','./style.css?v=9-2-2-telegram-send','./app-password.js?v=9-2-2-telegram-send','./branch-map.js?v=9-2-2-telegram-send','./i18n.js?v=9-2-2-telegram-send','./runtime-config.js?v=9-2-2-telegram-send','./manifest.webmanifest','./logo.jpg'];
+const CACHE_NAME = 'asas-lims-pwa-v9-2-3-telegram-auth';
+const APP_SHELL = ['./','./index.html','./style.css?v=9-2-3-telegram-auth','./app-password.js?v=9-2-3-telegram-auth','./branch-map.js?v=9-2-3-telegram-auth','./i18n.js?v=9-2-3-telegram-auth','./runtime-config.js?v=9-2-3-telegram-auth','./manifest.webmanifest','./logo.jpg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
