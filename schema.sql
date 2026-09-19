@@ -386,3 +386,60 @@ INSERT OR IGNORE INTO test_catalog(code,name_ar,name_en,category,standard,versio
 ('D7091','قياس السماكة الجافة للطلاءات','Dry Film Thickness','طلاءات','ASTM D7091','2022',1),
 ('ROAD-PROFILER','بروفايل الطريق','Road Profiler','طرق','Road Profiler','1.0',1),
 ('GRB-ROUGHNESS','وعورة الأسفلت','Asphalt Roughness','طرق','GRB','1.0',1);
+
+
+-- V9 additive operational modules. Existing ASAS tables remain unchanged.
+CREATE TABLE IF NOT EXISTS inventory_items(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ item_code TEXT UNIQUE,
+ name TEXT NOT NULL,
+ category TEXT,
+ quantity REAL NOT NULL DEFAULT 0 CHECK(quantity >= 0),
+ min_quantity REAL NOT NULL DEFAULT 0,
+ unit TEXT,
+ location TEXT,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS order_requests(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ request_no TEXT UNIQUE,
+ request_type TEXT NOT NULL DEFAULT 'general',
+ title TEXT NOT NULL,
+ description TEXT,
+ status TEXT NOT NULL DEFAULT 'pending',
+ requested_by INTEGER,
+ reviewed_by INTEGER,
+ approved_by INTEGER,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ reviewed_at TEXT,
+ approved_at TEXT,
+ FOREIGN KEY(requested_by) REFERENCES users(id),
+ FOREIGN KEY(reviewed_by) REFERENCES users(id),
+ FOREIGN KEY(approved_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS sample_result_entries(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ test_id INTEGER NOT NULL,
+ field_name TEXT NOT NULL,
+ value_num REAL,
+ value_text TEXT,
+ unit TEXT,
+ min_value REAL,
+ max_value REAL,
+ compliance_status TEXT NOT NULL DEFAULT 'not_evaluated',
+ entered_by INTEGER,
+ approved_by INTEGER,
+ approved_at TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(test_id) REFERENCES tests(id) ON DELETE CASCADE,
+ FOREIGN KEY(entered_by) REFERENCES users(id),
+ FOREIGN KEY(approved_by) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_items_code ON inventory_items(item_code);
+CREATE INDEX IF NOT EXISTS idx_order_requests_status ON order_requests(status);
+CREATE INDEX IF NOT EXISTS idx_sample_result_entries_test ON sample_result_entries(test_id);
