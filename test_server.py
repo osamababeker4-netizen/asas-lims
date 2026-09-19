@@ -202,6 +202,30 @@ class SchemaMigrationTests(unittest.TestCase):
             httpd.server_close()
             worker.join(timeout=5)
 
+    def test_safe_upload_picker_and_drag_drop_are_available(self):
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
+        self.assertIn("window.showOpenFilePicker", app)
+        self.assertIn("startIn:'downloads'", app)
+        self.assertIn('id="smartDropZone"', app)
+        self.assertIn("drop.addEventListener('drop'", app)
+        self.assertIn('smartSelectedFiles(form)', app)
+        self.assertIn('data-smart-remove-selected', app)
+        self.assertIn('.smart-drop-zone', css)
+
+    def test_add_field_test_button_opens_searchable_catalog_picker(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        self.assertIn('id="addFieldTest"', html)
+        self.assertIn("openFieldTestPicker", app)
+        self.assertIn("id=\"fieldTestPickerSearch\"", app)
+        self.assertIn("id=\"fieldTestPickerCategory\"", app)
+        self.assertIn("data-field-picker-add", app)
+        self.assertIn("fieldTestPickerRows", app)
+        # The four top-level field groups must remain available.
+        for group in ('خرسانة', 'تربة', 'أسفلت', 'الحقل وNDT'):
+            self.assertIn("key:'" + group + "'", app)
+
     def test_equipment_table_has_technical_status_design(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
