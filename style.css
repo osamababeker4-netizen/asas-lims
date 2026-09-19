@@ -101,3 +101,39 @@ body{background:linear-gradient(180deg,#eef4f1 0,#f7f8f5 34%,#f2f5f3 100%)}
 .test-result-select.danger{border-color:#d66b68;background:#fff8f7}
 .test-result-select.progress{border-color:#e5a23b;background:#fffbf4}
 .field-test-row label .test-result-badge{margin-top:7px}
+
+
+/* V10.2 engineering tables, searchable field catalog and real document browser */
+.field-catalog-toolbar,.document-browser-toolbar{display:flex;align-items:end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:14px 0 18px;padding:14px 16px;border:1px solid #d9e8e3;border-radius:16px;background:linear-gradient(135deg,#f8fcfa 0%,#fffaf4 100%)}
+.field-search-box,.document-search{display:grid;grid-template-columns:minmax(220px,520px) auto;gap:8px;align-items:end;flex:1;max-width:720px}
+.field-search-box span,.document-search span{grid-column:1/-1;font-size:.76rem;font-weight:900;color:#48646a}
+.field-search-box input,.document-search input{min-width:0;background:#fff;border:1px solid #cfded9;border-radius:10px;padding:11px 13px}
+.field-catalog-card{display:grid;grid-template-columns:78px minmax(0,1fr) auto;gap:16px;align-items:center;padding:16px;border:1px solid #d7e5e0;border-radius:16px;background:#fff;box-shadow:0 7px 18px rgba(15,70,78,.05)}
+.field-catalog-card:hover{border-color:#7bb7ad;box-shadow:0 12px 24px rgba(15,70,78,.09)}
+.field-catalog-code{display:grid;place-items:center;min-height:58px;border-radius:12px;background:linear-gradient(145deg,#0d5966,#0b4650);color:#fff;font-weight:900;letter-spacing:.04em;direction:ltr}
+.field-catalog-body h4{margin:7px 0 3px;color:#123e48}.field-catalog-body p{margin:2px 0}.field-catalog-en{color:#5d7378;font-size:.78rem}.field-catalog-standard{font-weight:800;color:#85602a;font-size:.78rem}
+.field-catalog-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.field-search-empty{grid-column:1/-1}
+.document-group-filters{display:flex;gap:7px;flex-wrap:wrap}.document-group-filters button,[data-document-group]{border:1px solid #cadbd6;background:#fff;color:#27515a;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer}.document-group-filters button.active,[data-document-group].active{background:#0f7180;color:#fff;border-color:#0f7180}
+.document-files-panel{margin-top:18px;border-top:4px solid #0f7180}.document-file-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.document-file-card{display:grid;grid-template-columns:54px minmax(0,1fr);gap:12px;padding:14px;border:1px solid #dce8e4;border-radius:14px;background:#fff;transition:.16s ease}
+.document-file-card:hover{transform:translateY(-2px);border-color:#7bb7ad;box-shadow:0 10px 24px rgba(13,75,84,.08)}
+.document-file-icon{display:grid;place-items:center;width:54px;height:54px;border-radius:12px;background:linear-gradient(145deg,#e5f3ef,#fff3e6);color:#0a5662;font-size:.72rem;font-weight:900;letter-spacing:.05em}
+.document-file-info{min-width:0}.document-file-info h4{margin:7px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.document-file-info p,.document-file-info small{margin:0;color:#60767b;font-size:.75rem}
+.document-file-actions{grid-column:1/-1;display:flex;gap:8px}.document-file-actions .btn{flex:1}
+.document-empty{grid-column:1/-1}
+.quality-table-card{padding:0;overflow:hidden;border-top:4px solid #d97d2d}.quality-table-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:16px 18px;background:linear-gradient(135deg,#fff 0%,#f7fbf9 100%);border-bottom:1px solid #dce7e3}.quality-table-head h3,.quality-table-head p{margin:0}.quality-table-head p{margin-top:3px;color:#61777c;font-size:.78rem}
+.engineering-table-wrap{overflow:auto}
+
+/* Global engineering spreadsheet treatment */
+.page table.engineering-table{width:100%;min-width:760px;border-collapse:separate;border-spacing:0;background:#fff;font-variant-numeric:tabular-nums}
+.page table.engineering-table thead th{position:sticky;top:0;z-index:2;padding:11px 10px;background:linear-gradient(180deg,#0d5966 0%,#0b4651 100%);color:#fff;border-inline-end:1px solid rgba(255,255,255,.16);border-bottom:3px solid #d97d2d;font-size:.76rem;font-weight:900;white-space:nowrap;text-align:center}
+.page table.engineering-table tbody td{padding:9px 10px;border-inline-end:1px solid #dfe8e5;border-bottom:1px solid #dfe8e5;background:#fff;vertical-align:middle}
+.page table.engineering-table tbody tr:nth-child(even) td{background:#f7fbf9}.page table.engineering-table tbody tr:hover td{background:#eef7f4}
+.page table.engineering-table tbody td:first-child{border-inline-start:4px solid transparent;font-weight:800}.page table.engineering-table tbody tr:hover td:first-child{border-inline-start-color:#d97d2d}
+.page table.engineering-table .status,.page table.engineering-table .priority{box-shadow:none}
+.table-panel{overflow:auto}.table-panel:has(table.engineering-table){border-top:4px solid #0f7180}
+.quality-lists{gap:18px}.quality-lists .quality-table-card{margin:0}
+
+@media(max-width:1100px){.document-file-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.field-catalog-card{grid-template-columns:66px minmax(0,1fr)}.field-catalog-actions{grid-column:1/-1}}
+@media(max-width:700px){.document-file-grid{grid-template-columns:1fr}.field-search-box,.document-search{grid-template-columns:1fr}.field-search-box span,.document-search span{grid-column:auto}.field-catalog-card{grid-template-columns:1fr}.field-catalog-code{width:78px}.quality-table-head{grid-template-columns:auto 1fr}.quality-table-head .btn{grid-column:1/-1}.document-browser-toolbar{align-items:stretch}}
