@@ -102,9 +102,9 @@ function localDB() {
   let data;
   try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (error) { data = null; }
   if (!data) {
-    data = {users:[],clients:[],projects:[],workOrders:[],samples:[],tests:[],reports:[],equipment:[],visits:[],catalog:[],audit:[],syncQueue:[],settings:{}};
+    data = {users:[],clients:[],projects:[],workOrders:[],samples:[],tests:[],reports:[],equipment:[],visits:[],catalog:[],audit:[],syncQueue:[],settings:{},inventory:[],orderRequests:[]};
   }
-  ['users','clients','projects','workOrders','samples','tests','reports','equipment','visits','catalog','audit','syncQueue'].forEach(function(key) {
+  ['users','clients','projects','workOrders','samples','tests','reports','equipment','visits','catalog','audit','syncQueue','inventory','orderRequests'].forEach(function(key) {
     if (!Array.isArray(data[key])) data[key] = [];
   });
   data.catalog = mergeOfficialCatalog(data.catalog);
@@ -287,6 +287,43 @@ function staticApi(path, options) {
     const id = localId(data.samples); const sample = Object.assign({id:id,status:'قيد الاختبار',project_id:body.project_id ? Number(body.project_id) : null},body);
     sample.test_plan = data.catalog.filter(function(item) { return item.category === sample.material; }).map(function(item) { return {catalog_id:item.id,code:item.code,name_ar:item.name_ar,status:'مخطط'}; });
     data.samples.push(sample); localQueue(data,'sample',id,'create'); localAudit(data,'إضافة عينة وخطة اختبارات تلقائية','sample',body.sample_no + ' (' + sample.test_plan.length + ' اختباراً)'); saveLocal(data); return {ok:true,id:id,planned_count:sample.test_plan.length};
+  }
+  if (path === '/api/samples/batch') {
+    const rows = Array.isArray(body.samples) ? body.samples : [];
+    const created = [], skipped = [];
+    rows.forEach(function(row) {
+      try {
+        const sampleNo = String(row.sample_no || '').trim();
+        if (!sampleNo) throw new Error('رقم العينة مطلوب');
+        if (data.samples.some(function(item){return item.sample_no === sampleNo;})) throw new Error('رقم العينة موجود بالفعل');
+        const id = localId(data.samples);
+        const sample = Object.assign({id:id,status:'قيد الاختبار',project_id:row.project_id ? Number(row.project_id) : null,received_date:row.received_date || today()},row);
+        sample.test_plan = data.catalog.filter(function(item){return item.category === sample.material;}).map(function(item){return {catalog_id:item.id,code:item.code,name_ar:item.name_ar,status:'مخطط'};});
+        data.samples.push(sample); localQueue(data,'sample',id,'create'); created.push({id:id,sample_no:sampleNo,planned_count:sample.test_plan.length});
+      } catch(error) { skipped.push({sample_no:row && row.sample_no || '',error:error.message}); }
+    });
+    localAudit(data,'إضافة دفعة عينات','sample_batch','تمت إضافة '+created.length+' وتجاوز '+skipped.length); saveLocal(data);
+    return {ok:true,created:created,skipped:skipped,created_count:created.length,skipped_count:skipped.length};
+  }
+  if (path === '/api/inventory') {
+    if (!options || !options.method || options.method === 'GET') return data.inventory;
+    const qty = Number(body.quantity || 0); if (qty < 0) throw new Error('لا يمكن إنشاء رصيد مخزون سالب');
+    const id=localId(data.inventory); data.inventory.push(Object.assign({id:id,quantity:qty,min_quantity:Number(body.min_quantity||0),created_at:saudiNow()},body));
+    localAudit(data,'إضافة صنف مخزون','inventory',String(body.name||id)); saveLocal(data); return {ok:true,id:id};
+  }
+  if (path === '/api/inventory/issue') {
+    const item=data.inventory.find(function(x){return x.id===Number(body.id);}); if(!item)throw new Error('الصنف غير موجود');
+    const qty=Number(body.quantity||0); if(qty<=0)throw new Error('أدخل كمية صرف صحيحة'); if(Number(item.quantity||0)<qty)throw new Error('لا يمكن الصرف بالسالب أو تجاوز الرصيد المتاح');
+    item.quantity=Number(item.quantity||0)-qty; localAudit(data,'صرف مخزون','inventory',String(item.name||item.id)+' - '+qty); saveLocal(data); return {ok:true,quantity:item.quantity};
+  }
+  if (path === '/api/order-requests') {
+    if (!options || !options.method || options.method === 'GET') return data.orderRequests;
+    const id=localId(data.orderRequests); data.orderRequests.push(Object.assign({id:id,status:'pending',created_at:saudiNow(),created_by:currentUser.id},body));
+    localAudit(data,'إنشاء طلب','order_request',String(body.title||id)); saveLocal(data); return {ok:true,id:id};
+  }
+  if (path === '/api/order-requests/status') {
+    const item=data.orderRequests.find(function(x){return x.id===Number(body.id);}); if(!item)throw new Error('الطلب غير موجود');
+    item.status=body.status; item.reviewed_by=currentUser.id; item.reviewed_at=saudiNow(); localAudit(data,'تغيير حالة طلب','order_request',String(item.id)+' → '+item.status); saveLocal(data); return {ok:true};
   }
   if (path === '/api/equipment') {
     const id = localId(data.equipment); data.equipment.push(Object.assign({id:id,status:'ساري'},body)); localAudit(data,'إضافة جهاز','equipment',body.name); saveLocal(data); return {ok:true,id:id};
