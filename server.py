@@ -1367,7 +1367,7 @@ class H(BaseHTTPRequestHandler):
                 photos = photos[:10]
                 try:
                     sent = telegram_send_text(text)
-                    photo_items = telegram_send_media_group(photos, 'صور الزيارة الميدانية · ' + sender_name) if photos else []
+                    photo_items = telegram_send_media_group(photos, 'صور الزيارة الميدانية') if photos else []
                     photo_ids = [item.get('message_id') for item in photo_items]
                 except (RuntimeError, ValueError) as error:
                     return self.send_json({'error': str(error)}, 503)
