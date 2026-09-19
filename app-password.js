@@ -126,6 +126,19 @@ function statusChip(value) {
   return '<span class="status ' + statusClass(value) + '">' + escUI(value || '—') + '</span>';
 }
 
+function testResultMeta(value) {
+  const raw = String(value || '').trim();
+  if (raw === 'ناجح') return {label:'ناجح',icon:'✅',tone:'success'};
+  if (raw === 'راسب') return {label:'راسب',icon:'❌',tone:'danger'};
+  if (raw === 'قيد الإجراء') return {label:'قيد الإجراء',icon:'⏳',tone:'progress'};
+  return {label:raw || 'غير محدد',icon:'○',tone:'neutral'};
+}
+
+function testResultBadge(value) {
+  const meta = testResultMeta(value);
+  return '<span class="test-result-badge '+meta.tone+'"><span class="test-result-icon">'+meta.icon+'</span>'+escUI(meta.label)+'</span>';
+}
+
 function priorityChip(value) {
   return '<span class="priority ' + statusClass(value) + '">' + escUI(value || 'متوسطة') + '</span>';
 }
@@ -1162,7 +1175,7 @@ function fillFieldReadyOptions() {
 function renderFieldTests() {
   setHtml($('fieldTests'), fieldTests.map(function(test,index) {
     const points = Array.from({length:50}, function(_,i) { const n=String(i+1); return '<option value="'+n+'"'+(String(test.points||'')===n?' selected':'')+'>'+n+'</option>'; }).join('');
-    return '<div class="field-test-row"><label>نوع الاختبار<select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="نوع الاختبار"><option value=""></option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select></label><label>نتيجة الاختبار<select data-field-test="' + index + '" data-field-key="result" aria-label="نتيجة الاختبار"><option value=""></option><option value="ناجح"'+(test.result==='ناجح'?' selected':'')+'>ناجح</option><option value="راسب"'+(test.result==='راسب'?' selected':'')+'>راسب</option></select></label><label>عدد النقاط<select data-field-test="' + index + '" data-field-key="points" aria-label="عدد النقاط"><option value=""></option>'+points+'</select></label><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
+    return '<div class="field-test-row"><label>نوع الاختبار<select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="نوع الاختبار"><option value=""></option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select></label><label>نتيجة الاختبار<select class="test-result-select '+testResultMeta(test.result).tone+'" data-field-test="' + index + '" data-field-key="result" aria-label="نتيجة الاختبار"><option value=""></option><option value="ناجح"'+(test.result==='ناجح'?' selected':'')+'>✅ ناجح</option><option value="راسب"'+(test.result==='راسب'?' selected':'')+'>❌ راسب</option><option value="قيد الإجراء"'+(test.result==='قيد الإجراء'?' selected':'')+'>⏳ قيد الإجراء</option></select>'+testResultBadge(test.result)+'</label><label>عدد النقاط<select data-field-test="' + index + '" data-field-key="points" aria-label="عدد النقاط"><option value=""></option>'+points+'</select></label><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
   }).join(''));
 }
 
@@ -1347,7 +1360,7 @@ function bindEvents() {
   document.addEventListener('change',function(event) {
     if (event.target.matches('.project-status')) changeProjectStatus(event.target.dataset.projectId,event.target.value);
     if (event.target.id === 'testCatalogSelect') updateTestDynamic();
-    if (event.target.matches('[data-field-test]')) { const test = fieldTests[Number(event.target.dataset.fieldTest)]; test[event.target.dataset.fieldKey] = event.target.value; if (event.target.dataset.fieldKey === 'catalog_id') syncFieldTestCatalog(test); }
+    if (event.target.matches('[data-field-test]')) { const test = fieldTests[Number(event.target.dataset.fieldTest)]; test[event.target.dataset.fieldKey] = event.target.value; if (event.target.dataset.fieldKey === 'catalog_id') syncFieldTestCatalog(test); if (event.target.dataset.fieldKey === 'result') renderFieldTests(); }
   });
   document.addEventListener('click',async function(event) {
     const smartOpen=event.target.closest('[data-smart-open]');if(smartOpen){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartOpen.dataset.smartOpen)];if(item)try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
