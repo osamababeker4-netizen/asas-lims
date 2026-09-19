@@ -194,7 +194,7 @@
             <div id="coordinatesCard" class="hidden" aria-hidden="true"><span id="fieldLatitude"></span><span id="fieldLongitude"></span><span id="fieldAccuracy"></span><a id="fieldMapLink"></a></div>
             <section class="field-media panel inset-panel"><div class="panel-heading"><div><h3>الصور</h3><p class="muted">التقط صورة جديدة أو اختر صورًا من الاستديو.</p></div><div class="heading-actions"><button id="openFieldCamera" class="btn primary" type="button">فتح الكاميرا</button><button id="openFieldGallery" class="btn secondary" type="button">فتح الاستديو</button></div></div><input id="fieldCameraInput" class="hidden" type="file" accept="image/*" capture="environment"><input id="fieldGalleryInput" class="hidden" type="file" accept="image/*" multiple><div id="fieldPhotoPreview" class="field-photo-preview"><span class="muted">لم تُرفق صور بعد</span></div></section>
             <div class="field-tests panel inset-panel">
-              <div class="panel-heading"><button id="addFieldTest" class="btn secondary" type="button">+ إضافة اختبار</button></div>
+              <div class="panel-heading"><div><h3>نتيجة الاختبار</h3><div class="test-result-legend" aria-label="حالات نتيجة الاختبار"><span class="test-result-badge success"><span class="test-result-icon">✅</span>ناجح</span><span class="test-result-badge danger"><span class="test-result-icon">❌</span>راسب</span><span class="test-result-badge progress"><span class="test-result-icon">⏳</span>قيد الإجراء</span></div></div><button id="addFieldTest" class="btn secondary" type="button">+ إضافة اختبار</button></div>
               <div id="fieldTests"></div>
             </div>
             <label>ملاحظات ميدانية<textarea id="fieldNotes" rows="4"></textarea></label>
@@ -507,7 +507,8 @@
       return tests.map(function(test) {
         const cat = (typeof catalog !== 'undefined' && Array.isArray(catalog)) ? catalog.find(function(item) { return String(item.id) === String(test.catalog_id); }) : null;
         const type = cat ? ((cat.category ? cat.category + ' — ' : '') + (cat.code || '') + ' — ' + (cat.name_ar || '')) : (test.name || 'اختبار ميداني');
-        const result = String(test.result || '').trim() || BLANK_RESULT_TEXT;
+        const rawResult = String(test.result || '').trim();
+        const result = rawResult === 'ناجح' ? '✅ ناجح' : rawResult === 'راسب' ? '❌ راسب' : rawResult === 'قيد الإجراء' ? '⏳ قيد الإجراء' : (rawResult || BLANK_RESULT_TEXT);
         const points = String(test.points || '').trim() || 'غير مدخل';
         return '🧪 نوع الاختبار : ' + type + '\n📊 النتيجة : ' + result + '\n📍 عدد النقاط المأخوذة : ' + points;
       }).join('\n───────────────────\n');
