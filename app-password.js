@@ -1318,10 +1318,10 @@ function fieldCatalogRows() {
 
 function renderFieldGuides() {
   const groups = [
-    {key:'خرسانة',code:'CONC',title:'خرسانة',description:'كل اختبارات الخرسانة المسجلة في كتالوج النظام.'},
-    {key:'تربة',code:'SOIL',title:'تربة',description:'كل اختبارات التربة والجيوتقنية المسجلة في كتالوج النظام.'},
-    {key:'أسفلت',code:'ASPH',title:'أسفلت',description:'كل اختبارات الأسفلت والبيتومين المسجلة في كتالوج النظام.'},
-    {key:'الحقل وNDT',code:'NDT',title:'الحقل وNDT',description:'كل الفحوص الميدانية وغير الإتلافية المسجلة في كتالوج النظام.'}
+    {key:'خرسانة',code:'CONC',english:'Concrete',title:'خرسانة',description:'كل اختبارات الخرسانة المسجلة في كتالوج النظام.'},
+    {key:'تربة',code:'SOIL',english:'Soil',title:'تربة',description:'كل اختبارات التربة والجيوتقنية المسجلة في كتالوج النظام.'},
+    {key:'أسفلت',code:'ASPH',english:'Asphalt',title:'أسفلت',description:'كل اختبارات الأسفلت والبيتومين المسجلة في كتالوج النظام.'},
+    {key:'الحقل وNDT',code:'NDT',english:'Field & NDT',title:'الحقل وNDT',description:'كل الفحوص الميدانية وغير الإتلافية المسجلة في كتالوج النظام.'}
   ];
   const filters = $('fieldGuideFilters'), grid = $('fieldGuideGrid');
   if (!filters || !grid) return;
@@ -1331,7 +1331,7 @@ function renderFieldGuides() {
   if (fieldGuideCategory === 'الكل' && !fieldTestSearchTerm) {
     setHtml(filters, '');
     setHtml(grid, groups.map(function(group) {
-      return '<article class="field-group-card" data-field-group="'+esc(group.key)+'"><span class="field-group-icon">'+esc(group.code)+'</span><div><h3>'+escUI(group.title)+'</h3><p>'+escUI(group.description)+'</p></div><div class="field-group-meta"><span>كتالوج كامل قابل للبحث</span></div><button class="btn primary" data-field-guide-filter="'+esc(group.key)+'" type="button">عرض الاختبارات</button></article>';
+      return '<article class="field-group-card" data-field-group="'+esc(group.key)+'"><span class="field-group-icon"><b>'+esc(group.code)+'</b><small>'+esc(group.english)+'</small></span><div><h3>'+escUI(group.title)+'</h3><p>'+escUI(group.description)+'</p></div><div class="field-group-meta"><span>كتالوج كامل قابل للبحث</span></div><button class="btn primary" data-field-guide-filter="'+esc(group.key)+'" type="button">عرض الاختبارات</button></article>';
     }).join(''));
     return;
   }
