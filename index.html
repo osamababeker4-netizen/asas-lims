@@ -359,7 +359,7 @@
   const TELEGRAM_SETTINGS = {
     // Never store the bot token in the public GitHub Pages bundle.
     // Telegram delivery is handled by the authenticated ASAS backend.
-    endpoint: '/api/telegram/draft'
+    endpoint: ((window.LIMS_API_BASE_URL || '').replace(/\/+$/, '')) + '/api/telegram/draft'
   };
 
   let isDispatching = false;
@@ -611,7 +611,7 @@
       const response = await fetch(TELEGRAM_SETTINGS.endpoint, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: Object.assign({ 'Content-Type': 'application/json' }, (typeof authHeaders === 'function' ? authHeaders() : {})),
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
