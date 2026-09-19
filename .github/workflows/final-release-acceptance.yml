@@ -1,0 +1,30 @@
+name: Final Release Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+
+      - name: Python syntax
+        run: python3 -m py_compile server.py test_server.py acceptance_final_v2.py
+
+      - name: JavaScript syntax
+        run: node --check app-password.js
+
+      - name: Existing regression suite
+        run: python3 -m unittest -v test_server.py
+
+      - name: Final upload acceptance
+        run: python3 acceptance_final_v2.py
