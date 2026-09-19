@@ -1,3 +1,4 @@
+import base64
 import importlib
 import http.client
 import json
@@ -36,7 +37,7 @@ class SchemaMigrationTests(unittest.TestCase):
         admin = connection.execute("select password_hash from users where username='admin'").fetchone()
         connection.close()
 
-        self.assertTrue({'projects', 'work_orders', 'sync_queue', 'field_visits', 'audit_log', 'quality_documents', 'proficiency_tests', 'quality_staff'}.issubset(tables))
+        self.assertTrue({'projects', 'work_orders', 'sync_queue', 'field_visits', 'audit_log', 'quality_documents', 'proficiency_tests', 'quality_staff', 'upload_receipts'}.issubset(tables))
         self.assertTrue({'priority', 'description', 'start_date', 'due_date', 'progress', 'reviewed_by', 'approved_by'}.issubset(project_columns))
         self.assertIsNotNone(admin)
         self.assertIn(':', admin['password_hash'])
@@ -214,6 +215,59 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('smartSelectedFiles(form)', app)
         self.assertIn('data-smart-remove-selected', app)
         self.assertIn('.smart-drop-zone', css)
+
+    def test_smart_upload_retry_is_idempotent_and_client_preserves_failures(self):
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        self.assertIn('data-smart-retry-failed', app)
+        self.assertIn('form.__selectedFiles=failedFiles', app)
+        self.assertIn('upload_id:smartUploadToken(form,file)', app)
+        self.assertIn('attempt<=3', app)
+
+        self.server.init()
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        connection.close()
+        token = self.server.create_session(admin)
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        port = httpd.server_address[1]
+
+        payload = {
+            'section': 'reports',
+            'file_name': 'Concrete-C39-retry.txt',
+            'file_base64': base64.b64encode(b'retry-safe').decode('ascii'),
+            'upload_id': 'acceptance-retry-token-001',
+        }
+
+        def post():
+            client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            client.request('POST', '/api/smart-import', json.dumps(payload).encode('utf-8'), {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            })
+            response = client.getresponse()
+            data = json.loads(response.read().decode('utf-8'))
+            client.close()
+            return response.status, data
+
+        try:
+            first_status, first = post()
+            second_status, second = post()
+            self.assertEqual(first_status, 200)
+            self.assertEqual(second_status, 200)
+            self.assertEqual(first['imported'][0]['id'], second['imported'][0]['id'])
+            connection = self.server.db()
+            count = connection.execute("select count(*) from record_attachments where original_name='Concrete-C39-retry.txt'").fetchone()[0]
+            receipts = connection.execute("select count(*) from upload_receipts where upload_id='acceptance-retry-token-001'").fetchone()[0]
+            connection.close()
+            self.assertEqual(count, 1)
+            self.assertEqual(receipts, 1)
+        finally:
+            self.server.SESSIONS.pop(token, None)
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(timeout=5)
 
     def test_add_field_test_button_opens_searchable_catalog_picker(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
