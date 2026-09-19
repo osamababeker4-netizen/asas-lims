@@ -24,10 +24,13 @@ const OFFICIAL_TEST_CATALOG = Object.freeze({
     ['D6913','التدرج الحبيبي بالغرابيل','Sieve Analysis'],['D7928','التدرج الحبيبي للهيدروميتر','Hydrometer Analysis'],['D2216','المحتوى المائي','Water Content'],['D4318','حدود أتربرج (LL / PL / PI)','Atterberg Limits'],['D854','الكثافة النوعية لحبيبات التربة','Specific Gravity'],['D698','الدمك القياسي (Standard Proctor)','Standard Proctor'],['D1557','الدمك المعدل (Modified Proctor)','Modified Proctor'],['D1883','نسبة التحمل كاليفورنيا CBR','California Bearing Ratio'],['D1556','كثافة الموقع بطريقة مخروط الرمل','Sand Cone Density'],['D6938','كثافة ورطوبة الموقع بالطريقة النووية','Nuclear Density and Moisture'],['D2487','تصنيف التربة الموحد USCS','USCS Classification'],['D2435','الانضغاط والهبوط أحادي البعد','One-Dimensional Consolidation'],['D3080','القص المباشر','Direct Shear'],['D2166','الانضغاط غير المحصور UCS','Unconfined Compression'],['D2850','الضغط ثلاثي المحاور غير الموحد UU','Triaxial UU'],['D4767','الضغط ثلاثي المحاور الموحد CU/CD','Triaxial CU/CD'],['D5084','النفاذية / التوصيل الهيدروليكي','Hydraulic Conductivity'],['D4546','الانتفاخ والانهيار','Swell and Collapse'],['D4972','الأس الهيدروجيني pH للتربة','Soil pH'],['D2974','المحتوى العضوي','Organic Content']
   ],
   'خرسانة':[
-    ['C172','أخذ عينات الخرسانة الطازجة','Sampling Fresh Concrete'],['C143','الهبوط Slump','Slump'],['C1064','درجة حرارة الخرسانة الطازجة','Fresh Concrete Temperature'],['C138','الكثافة والعائد ومحتوى الهواء الوزني','Density Yield and Air Content'],['C231','محتوى الهواء بطريقة الضغط','Air Content by Pressure'],['C173','محتوى الهواء بالطريقة الحجمية','Air Content by Volumetric Method'],['C31','تجهيز ومعالجة العينات في الموقع','Making and Curing Specimens'],['C39','مقاومة الضغط للأسطوانات','Compressive Strength'],['C78','مقاومة الانحناء للكمرة','Flexural Strength'],['C496','مقاومة الشد بالانشطار','Splitting Tensile Strength'],['C469','معامل المرونة ونسبة بواسون','Elastic Modulus'],['C42','فحص اللباب الخرساني','Concrete Cores'],['C403','زمن الشك بالاختراق','Time of Setting'],['C597','النبضات فوق الصوتية UPV','Ultrasonic Pulse Velocity'],['C642','الكثافة والامتصاص والفراغات','Density Absorption and Voids'],['C157','الانكماش الطولي المتصلب','Length Change'],['C1202','نفاذية أيونات الكلوريد السريعة RCPT','Rapid Chloride Permeability'],['C1152','كلوريد الخرسانة المتصلبة','Water-Soluble Chloride'],['C666','مقاومة التجميد والذوبان','Freeze-Thaw Resistance'],['C1260','قابلية التفاعل القلوي للركام','Alkali Reactivity']
+    ['C172','أخذ عينات الخرسانة الطازجة','Sampling Fresh Concrete'],['C143','الهبوط Slump','Slump'],['C1064','درجة حرارة الخرسانة الطازجة','Fresh Concrete Temperature'],['C138','الكثافة والعائد ومحتوى الهواء الوزني','Density Yield and Air Content'],['C231','محتوى الهواء بطريقة الضغط','Air Content by Pressure'],['C173','محتوى الهواء بالطريقة الحجمية','Air Content by Volumetric Method'],['C31','تجهيز ومعالجة العينات في الموقع','Making and Curing Specimens'],['C39','مقاومة الضغط للأسطوانات','Compressive Strength'],['C78','مقاومة الانحناء للكمرة','Flexural Strength'],['C496','مقاومة الشد بالانشطار','Splitting Tensile Strength'],['C469','معامل المرونة ونسبة بواسون','Elastic Modulus'],['C42','فحص اللباب الخرساني','Concrete Cores'],['C403','زمن الشك بالاختراق','Time of Setting'],['C597','النبضات فوق الصوتية UPV','Ultrasonic Pulse Velocity'],['C642','الكثافة والامتصاص والفراغات','Density Absorption and Voids'],['C157','الانكماش الطولي المتصلب','Length Change'],['C1202','نفاذية أيونات الكلوريد السريعة RCPT','Rapid Chloride Permeability'],['C1152','كلوريد الخرسانة المتصلبة','Water-Soluble Chloride'],['C666','مقاومة التجميد والذوبان','Freeze-Thaw Resistance'],['C1260','قابلية التفاعل القلوي للركام','Alkali Reactivity'],['C876','جهد نصف الخلية لتآكل حديد التسليح','Half-Cell Corrosion Potential'],['C1876','المقاومة الكهربائية الحجمية للخرسانة','Bulk Electrical Resistivity of Concrete'],['EN14630','عمق الكربنة في الخرسانة المتصلدة','Carbonation Depth in Hardened Concrete','EN 14630']
   ],
   'أسفلت':[
-    ['D979','أخذ عينات الخلطات الأسفلتية','Sampling Asphalt Mixtures'],['D6926','تحضير عينات مارشال','Marshall Specimen Preparation'],['D6927','ثبات وانسياب مارشال','Marshall Stability and Flow'],['D2041','الكثافة النوعية العظمى النظرية Rice','Maximum Theoretical Specific Gravity'],['D2726','الكثافة النوعية والكثافة الظاهرية','Bulk Specific Gravity'],['D3203','الفراغات الهوائية في الخلطات','Air Voids'],['D6307','محتوى الأسفلت بفرن الإشعال','Asphalt Content by Ignition'],['D5444','التدرج الميكانيكي للركام المستخلص','Extracted Aggregate Gradation'],['D4867','الحساسية للرطوبة / الشد غير المباشر','Moisture Susceptibility'],['D6931','الكثافة في الموقع بالطريقة النووية','In-Place Density'],['D3549','السماكة أو الارتفاع للعينة المدموكة','Thickness of Compacted Specimens'],['D1188','الكثافة النوعية للعينات اللبية','Core Density'],['D6928','معامل المرونة للخلطات الأسفلتية','Resilient Modulus'],['D5','اختراق الرابط الأسفلتي','Bitumen Penetration'],['D36','نقطة تليّن الرابط الأسفلتي','Softening Point'],['D4402','اللزوجة الدورانية للرابط الأسفلتي','Rotational Viscosity'],['D2872','التقادم قصير الأجل RTFO','Rolling Thin-Film Oven'],['D6648','القص الديناميكي للرابط DSR','Dynamic Shear Rheometer']
+    ['D979','أخذ عينات الخلطات الأسفلتية','Sampling Asphalt Mixtures'],['D6926','تحضير عينات مارشال','Marshall Specimen Preparation'],['D6927','ثبات وانسياب مارشال','Marshall Stability and Flow'],['D2041','الكثافة النوعية العظمى النظرية Rice','Maximum Theoretical Specific Gravity'],['D2726','الكثافة النوعية والكثافة الظاهرية','Bulk Specific Gravity'],['D3203','الفراغات الهوائية في الخلطات','Air Voids'],['D6307','محتوى الأسفلت بفرن الإشعال','Asphalt Content by Ignition'],['D5444','التدرج الميكانيكي للركام المستخلص','Extracted Aggregate Gradation'],['D4867','الحساسية للرطوبة / الشد غير المباشر','Moisture Susceptibility'],['D6931','الكثافة في الموقع بالطريقة النووية','In-Place Density'],['D3549','السماكة أو الارتفاع للعينة المدموكة','Thickness of Compacted Specimens'],['D1188','الكثافة النوعية للعينات اللبية','Core Density'],['D6928','معامل المرونة للخلطات الأسفلتية','Resilient Modulus'],['D5','اختراق الرابط الأسفلتي','Bitumen Penetration'],['D36','نقطة تليّن الرابط الأسفلتي','Softening Point'],['D4402','اللزوجة الدورانية للرابط الأسفلتي','Rotational Viscosity'],['D2872','التقادم قصير الأجل RTFO','Rolling Thin-Film Oven'],['D6648','القص الديناميكي للرابط DSR','Dynamic Shear Rheometer'],['MC1-RC2','التحقق من نوع ومعدل رش MC-1 / RC-2','MC-1 / RC-2 Grade and Spray Rate Verification','ASTM D2027 / D2028 + Project Specification']
+  ],
+  'الحقل وNDT':[
+    ['D7091','سماكة الطلاء الجاف على المعادن DFT','Dry Film Thickness on Metals'],['D6132','سماكة الطلاء الجاف بالموجات فوق الصوتية','Ultrasonic Dry Film Thickness'],['D5162','كشف انقطاعات وعيوب العزل الكهربائي للطلاء','Coating Holiday Detection'],['G57','المقاومة النوعية للتربة بطريقة الأقطاب الأربعة','Soil Resistivity by Four-Electrode Method'],['D6431','المسح الجيوفيزيائي بالمقاومة الكهربائية المستمرة','Direct-Current Resistivity Survey'],['D2412','صلابة مواسير الفايبر تحت الحمل الخارجي','Pipe Stiffness under External Loading'],['D2290','مقاومة الشد الحلقية لمواسير الفايبر','Apparent Hoop Tensile Strength'],['D2584','فقد الاشتعال ومحتوى الراتنج لمواسير الفايبر','Ignition Loss and Resin Content']
   ]
 });
 const TEST_FIELDS = {
@@ -38,11 +41,42 @@ const TEST_FIELDS = {
   C39:[['load','الحمل الأقصى','kN'],['area','مساحة المقطع','mm²'],['strength','مقاومة الضغط','MPa']],
   C143:[['slump','الهبوط','mm']],
   D2041:[['mass_dry','كتلة العينة الجافة','g'],['mass_submerged','الكتلة المغمورة','g'],['Gmm','Gmm','']],
-  D6132:[['DFT_avg','متوسط السماكة الجافة','µm']],
-  D7091:[['DFT_avg','متوسط السماكة','µm']],
+  D1557:[['mdd','أقصى كثافة جافة','kg/m³'],['omc','المحتوى المائي الأمثل','%']],
+  D2487:[['group_symbol','رمز تصنيف USCS','','text'],['fines','نسبة المواد الناعمة','%']],
+  D6926:[['blows','عدد الضربات لكل وجه',''],['specimen_height','ارتفاع العينة','mm']],
+  D6927:[['stability','ثبات مارشال','kN'],['flow','انسياب مارشال','mm']],
+  C597:[['path_length','طول مسار النبضة','mm'],['transit_time','زمن العبور','µs'],['pulse_velocity','سرعة النبضة','m/s']],
+  C876:[['potential','فرق الجهد','mV'],['grid_point','نقطة شبكة القياس','']],
+  C1876:[['resistance','المقاومة المقاسة','Ω'],['resistivity','المقاومة الكهربائية الحجمية','kΩ·cm']],
+  EN14630:[['depth_1','عمق الكربنة 1','mm'],['depth_2','عمق الكربنة 2','mm'],['depth_avg','متوسط عمق الكربنة','mm']],
+  D6132:[['reading_count','عدد القراءات',''],['DFT_avg','متوسط السماكة الجافة','µm']],
+  D7091:[['reading_count','عدد القراءات',''],['DFT_avg','متوسط السماكة','µm']],
+  D5162:[['test_voltage','جهد الفحص','V'],['holidays','عدد عيوب العزل',''],['area','المساحة المفحوصة','m²']],
+  G57:[['probe_spacing','تباعد الأقطاب','m'],['resistance','المقاومة المقاسة','Ω'],['soil_resistivity','المقاومة النوعية للتربة','Ω·m']],
+  D6431:[['array_spacing','تباعد مصفوفة الأقطاب','m'],['apparent_resistivity','المقاومة النوعية الظاهرية','Ω·m'],['survey_length','طول المسار','m']],
+  D2412:[['load','الحمل','N/m'],['deflection','الانحراف','%'],['pipe_stiffness','صلابة الأنبوب','kPa']],
+  D2290:[['maximum_load','الحمل الأقصى','N'],['hoop_strength','مقاومة الشد الحلقية','MPa']],
+  D2584:[['initial_mass','الكتلة الابتدائية','g'],['residue_mass','كتلة المتبقي','g'],['ignition_loss','فقد الاشتعال','%']],
+  'MC1-RC2':[['grade','رمز الدرجة MC-1 / RC-2','','text'],['spray_rate','معدل الرش الفعلي','L/m²'],['specified_rate','معدل الرش المطلوب','L/m²']],
   'ROAD-PROFILER':[['IRI','IRI','m/km'],['roughness','وعورة الطريق',''],['distance','المسافة','km']],
   'GRB-ROUGHNESS':[['roughness','وعورة الأسفلت','']]
 };
+
+const FIELD_GUIDES = Object.freeze([
+  {category:'خرسانة',code:'C597',type:'إجراء ميداني',title:'فحص الخرسانة بالموجات فوق الصوتية وكشف مناطق التعشيش',standard:'ASTM C597 + ACI 228.2R'},
+  {category:'خرسانة',code:'C876',type:'ورقة عمل',title:'تآكل حديد التسليح واختبار نصف الخلية',standard:'ASTM C876'},
+  {category:'خرسانة',code:'EN14630',type:'إجراء مختبري',title:'اختبار الكربنة للأنوية الخرسانية',standard:'EN 14630'},
+  {category:'تربة',code:'D4318',type:'ملخص مواصفة',title:'حدود أتربرج وتصنيف اللدونة',standard:'ASTM D4318'},
+  {category:'تربة',code:'D1883',type:'ورقة عمل',title:'CBR وحساب النتيجة ونسبة التحسن بالجيوسيستم',standard:'ASTM D1883 + Project Specification'},
+  {category:'تربة',code:'D1557',type:'إجراء مختبري',title:'البروكتور المعدل وتحديد MDD / OMC',standard:'ASTM D1557'},
+  {category:'تربة',code:'D2487',type:'دليل تصنيف',title:'تصنيف التربة الموحد USCS',standard:'ASTM D2487'},
+  {category:'أسفلت',code:'D6927',type:'إجراء مختبري',title:'اختبار مارشال: التحضير والثبات والانسياب',standard:'ASTM D6926 / D6927'},
+  {category:'أسفلت',code:'MC1-RC2',type:'نموذج ميداني',title:'معدل رش MC-1 وRC-2 والتحقق من الدرجة',standard:'ASTM D2027 / D2028 + Project Specification'},
+  {category:'الحقل وNDT',code:'D7091',type:'إجراء ميداني',title:'سماكة الطلاء الجاف DFT والتحقق من جهاز القياس',standard:'ASTM D7091 / D6132'},
+  {category:'الحقل وNDT',code:'D5162',type:'إجراء ميداني',title:'فحص عيوب العزل الكهربائي للطلاء Holiday Test',standard:'ASTM D5162'},
+  {category:'الحقل وNDT',code:'G57',type:'إجراء ومعايرة',title:'مقاومة التربة والمسح الكهربائي والتحقق من الجهاز',standard:'ASTM G57 / D6431'},
+  {category:'الحقل وNDT',code:'D2412',type:'حزمة مواسير',title:'اختبارات مواسير الفايبر: الصلابة والشد الحلقي ومحتوى الراتنج',standard:'ASTM D2412 / D2290 / D2584'}
+]);
 
 let catalog = [];
 let dashboard = null;
@@ -56,6 +90,7 @@ let fieldLat = null;
 let fieldLng = null;
 let fieldAccuracy = null;
 let fieldPhotos = [];
+let fieldGuideCategory = 'الكل';
 let toastTimer = null;
 let refreshInFlight = null;
 let realtimeTimer = null;
@@ -123,7 +158,7 @@ function saveLocal(data) {
 function defaultCatalog() {
   return Object.entries(OFFICIAL_TEST_CATALOG).flatMap(function(entry) {
     const category = entry[0], tests = entry[1];
-    return tests.map(function(test, index) { return {id:index + 1,code:test[0],name_ar:test[1],name_en:test[2],category:category,standard:'ASTM ' + test[0],version:'معتمد'}; });
+    return tests.map(function(test, index) { return {id:index + 1,code:test[0],name_ar:test[1],name_en:test[2] || test[1],category:category,standard:test[3] || ('ASTM ' + test[0]),version:'معتمد'}; });
   });
 }
 
@@ -902,7 +937,7 @@ function openClientForm() {
 
 function openSampleForm() {
   const projects = dashboard ? dashboard.projects : [];
-  modal('<h2>تسجيل عينة</h2><form id="sampleForm"><div class="modal-grid"><label>رقم العينة<input name="sample_no" required></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material"><option>تربة</option><option>خرسانة</option><option>أسفلت</option></select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + today() + '" required></label><label>المصدر<input name="source"></label><label>ملاحظات<textarea name="notes"></textarea></label></div><p class="form-message">سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.</p>'+modalAttachFileField('samples')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العينة والخطة</button></div></form>');
+  modal('<h2>تسجيل عينة</h2><form id="sampleForm"><div class="modal-grid"><label>رقم العينة<input name="sample_no" required></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material"><option>تربة</option><option>خرسانة</option><option>أسفلت</option><option>الحقل وNDT</option></select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + today() + '" required></label><label>المصدر<input name="source"></label><label>ملاحظات<textarea name="notes"></textarea></label></div><p class="form-message">سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.</p>'+modalAttachFileField('samples')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العينة والخطة</button></div></form>');
 }
 
 function openEquipmentForm() {
@@ -911,7 +946,7 @@ function openEquipmentForm() {
 
 function genericFields(testCatalog) {
   const fields = TEST_FIELDS[testCatalog.code] || [['result','النتيجة','']];
-  return fields.map(function(item) { return '<label>' + escUI(item[1]) + (item[2] ? ' (' + esc(item[2]) + ')' : '') + '<input name="result_' + esc(item[0]) + '" type="number" step="any"></label>'; }).join('');
+  return fields.map(function(item) { const type=item[3] || 'number'; return '<label>' + escUI(item[1]) + (item[2] ? ' (' + esc(item[2]) + ')' : '') + '<input name="result_' + esc(item[0]) + '" type="' + esc(type) + '"'+(type==='number'?' step="any"':'')+'></label>'; }).join('');
 }
 
 function testFormContent() {
@@ -1097,6 +1132,28 @@ function renderFieldTests() {
   }).join(''));
 }
 
+function renderFieldGuides() {
+  const categories = ['الكل','أسفلت','تربة','خرسانة','الحقل وNDT'];
+  const filters = $('fieldGuideFilters'), grid = $('fieldGuideGrid');
+  if (!filters || !grid) return;
+  setHtml(filters, categories.map(function(category) {
+    return '<button class="guide-filter'+(fieldGuideCategory===category?' active':'')+'" data-field-guide-filter="'+esc(category)+'" type="button">'+escUI(category)+'</button>';
+  }).join(''));
+  const rows = FIELD_GUIDES.filter(function(item) { return fieldGuideCategory === 'الكل' || item.category === fieldGuideCategory; });
+  setHtml(grid, rows.map(function(item) {
+    return '<article class="field-guide-card"><div><span class="pill">'+escUI(item.category)+'</span><span class="guide-type">'+escUI(item.type)+'</span></div><h4>'+escUI(item.title)+'</h4><p>'+esc(item.standard)+'</p><button class="text-btn" data-field-guide-add="'+esc(item.code)+'" type="button">إضافة للزيارة</button></article>';
+  }).join(''));
+}
+
+function addGuideTest(code) {
+  const item = catalog.find(function(row) { return row.code === code; });
+  if (!item) return showToast('الاختبار غير متاح في الدليل بعد',true);
+  if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true);
+  fieldTests.push({catalog_id:item.id,name:item.name_ar,standard:item.standard,result:'',points:''});
+  renderFieldTests();
+  showToast('تمت إضافة الاختبار إلى الزيارة');
+}
+
 function syncFieldTestCatalog(test) {
   const item = catalog.find(function(row) { return row.id === Number(test.catalog_id); });
   if (item) { test.name = item.name_ar; test.standard = item.standard; }
@@ -1227,6 +1284,8 @@ function bindEvents() {
   $('openFieldGallery').addEventListener('click',function() { $('fieldGalleryInput').click(); });
   $('fieldCameraInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
   $('fieldGalleryInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
+  $('fieldGuideFilters').addEventListener('click',function(event) { const button=event.target.closest('[data-field-guide-filter]'); if(!button)return; fieldGuideCategory=button.dataset.fieldGuideFilter; renderFieldGuides(); });
+  $('fieldGuideGrid').addEventListener('click',function(event) { const button=event.target.closest('[data-field-guide-add]'); if(button)addGuideTest(button.dataset.fieldGuideAdd); });
   $('addFieldTest').addEventListener('click',function() { if (!catalog.length) return showToast('يجري تحميل كتالوج الاختبارات، حاول بعد لحظة',true); if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true); fieldTests.push({catalog_id:'',name:'',standard:'',result:'',points:''}); renderFieldTests(); });
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
   $('syncNow').addEventListener('click',function(){syncNow(true).catch(function(error){showToast(error.message,true);});});
@@ -1346,6 +1405,7 @@ function bindEvents() {
 
 function init() {
   bindEvents();
+  renderFieldGuides();
   installSmartImportButtons();
   const languageToggle = $('languageToggle');
   if (languageToggle) { languageToggle.value = localStorage.getItem('asas_lims_language') || 'ar'; languageToggle.addEventListener('change', function(){ setLanguage(languageToggle.value); }); setLanguage(languageToggle.value); }

@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-0-0-professional">
+  <link rel="stylesheet" href="style.css?v=10-1-0-expanded-field">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -43,7 +43,7 @@
         <img src="logo.jpg" alt="شعار مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.0 · Professional</small>
+        <small class="release-chip">V10.1 · Expanded Field</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">لوحة القيادة</button>
@@ -173,6 +173,11 @@
 
       <section id="field" class="page">
         <div class="page-heading"><div><h2>البرنامج الميداني</h2><p>تسجيل الزيارات الميدانية وربطها بالمشروع والعينة.</p></div></div>
+        <section class="panel field-guide-library">
+          <div class="panel-heading"><div><h3>حزم الاختبارات والأدلة الميدانية</h3><p class="muted">اختر التصنيف ثم أضف الاختبار الرسمي مباشرة إلى الزيارة. الأدلة تجمع المواصفة وورقة العمل وإجراء الجهاز دون خلطها بنوع الاختبار.</p></div><div class="heading-actions"><span class="pill">13 حزمة</span><a class="text-btn" href="field-test-guide.html" target="_blank" rel="noopener">فتح دليل التشغيل</a></div></div>
+          <div id="fieldGuideFilters" class="field-guide-filters" aria-label="تصنيف حزم الاختبارات"></div>
+          <div id="fieldGuideGrid" class="field-guide-grid"></div>
+        </section>
         <div class="field-layout">
           <article class="panel">
             <div class="panel-heading"><h3>زيارة ميدانية جديدة</h3><button id="searchLicenseBtn" class="text-btn" type="button">بحث برقم الرخصة</button></div>
@@ -393,17 +398,17 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=10-0-0-professional"></script>
-  <script src="i18n.js?v=10-0-0-professional"></script>
-  <script src="app-password.js?v=10-0-0-professional"></script>
-  <script src="branch-map.js?v=10-0-0-professional"></script>
+  <script src="runtime-config.js?v=10-1-0-expanded-field"></script>
+  <script src="i18n.js?v=10-1-0-expanded-field"></script>
+  <script src="app-password.js?v=10-1-0-expanded-field"></script>
+  <script src="branch-map.js?v=10-1-0-expanded-field"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-0-0-professional'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-1-0-expanded-field'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-0-0-professional', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-1-0-expanded-field', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>

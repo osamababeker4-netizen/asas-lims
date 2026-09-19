@@ -1,10 +1,10 @@
 {
-  "name": "أساس LIMS V10 Professional",
+  "name": "أساس LIMS V10.1 Professional",
   "short_name": "ASAS LIMS",
   "description": "منصة احترافية لإدارة المختبر والمشاريع والجودة والملفات والعمليات الميدانية.",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "./?release=10-0-0-professional",
+  "start_url": "./?release=10-1-0-expanded-field",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f6f2",

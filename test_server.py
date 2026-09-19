@@ -66,13 +66,37 @@ class SchemaMigrationTests(unittest.TestCase):
         connection.close()
         self.assertIn('material_group', columns)
 
+    def test_expanded_catalog_contains_requested_field_and_ndt_tests(self):
+        self.server.init()
+        connection = self.server.db()
+        rows = {row['code']: dict(row) for row in connection.execute("select code,name_en,category,standard from test_catalog")}
+        connection.close()
+        expected = {'C876', 'C1876', 'EN14630', 'MC1-RC2', 'D7091', 'D6132', 'D5162', 'G57', 'D6431', 'D2412', 'D2290', 'D2584'}
+        self.assertTrue(expected.issubset(rows))
+        self.assertEqual(rows['EN14630']['standard'], 'EN 14630')
+        self.assertEqual(rows['MC1-RC2']['standard'], 'ASTM D2027 / D2028 + Project Specification')
+        self.assertEqual(rows['D7091']['category'], 'الحقل وNDT')
+        self.assertEqual(rows['D7091']['name_en'], 'Dry Film Thickness on Metals')
+
+    def test_field_program_exposes_classified_guides_and_operating_reference(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        guide = (Path(__file__).parent / 'field-test-guide.html').read_text(encoding='utf-8')
+        self.assertIn('id="fieldGuideFilters"', html)
+        self.assertIn('field-test-guide.html', html)
+        for group in ('أسفلت', 'تربة', 'خرسانة', 'الحقل وNDT'):
+            self.assertIn(group, app)
+            self.assertIn(group, guide)
+        for code in ('D4318', 'D1883', 'D6927', 'C597', 'C876', 'D7091', 'D5162', 'G57', 'D2412'):
+            self.assertIn("code:'" + code + "'", app)
+
     def test_pwa_assets_are_served_by_the_central_service(self):
         self.server.init()
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
         worker = threading.Thread(target=httpd.serve_forever)
         worker.start()
         try:
-            for path, marker in (('/sw.js', 'CACHE_NAME'), ('/manifest.webmanifest', 'أساس LIMS'), ('/runtime-config.js', 'LIMS_API_BASE_URL')):
+            for path, marker in (('/sw.js', 'CACHE_NAME'), ('/manifest.webmanifest', 'أساس LIMS'), ('/runtime-config.js', 'LIMS_API_BASE_URL'), ('/field-test-guide.html', 'ASTM D5162')):
                 client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
                 client.request('GET', path)
                 response = client.getresponse()
