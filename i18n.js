@@ -662,6 +662,7 @@ const UI_TRANSLATIONS = {
   "لم يتم تحديد الموقع": "Location not set",
   "لوحة Kanban": "Kanban board",
   "لوحة القيادة": "Dashboard",
+  "الرئيسية": "Home",
   "ليس لديك صلاحية عرض المستخدمين.": "You do not have permission to view users.",
   "مؤشر اللدونة PI": "Plasticity index (PI)",
   "مؤهلات وخبرات وسيرة ذاتية للموظفين؛ لا ينشئ الاستيراد حسابات دخول.": "Employee qualifications, experience and CVs. Importing does not create login accounts.",
