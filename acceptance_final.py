@@ -28,7 +28,13 @@ with tempfile.TemporaryDirectory() as tmp:
 
     app_js = (ROOT / "app-password.js").read_text(encoding="utf-8")
     index_html = (ROOT / "index.html").read_text(encoding="utf-8")
+    server_source = (ROOT / "server.py").read_text(encoding="utf-8")
+    render_yaml = (ROOT / "render.yaml").read_text(encoding="utf-8")
     compact_js = "".join(app_js.split())
+
+    ensure("LIMS_RECORD_UPLOADS" in server_source and "LIMS_QUALITY_UPLOADS" in server_source, "server upload paths are not configurable")
+    ensure("LIMS_RECORD_UPLOADS" in render_yaml and "/storage/uploads/records" in render_yaml, "record uploads are not configured on persistent Render storage")
+    ensure("LIMS_QUALITY_UPLOADS" in render_yaml and "/storage/uploads/quality" in render_yaml, "quality uploads are not configured on persistent Render storage")
 
     ensure('type="file"' in index_html and "multiple" in index_html, "multi-file selection missing")
     ensure("files.length>30" not in compact_js and "الحدالأقصى30" not in compact_js, "legacy 30-file limit still present")
