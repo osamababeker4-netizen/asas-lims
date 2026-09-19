@@ -1125,6 +1125,8 @@ class H(BaseHTTPRequestHandler):
             '/sw.js': ('sw.js', 'application/javascript; charset=utf-8'),
             '/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
             '/logo.jpg': ('logo.jpg', 'image/jpeg'),
+            '/whatsapp-logo.svg': ('whatsapp-logo.svg', 'image/svg+xml; charset=utf-8'),
+            '/telegram-logo.svg': ('telegram-logo.svg', 'image/svg+xml; charset=utf-8'),
             '/asas-logo-primary.png': ('asas-logo-primary.png', 'image/png'),
             '/i18n.js': ('i18n.js', 'application/javascript; charset=utf-8'),
             '/branch-map.js': ('branch-map.js', 'application/javascript; charset=utf-8'),
