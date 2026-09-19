@@ -431,6 +431,34 @@ def twilio_verify_ready():
     ))
 
 
+
+def telegram_ready():
+    return bool(os.environ.get('TELEGRAM_BOT_TOKEN', '').strip() and os.environ.get('TELEGRAM_CHAT_ID', '').strip())
+
+
+def telegram_send_text(text):
+    token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+    if not token or not chat_id:
+        raise RuntimeError('telegram_not_configured')
+    payload = urllib.parse.urlencode({
+        'chat_id': chat_id,
+        'text': str(text or '')[:4096],
+        'disable_web_page_preview': 'true'
+    }).encode('utf-8')
+    request = urllib.request.Request(
+        'https://api.telegram.org/bot{}/sendMessage'.format(token),
+        data=payload,
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        method='POST'
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        result = json.loads(response.read().decode('utf-8'))
+    if not result.get('ok'):
+        raise RuntimeError('telegram_send_failed')
+    return result.get('result', {})
+
+
 def valid_e164(phone):
     return phone.startswith('+') and phone[1:].isdigit() and 8 <= len(phone) <= 16
 
@@ -1223,6 +1251,23 @@ class H(BaseHTTPRequestHandler):
 
         connection = db()
         try:
+            if path == '/api/telegram/draft':
+                if not self.require_permission(user, 'dashboard'):
+                    return
+                text = str(data.get('text', '')).strip()
+                if not text:
+                    return self.send_json({'error': 'المسودة فارغة'}, 400)
+                try:
+                    sent = telegram_send_text(text)
+                except RuntimeError as error:
+                    return self.send_json({'error': str(error)}, 503)
+                except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+                    return self.send_json({'error': 'telegram_provider_error'}, 502)
+                audit(connection, user['id'], 'إرسال مسودة تليجرام', 'telegram_draft', sent.get('message_id'), text[:500])
+                connection.commit()
+                publish_event('telegram_draft', sent.get('message_id'), 'sent')
+                return self.send_json({'ok': True, 'message_id': sent.get('message_id')})
+
             if path == '/api/audit/delete':
                 if user.get('role') not in {'admin', 'quality_manager'}:
                     return self.send_json({'error': 'الحذف متاح لمدير النظام ومدير الجودة فقط'}, 403)
