@@ -192,7 +192,7 @@
             </div>
             <span id="gpsStatus" class="hidden" aria-hidden="true"></span>
             <div id="coordinatesCard" class="hidden" aria-hidden="true"><span id="fieldLatitude"></span><span id="fieldLongitude"></span><span id="fieldAccuracy"></span><a id="fieldMapLink"></a></div>
-            <section class="field-media panel inset-panel"><div class="panel-heading"><div><h3>صور الزيارة الميدانية</h3><p class="muted">التقط صورة جديدة أو اختر صورًا من الاستديو.</p></div><div class="heading-actions"><button id="openFieldCamera" class="btn primary" type="button">فتح الكاميرا</button><button id="openFieldGallery" class="btn secondary" type="button">فتح الاستديو</button></div></div><input id="fieldCameraInput" class="hidden" type="file" accept="image/*" capture="environment"><input id="fieldGalleryInput" class="hidden" type="file" accept="image/*" multiple><div id="fieldPhotoPreview" class="field-photo-preview"><span class="muted">لم تُرفق صور بعد</span></div></section>
+            <section class="field-media panel inset-panel"><div class="panel-heading"><div><h3>الصور</h3><p class="muted">التقط صورة جديدة أو اختر صورًا من الاستديو.</p></div><div class="heading-actions"><button id="openFieldCamera" class="btn primary" type="button">فتح الكاميرا</button><button id="openFieldGallery" class="btn secondary" type="button">فتح الاستديو</button></div></div><input id="fieldCameraInput" class="hidden" type="file" accept="image/*" capture="environment"><input id="fieldGalleryInput" class="hidden" type="file" accept="image/*" multiple><div id="fieldPhotoPreview" class="field-photo-preview"><span class="muted">لم تُرفق صور بعد</span></div></section>
             <div class="field-tests panel inset-panel">
               <div class="panel-heading"><button id="addFieldTest" class="btn secondary" type="button">+ إضافة اختبار</button></div>
               <div id="fieldTests"></div>
@@ -422,13 +422,13 @@
   let isDispatching = false;
   let capturedPhotos = [];
 
-  // التقاط الصور فورياً من الكاميرا والاستديو
+  // التقاط صور الزيارة فقط؛ لا تُضم صورة المستخدم أو أي صورة من بقية النظام.
   document.addEventListener('change', function(e) {
-    if (e.target && e.target.type === 'file' && e.target.files) {
-      Array.from(e.target.files).forEach(f => {
-        if (f.type.startsWith('image/')) capturedPhotos.push(f);
-      });
-    }
+    const target = e.target;
+    if (!target || !target.files || (target.id !== 'fieldCameraInput' && target.id !== 'fieldGalleryInput')) return;
+    Array.from(target.files).forEach(f => {
+      if (f.type.startsWith('image/')) capturedPhotos.push(f);
+    });
   }, true);
 
   // تحويل صور Base64 إلى ملفات رقمية Blob مقبولة من تليجرام
@@ -606,7 +606,7 @@
 
       // جمع كافة الصور المرفوعة (الملفات الأصلية أو صور المعاينة الرقمية)
       let photoBlobs = [...capturedPhotos];
-      document.querySelectorAll('img').forEach(img => {
+      document.querySelectorAll('#fieldPhotoPreview img').forEach(img => {
         if (img.src && img.src.startsWith('data:image/')) {
           const blob = b64ToBlob(img.src);
           if (blob) photoBlobs.push(blob);
