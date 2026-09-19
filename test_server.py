@@ -102,6 +102,20 @@ class SchemaMigrationTests(unittest.TestCase):
         for code in ('D4318', 'D1883', 'D6927', 'C597', 'C876', 'D7091', 'D5162', 'G57', 'D2412'):
             self.assertIn("code:'" + code + "'", app)
 
+    def test_field_test_results_have_three_marked_states(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
+        for marker in ('✅ ناجح', '❌ راسب', '⏳ قيد الإجراء'):
+            self.assertIn(marker, html)
+            self.assertIn(marker, app)
+        self.assertIn("option value=\"قيد الإجراء\"", app)
+        self.assertIn('testResultBadge', app)
+        self.assertIn('.test-result-badge.success', css)
+        self.assertIn('.test-result-badge.danger', css)
+        self.assertIn('.test-result-badge.progress', css)
+        self.assertIn("rawResult === 'قيد الإجراء' ? '⏳ قيد الإجراء'", html)
+
     def test_equipment_table_has_technical_status_design(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
