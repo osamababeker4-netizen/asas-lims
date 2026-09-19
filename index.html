@@ -608,16 +608,10 @@
 
       // الإرسال الآمن عبر خادم أساس؛ لا يتم كشف رمز البوت في المتصفح.
       const payload = { text: messageText, coordinates: coords || null };
-      const response = await fetch(TELEGRAM_SETTINGS.endpoint, {
-        method: 'POST',
-        credentials: 'include',
-        headers: Object.assign({ 'Content-Type': 'application/json' }, (typeof authHeaders === 'function' ? authHeaders() : {})),
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) {
-        let detail = 'تعذر إرسال المسودة إلى تليجرام';
-        try { const err = await response.json(); detail = err.error || err.message || detail; } catch (_) {}
-        throw new Error(detail);
+      if (typeof api === 'function') {
+        await api('/api/telegram/draft', { method: 'POST', body: JSON.stringify(payload) });
+      } else {
+        throw new Error('تعذر الوصول إلى جلسة نظام أساس');
       }
       capturedPhotos = []; // تفريغ الذاكرة
     } catch (err) {
