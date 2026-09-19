@@ -46,7 +46,7 @@
         <small class="release-chip">V10.1 · Expanded Field</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
-        <button class="nav-link active" data-page="dashboard">لوحة القيادة</button>
+        <button class="nav-link active" data-page="dashboard">الرئيسية</button>
         <button class="nav-link" data-page="projects">إدارة المشاريع</button>
         <button class="nav-link" data-page="workOrders">أوامر العمل</button>
         <button class="nav-link" data-page="field">البرنامج الميداني</button>
@@ -55,7 +55,6 @@
         <button class="nav-link" data-page="tests">الاختبارات</button>
         <button class="nav-link" data-page="catalog">دليل الاختبارات</button>
         <button class="nav-link" data-page="reports">التقارير</button>
-        <button class="nav-link" data-page="documentCenter" id="documentCenterNav">مركز الملفات</button>
         <button class="nav-link" data-page="communications">قنوات التواصل</button>
         <button class="nav-link" data-page="quality" id="qualityNav">الجودة والوثائق</button>
         <button class="nav-link" data-page="company">عن مختبر أساس</button>
@@ -86,7 +85,7 @@
           <button id="menuBtn" class="icon-btn" type="button" aria-label="فتح القائمة">☰</button>
           <div>
             <p class="eyebrow" id="pageKicker">إدارة المختبر</p>
-            <h2 id="pageTitle">لوحة القيادة</h2>
+            <h2 id="pageTitle">الرئيسية</h2>
           </div>
         </div>
         <div class="user-chip"><span id="saudiClock" class="muted">توقيت السعودية: —</span><button id="syncNow" class="text-btn" type="button">مزامنة الآن</button><button id="openProfile" class="profile-summary" type="button" aria-label="فتح الملف الشخصي"><img id="currentUserAvatar" class="user-avatar" src="logo.jpg" alt="صورة المستخدم"><span><strong id="currentUsername">اسم المستخدم</strong><small id="currentUser">—</small></span></button><button id="changePassword" class="text-btn" type="button">تغيير كلمة المرور</button></div>
@@ -102,7 +101,6 @@
           <div class="hero-actions">
             <button class="btn hero-primary" data-open-project type="button">مشروع جديد</button>
             <button class="btn hero-secondary" data-page-go="field" type="button">زيارة ميدانية</button>
-            <button class="btn hero-secondary" data-page-go="documentCenter" type="button">مركز الملفات</button>
           </div>
         </article>
         <div class="page-heading">
@@ -174,7 +172,7 @@
       <section id="field" class="page">
         <div class="page-heading"><div><h2>البرنامج الميداني</h2><p>تسجيل الزيارات الميدانية وربطها بالمشروع والعينة.</p></div></div>
         <section class="panel field-guide-library">
-          <div class="panel-heading"><div><h3>حزم الاختبارات والأدلة الميدانية</h3><p class="muted">اختر التصنيف ثم أضف الاختبار الرسمي مباشرة إلى الزيارة. الأدلة تجمع المواصفة وورقة العمل وإجراء الجهاز دون خلطها بنوع الاختبار.</p></div><div class="heading-actions"><span class="pill">13 حزمة</span><a class="text-btn" href="field-test-guide.html" target="_blank" rel="noopener">فتح دليل التشغيل</a></div></div>
+          <div class="panel-heading"><div><h3>اختبارات البرنامج الميداني</h3><p class="muted">ابدأ من أحد الأقسام الأربعة الرئيسية، ثم اختر الاختبار المطلوب وأضفه إلى الزيارة.</p></div><div class="heading-actions"><span class="pill">4 أقسام رئيسية</span><a class="text-btn" href="field-test-guide.html" target="_blank" rel="noopener">فتح دليل التشغيل</a></div></div>
           <div id="fieldGuideFilters" class="field-guide-filters" aria-label="تصنيف حزم الاختبارات"></div>
           <div id="fieldGuideGrid" class="field-guide-grid"></div>
         </section>
@@ -234,12 +232,13 @@
       <section id="equipment" class="page">
         <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2><p>أضف جهازاً واحداً أو استورد كل الأجهزة والمعايرات من ملف Excel/CSV دفعة واحدة.</p></div><div class="heading-actions"><button class="btn secondary smart-import-edge" data-smart-import="equipment" type="button">إرفاق ملف</button><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div></div>
         <article class="panel equipment-import-panel"><div class="panel-heading"><div><h3>استيراد الأجهزة والمعايرات</h3><p class="muted">اختر ملف Excel الأصلي بصيغة XLSX أو ملف CSV؛ سيتعرف النظام على جدول الأجهزة ويرتب بياناته تلقائيًا.</p></div><button class="text-btn" data-quality-template="equipment" type="button">تنزيل قالب Excel</button></div><div class="equipment-import-actions"><input id="equipmentImport" class="quality-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><button class="btn primary" data-quality-import="equipment" type="button">استيراد كل الأجهزة</button></div><p class="form-note">يدعم قالب ASAS-F-6.4.1 مباشرة، ويستورد أكبر ورقة أجهزة مع تحديث السجلات الموجودة دون تكرارها.</p></article>
-        <div class="panel table-panel"><table><thead><tr><th>كود الجهاز</th><th>الجهاز</th><th>الرقم التسلسلي</th><th>القسم</th><th>النطاق</th><th>حالة التحقق</th><th>معاير حتى</th><th>الصيانة</th><th>الملاحظات</th></tr></thead><tbody id="equipmentTable"></tbody></table></div>
+        <div class="panel table-panel equipment-table-shell"><table class="equipment-technical-table"><thead><tr><th>كود الجهاز</th><th>الجهاز</th><th>الرقم التسلسلي</th><th>القسم</th><th>النطاق</th><th>حالة التحقق</th><th>معاير حتى</th><th>الصيانة</th><th>الملاحظات</th></tr></thead><tbody id="equipmentTable"></tbody></table></div>
       </section>
 
       <section id="quality" class="page">
         <div class="page-heading"><div><h2>الجودة والوثائق</h2></div></div>
         <div class="quality-grid">
+          <article class="panel quality-card quality-files-card" id="qualityFilesEntry"><span class="quality-code">QMS-DOC</span><h3>مركز الملفات</h3><p>المكتبة الفنية، القوالب، الوثائق المضبوطة وخزنة الملفات حسب الصلاحية.</p><button class="btn primary" data-page-go="documentCenter" type="button">فتح مركز الملفات</button></article>
           <article class="panel quality-card" id="qualityEquipmentCard"><span class="quality-code">QMS-00</span><h3>الأجهزة والمعايرة</h3><p>سجل الأجهزة، شهادات المعايرة والاستيراد الجماعي من Excel.</p><button class="btn secondary" data-page-go="equipment" type="button">إدارة الأجهزة والمعايرة</button></article>
           <article class="panel quality-card"><span class="quality-code">QMS-01</span><h3>الإجراءات</h3><p>إجراءات التشغيل والجودة ومراجعاتها وإصداراتها.</p><button class="btn secondary" data-quality-add="procedure" type="button">+ إجراء</button></article>
           <article class="panel quality-card"><span class="quality-code">QMS-02</span><h3>أوراق العمل</h3><p>نماذج Work Sheet مرتبطة بالاختبارات والتحقق.</p><button class="btn secondary" data-quality-add="worksheet" type="button">+ ورقة عمل</button></article>
@@ -259,7 +258,7 @@
       <section id="documentCenter" class="page">
         <div class="page-heading document-center-heading">
           <div><span class="section-kicker">Document Control</span><h2>مركز الملفات</h2><p>مكتبة موحّدة للقوالب الفنية وملفات الأجهزة ووثائق الشركة، مع فصل واضح للصلاحيات.</p></div>
-          <button class="btn primary" data-smart-import="technicalLibrary" type="button">رفع وفرز القوالب</button>
+          <div class="heading-actions"><button class="btn secondary" data-page-go="quality" type="button">العودة إلى الجودة والوثائق</button><button class="btn primary" data-smart-import="technicalLibrary" type="button">رفع وفرز القوالب</button></div>
         </div>
         <div class="document-stats">
           <article><span>التربة</span><strong>97</strong><small>Worksheet · Excel · PDF</small></article>
