@@ -443,3 +443,236 @@ CREATE TABLE IF NOT EXISTS sample_result_entries(
 CREATE INDEX IF NOT EXISTS idx_inventory_items_code ON inventory_items(item_code);
 CREATE INDEX IF NOT EXISTS idx_order_requests_status ON order_requests(status);
 CREATE INDEX IF NOT EXISTS idx_sample_result_entries_test ON sample_result_entries(test_id);
+
+
+-- V9.3 laboratory quality and commercial expansion (additive only).
+CREATE TABLE IF NOT EXISTS test_methods(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ catalog_id INTEGER NOT NULL,
+ method_code TEXT NOT NULL,
+ revision TEXT,
+ effective_date TEXT,
+ acceptance_min REAL,
+ acceptance_max REAL,
+ acceptance_unit TEXT,
+ uncertainty_text TEXT,
+ decision_rule TEXT,
+ active INTEGER NOT NULL DEFAULT 1,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(catalog_id) REFERENCES test_catalog(id)
+);
+
+CREATE TABLE IF NOT EXISTS chain_of_custody(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ sample_id INTEGER NOT NULL,
+ event_type TEXT NOT NULL,
+ from_user INTEGER,
+ to_user INTEGER,
+ location TEXT,
+ condition_text TEXT,
+ notes TEXT,
+ occurred_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(sample_id) REFERENCES samples(id) ON DELETE CASCADE,
+ FOREIGN KEY(from_user) REFERENCES users(id),
+ FOREIGN KEY(to_user) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS nonconformities(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ ncr_no TEXT UNIQUE NOT NULL,
+ source_type TEXT,
+ source_id INTEGER,
+ category TEXT,
+ severity TEXT NOT NULL DEFAULT 'minor',
+ description TEXT NOT NULL,
+ immediate_action TEXT,
+ root_cause TEXT,
+ status TEXT NOT NULL DEFAULT 'open',
+ owner_id INTEGER,
+ due_date TEXT,
+ closed_by INTEGER,
+ closed_at TEXT,
+ created_by INTEGER,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(owner_id) REFERENCES users(id),
+ FOREIGN KEY(closed_by) REFERENCES users(id),
+ FOREIGN KEY(created_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS corrective_actions(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ ncr_id INTEGER,
+ action_no TEXT UNIQUE,
+ action_type TEXT NOT NULL DEFAULT 'corrective',
+ description TEXT NOT NULL,
+ owner_id INTEGER,
+ due_date TEXT,
+ effectiveness_check TEXT,
+ effectiveness_result TEXT,
+ status TEXT NOT NULL DEFAULT 'open',
+ completed_at TEXT,
+ verified_by INTEGER,
+ verified_at TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(ncr_id) REFERENCES nonconformities(id) ON DELETE CASCADE,
+ FOREIGN KEY(owner_id) REFERENCES users(id),
+ FOREIGN KEY(verified_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS training_records(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ user_id INTEGER NOT NULL,
+ training_title TEXT NOT NULL,
+ competency_area TEXT,
+ provider TEXT,
+ training_date TEXT,
+ expiry_date TEXT,
+ result TEXT,
+ certificate_ref TEXT,
+ authorization_scope TEXT,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS environmental_monitoring(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ area TEXT NOT NULL,
+ parameter TEXT NOT NULL,
+ value_num REAL,
+ unit TEXT,
+ min_limit REAL,
+ max_limit REAL,
+ compliance_status TEXT NOT NULL DEFAULT 'not_evaluated',
+ recorded_by INTEGER,
+ recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ notes TEXT,
+ FOREIGN KEY(recorded_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS maintenance_records(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ equipment_id INTEGER NOT NULL,
+ maintenance_type TEXT NOT NULL,
+ service_date TEXT NOT NULL,
+ provider TEXT,
+ description TEXT,
+ parts_used TEXT,
+ cost REAL,
+ next_due TEXT,
+ status TEXT NOT NULL DEFAULT 'completed',
+ performed_by INTEGER,
+ attachment_ref TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(equipment_id) REFERENCES equipment(id) ON DELETE CASCADE,
+ FOREIGN KEY(performed_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS suppliers(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ supplier_code TEXT UNIQUE,
+ name TEXT NOT NULL,
+ phone TEXT,
+ email TEXT,
+ scope TEXT,
+ approval_status TEXT NOT NULL DEFAULT 'pending',
+ rating REAL,
+ last_review_date TEXT,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS quotations(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ quotation_no TEXT UNIQUE NOT NULL,
+ client_id INTEGER,
+ project_id INTEGER,
+ issue_date TEXT,
+ valid_until TEXT,
+ subtotal REAL NOT NULL DEFAULT 0,
+ tax_amount REAL NOT NULL DEFAULT 0,
+ total_amount REAL NOT NULL DEFAULT 0,
+ currency TEXT NOT NULL DEFAULT 'SAR',
+ status TEXT NOT NULL DEFAULT 'draft',
+ created_by INTEGER,
+ approved_by INTEGER,
+ approved_at TEXT,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(client_id) REFERENCES clients(id),
+ FOREIGN KEY(project_id) REFERENCES projects(id),
+ FOREIGN KEY(created_by) REFERENCES users(id),
+ FOREIGN KEY(approved_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS quotation_items(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ quotation_id INTEGER NOT NULL,
+ catalog_id INTEGER,
+ description TEXT NOT NULL,
+ quantity REAL NOT NULL DEFAULT 1,
+ unit_price REAL NOT NULL DEFAULT 0,
+ discount REAL NOT NULL DEFAULT 0,
+ line_total REAL NOT NULL DEFAULT 0,
+ FOREIGN KEY(quotation_id) REFERENCES quotations(id) ON DELETE CASCADE,
+ FOREIGN KEY(catalog_id) REFERENCES test_catalog(id)
+);
+
+CREATE TABLE IF NOT EXISTS contracts(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ contract_no TEXT UNIQUE NOT NULL,
+ client_id INTEGER,
+ project_id INTEGER,
+ title TEXT NOT NULL,
+ start_date TEXT,
+ end_date TEXT,
+ value REAL,
+ currency TEXT NOT NULL DEFAULT 'SAR',
+ status TEXT NOT NULL DEFAULT 'active',
+ document_ref TEXT,
+ notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(client_id) REFERENCES clients(id),
+ FOREIGN KEY(project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS customer_complaints(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ complaint_no TEXT UNIQUE NOT NULL,
+ client_id INTEGER,
+ project_id INTEGER,
+ subject TEXT NOT NULL,
+ description TEXT NOT NULL,
+ priority TEXT NOT NULL DEFAULT 'normal',
+ status TEXT NOT NULL DEFAULT 'open',
+ owner_id INTEGER,
+ resolution TEXT,
+ closed_at TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(client_id) REFERENCES clients(id),
+ FOREIGN KEY(project_id) REFERENCES projects(id),
+ FOREIGN KEY(owner_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_test_methods_catalog ON test_methods(catalog_id,active);
+CREATE INDEX IF NOT EXISTS idx_coc_sample ON chain_of_custody(sample_id,occurred_at);
+CREATE INDEX IF NOT EXISTS idx_ncr_status ON nonconformities(status,due_date);
+CREATE INDEX IF NOT EXISTS idx_capa_ncr ON corrective_actions(ncr_id,status);
+CREATE INDEX IF NOT EXISTS idx_training_user ON training_records(user_id,expiry_date);
+CREATE INDEX IF NOT EXISTS idx_environment_area ON environmental_monitoring(area,recorded_at);
+CREATE INDEX IF NOT EXISTS idx_maintenance_equipment ON maintenance_records(equipment_id,service_date);
+CREATE INDEX IF NOT EXISTS idx_quotation_client ON quotations(client_id,status);
+CREATE INDEX IF NOT EXISTS idx_contract_client ON contracts(client_id,status);
+CREATE INDEX IF NOT EXISTS idx_complaint_status ON customer_complaints(status,priority);
+
+INSERT OR IGNORE INTO settings(key,value) VALUES('require_test_review','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('require_result_approval','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('enable_chain_of_custody','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('enable_ncr_capa','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('enable_environment_monitoring','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('enable_training_competency','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('enable_inventory_alerts','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('enable_calibration_alerts','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('enable_customer_complaints','true');
+INSERT OR IGNORE INTO settings(key,value) VALUES('tax_rate','15');
