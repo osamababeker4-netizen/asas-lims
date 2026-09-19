@@ -1,5 +1,5 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v9-2-9-hidden-gps-balady';
+const CACHE_NAME = 'asas-lims-pwa-v9-2-10-attachment-auth-fix';
 const APP_SHELL = ['./','./index.html','./style.css?v=9-2-5-telegram-photo-fix','./app-password.js?v=9-2-5-telegram-photo-fix','./branch-map.js?v=9-2-5-telegram-photo-fix','./i18n.js?v=9-2-5-telegram-photo-fix','./runtime-config.js?v=9-2-5-telegram-photo-fix','./manifest.webmanifest','./logo.jpg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
