@@ -1496,9 +1496,17 @@ class H(BaseHTTPRequestHandler):
                     photos = []
                 photos = photos[:10]
                 try:
-                    sent = telegram_send_text(text)
-                    photo_items = telegram_send_media_group(photos, 'صور الزيارة الميدانية') if photos else []
-                    photo_ids = [item.get('message_id') for item in photo_items]
+                    if photos:
+                        # Telegram renders a media group as one album. Put the draft text
+                        # on the album itself so the photos appear first and the writing
+                        # follows beneath them, without a separate "field photos" label.
+                        photo_items = telegram_send_media_group(photos, text)
+                        photo_ids = [item.get('message_id') for item in photo_items]
+                        sent = photo_items[0] if photo_items else {}
+                    else:
+                        sent = telegram_send_text(text)
+                        photo_items = []
+                        photo_ids = []
                 except (RuntimeError, ValueError) as error:
                     return self.send_json({'error': str(error)}, 503)
                 except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
@@ -1506,7 +1514,7 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'إرسال مسودة تليجرام', 'telegram_draft', sent.get('message_id'), '{} · صور {}'.format(text[:420], len(photo_ids)))
                 connection.commit()
                 publish_event('telegram_draft', sent.get('message_id'), 'sent')
-                return self.send_json({'ok': True, 'message_id': sent.get('message_id'), 'photos_sent': len(photo_ids), 'sender_name': sender_name})
+                return self.send_json({'ok': True, 'message_id': sent.get('message_id'), 'photos_sent': len(photo_ids), 'sender_name': sender_name, 'layout': 'album_then_text' if photos else 'text_only'})
 
             if path == '/api/audit/delete':
                 if user.get('role') not in {'admin', 'quality_manager'}:
