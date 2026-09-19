@@ -6,6 +6,7 @@ import secrets
 import sqlite3
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -71,6 +72,53 @@ class SchemaMigrationTests(unittest.TestCase):
             httpd.shutdown()
             httpd.server_close()
             worker.join(timeout=5)
+
+    def test_health_endpoint_checks_database_without_authentication(self):
+        self.server.init()
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        try:
+            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+            client.request('GET', '/api/health')
+            response = client.getresponse()
+            result = json.loads(response.read().decode('utf-8'))
+            client.close()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(result['database'], 'ready')
+        finally:
+            httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
+
+    def test_sessions_expire_and_backup_is_created_for_admin(self):
+        self.server.init()
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        connection.close()
+        expired = secrets.token_urlsafe(24)
+        self.server.SESSIONS[expired] = {'user': admin, 'expires_at': time.time() - 1}
+        backup_dir = Path(self.temp.name) / 'backups'
+        self.server.BACKUP_DIR = str(backup_dir)
+        token = self.server.create_session(admin)
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        try:
+            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+            client.request('GET', '/api/system/status', headers={'Authorization': 'Bearer ' + expired})
+            response = client.getresponse(); response.read(); client.close()
+            self.assertEqual(response.status, 401)
+
+            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+            client.request('POST', '/api/system/backup', b'{}', {'Content-Type':'application/json','Authorization':'Bearer '+token})
+            response = client.getresponse()
+            result = json.loads(response.read().decode('utf-8'))
+            client.close()
+            self.assertEqual(response.status, 200)
+            self.assertTrue((backup_dir / result['file_name']).is_file())
+            self.assertGreater(result['size_bytes'], 0)
+        finally:
+            self.server.SESSIONS.pop(token, None)
+            httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
 
     def test_migrates_a_legacy_projects_table_without_dropping_it(self):
         connection = sqlite3.connect(self.db_path)
