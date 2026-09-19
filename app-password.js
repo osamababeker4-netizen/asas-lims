@@ -98,6 +98,9 @@ let documentGroupFilter = 'الكل';
 let documentLibrarySearchTerm = '';
 let toastTimer = null;
 let activeAttachmentObjectUrl = '';
+let activePageId = 'dashboard';
+let pageHistory = [];
+let navigatingBack = false;
 let refreshInFlight = null;
 let realtimeTimer = null;
 let userUpdatesChannel = null;
@@ -489,25 +492,51 @@ function optionList(items, selected, label, value) {
   }).join('');
 }
 
+function updateBackButton() {
+  const button=$('pageBack');
+  if(!button)return;
+  button.classList.toggle('hidden',activePageId==='dashboard');
+}
+
 function navigate(page) {
   if ((page === 'quality' || page === 'documentCenter') && (!currentUser || QUALITY_ACCESS_ROLES.indexOf(currentUser.role) < 0)) {
     showToast('هذا القسم متاح فقط للمستخدمين المخولين بالجودة والوثائق.', true);
     page = 'dashboard';
   }
+  const previous=activePageId;
+  if(page!==previous && previous && !navigatingBack) {
+    pageHistory.push(previous);
+    if(pageHistory.length>30) pageHistory.shift();
+  }
   if (page === 'field') setTimeout(fillFieldReadyOptions,0);
   document.querySelectorAll('.page').forEach(function(element) { element.classList.remove('active'); });
   const target = $(page);
   if (!target) return;
+  activePageId=page;
   target.classList.add('active');
   document.querySelectorAll('.nav-link[data-page]').forEach(function(button) { button.classList.toggle('active', button.dataset.page === page); });
   const nav = document.querySelector('.nav-link[data-page="' + page + '"]');
   const nestedTitles = {documentCenter:'مركز الملفات',equipment:'الأجهزة والمعايرة'};
   setText($('pageTitle'), nav ? ((uiTextMemory.get(nav.firstChild) || {}).ar || nav.textContent).trim() : (nestedTitles[page] || 'أساس LIMS'));
   setText($('pageKicker'), page === 'projects' ? 'تنفيذ ومتابعة' : 'إدارة المختبر');
+  updateBackButton();
   $('sidebar').classList.remove('open');
+  closeProfileMenu();
   if (page === 'settings') loadSystemSettings();
   if (page === 'communications') loadCommunicationLinks();
   if (page === 'documentCenter') loadDocumentCenter();
+}
+
+function goBackPage() {
+  let target='dashboard';
+  while(pageHistory.length){
+    const candidate=pageHistory.pop();
+    if(candidate && candidate!==activePageId){target=candidate;break;}
+  }
+  navigatingBack=true;
+  navigate(target);
+  navigatingBack=false;
+  updateBackButton();
 }
 
 async function login(event) {
@@ -575,9 +604,7 @@ async function completeLogin(result) {
   currentUser = result.user;
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
-  setText($('currentUsername'), '@' + result.user.username);
-  setHtml($('currentUser'), esc(result.user.full_name) + ' · ' + escUI(ROLE_NAMES[result.user.role] || result.user.role));
-  $('currentUserAvatar').src = result.user.avatar_data_url || 'logo.jpg';
+  applyCurrentUserIdentity(result.user);
   // The API authorizes both administrators and managers to manage users.
   // Keep the navigation aligned with that server-side permission so a
   // manager is not blocked by a hidden page despite being authorized.
@@ -631,9 +658,10 @@ async function loadCatalog() {
 function applyCurrentUserIdentity(user) {
   if (!user) return;
   currentUser = Object.assign({}, currentUser || {}, user);
-  setText($('currentUsername'), '@' + currentUser.username);
-  setHtml($('currentUser'), esc(currentUser.full_name) + ' · ' + escUI(ROLE_NAMES[currentUser.role] || currentUser.role));
-  $('currentUserAvatar').src = currentUser.avatar_data_url || 'logo.jpg';
+  setText($('currentUsername'), currentUser.full_name || currentUser.username || 'مستخدم');
+  setText($('currentUser'), ROLE_NAMES[currentUser.role] || currentUser.role || 'مستخدم');
+  $('currentUserAvatar').src = currentUser.avatar_data_url || 'asas-logo-primary.png';
+  updateProfileMenuAccess();
 }
 
 async function refreshCurrentUserIdentity() {
@@ -1055,7 +1083,7 @@ function openUserForm(user) {
   const value = user || {};
   const phoneParts = splitInternationalPhone(value.phone || '');
   const countries = COUNTRY_CODES.map(function(item){return '<option value="'+item.code+'"'+(item.code===phoneParts.code?' selected':'')+'>'+item.name+' '+item.code+'</option>';}).join('');
-  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><p>تعديل بيانات الحساب وكلمة المرور والصورة ورقم الجوال.</p><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><input type="hidden" name="avatar_data_url" value="' + esc(value.avatar_data_url || '') + '"><div class="user-photo-editor"><img id="userAvatarPreview" src="' + esc(value.avatar_data_url || 'logo.jpg') + '" alt="معاينة صورة المستخدم"><div><strong>صورة المستخدم</strong><small>JPG أو PNG — تُضغط تلقائيًا</small><button id="chooseUserAvatar" class="btn secondary" type="button">اختيار صورة</button><input id="userAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال<div class="phone-composer"><select name="country_code" dir="ltr">'+countries+'</select><input name="local_phone" dir="ltr" inputmode="numeric" autocomplete="tel-national" placeholder="5XXXXXXXX" value="'+esc(phoneParts.local)+'"></div></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور الجديدة ' + (user ? '(اختياري)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label><label>تأكيد كلمة المرور<input name="password_confirm" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">أدخل الرقم المحلي فقط بعد اختيار مفتاح الدولة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button id="saveUserButton" class="btn primary" type="button">حفظ ومزامنة المستخدم</button></div></form>');
+  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><p>تعديل بيانات الحساب وكلمة المرور والصورة ورقم الجوال.</p><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><input type="hidden" name="avatar_data_url" value="' + esc(value.avatar_data_url || '') + '"><div class="user-photo-editor"><img id="userAvatarPreview" src="' + esc(value.avatar_data_url || 'asas-logo-primary.png') + '" alt="معاينة صورة المستخدم"><div><strong>صورة المستخدم</strong><small>JPG أو PNG — تُضغط تلقائيًا</small><button id="chooseUserAvatar" class="btn secondary" type="button">اختيار صورة</button><input id="userAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال<div class="phone-composer"><select name="country_code" dir="ltr">'+countries+'</select><input name="local_phone" dir="ltr" inputmode="numeric" autocomplete="tel-national" placeholder="5XXXXXXXX" value="'+esc(phoneParts.local)+'"></div></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور الجديدة ' + (user ? '(اختياري)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label><label>تأكيد كلمة المرور<input name="password_confirm" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">أدخل الرقم المحلي فقط بعد اختيار مفتاح الدولة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button id="saveUserButton" class="btn primary" type="button">حفظ ومزامنة المستخدم</button></div></form>');
   const form = $('userForm');
   form.elements.password.removeAttribute('minlength');
   form.elements.password_confirm.removeAttribute('minlength');
@@ -1115,7 +1143,7 @@ async function submitSimple(form, path) {
   showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ والمزامنة');
 }
 function openChangePassword() { modal('<h2>تغيير كلمة المرور</h2><p>هذا التغيير يخص حسابك المسجّل فقط.</p><form id="changePasswordForm"><div class="modal-grid"><label>كلمة المرور الحالية<input name="current_password" type="password" autocomplete="current-password" required></label><label>كلمة المرور الجديدة<input name="new_password" type="password" autocomplete="new-password" required></label><label>تأكيد كلمة المرور الجديدة<input name="confirm_password" type="password" autocomplete="new-password" required></label></div><p class="form-note">اكتب كلمة المرور التي تريدها دون حد أدنى للحروف.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تغيير كلمة المرور</button></div></form>'); }
-function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك تعديل الاسم والصورة وكلمة المرور. اسم المستخدم ثابت: <strong>@'+esc(currentUser.username)+'</strong></p><form id="myProfileForm"><input type="hidden" name="avatar_data_url" value="'+esc(currentUser.avatar_data_url||'')+'"><div class="user-photo-editor"><img id="profileAvatarPreview" src="'+esc(currentUser.avatar_data_url||'logo.jpg')+'" alt="صورة المستخدم"><div><strong>@'+esc(currentUser.username)+'</strong><small>اسم المستخدم</small><button id="chooseProfileAvatar" class="btn secondary" type="button">تغيير الصورة</button><input id="profileAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><label>الاسم الكامل<input name="full_name" required value="'+esc(currentUser.full_name)+'"></label><div class="modal-actions"><button class="btn secondary" type="button" id="profilePasswordButton">تغيير كلمة المرور</button><button class="btn primary" type="submit">حفظ الملف الشخصي</button></div></form>');const form=$('myProfileForm');$('chooseProfileAvatar').addEventListener('click',function(){$('profileAvatarInput').click();});$('profileAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('profileAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});$('profilePasswordButton').addEventListener('click',openChangePassword); }
+function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك تعديل الاسم والصورة وكلمة المرور. اسم المستخدم ثابت: <strong>@'+esc(currentUser.username)+'</strong></p><form id="myProfileForm"><input type="hidden" name="avatar_data_url" value="'+esc(currentUser.avatar_data_url||'')+'"><div class="user-photo-editor"><img id="profileAvatarPreview" src="'+esc(currentUser.avatar_data_url||'asas-logo-primary.png')+'" alt="صورة المستخدم"><div><strong>@'+esc(currentUser.username)+'</strong><small>اسم المستخدم</small><button id="chooseProfileAvatar" class="btn secondary" type="button">تغيير الصورة</button><input id="profileAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><label>الاسم الكامل<input name="full_name" required value="'+esc(currentUser.full_name)+'"></label><div class="modal-actions"><button class="btn secondary" type="button" id="profilePasswordButton">تغيير كلمة المرور</button><button class="btn primary" type="submit">حفظ الملف الشخصي</button></div></form>');const form=$('myProfileForm');$('chooseProfileAvatar').addEventListener('click',function(){$('profileAvatarInput').click();});$('profileAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('profileAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});$('profilePasswordButton').addEventListener('click',openChangePassword); }
 async function submitMyProfile(form) { const payload={full_name:form.elements.full_name.value.trim(),avatar_data_url:form.elements.avatar_data_url.value};if(!payload.full_name)throw new Error('الاسم الكامل مطلوب');let result;try{result=await api('/api/profile/update',{method:'POST',body:JSON.stringify(payload)});}catch(error){if(error.message!=='مسار غير معروف'||!currentUser||['admin','general_manager','manager'].indexOf(currentUser.role)<0)throw error;const users=await api('/api/users');const account=users.find(function(item){return item.username===currentUser.username;});if(!account)throw error;await api('/api/users/update',{method:'POST',body:JSON.stringify({id:account.id,full_name:payload.full_name,role:account.role,phone:account.phone||'',avatar_data_url:payload.avatar_data_url,active:Boolean(account.active),password:''})});result={user:payload};}applyCurrentUserIdentity(result.user||payload);closeModal();await refresh();showToast('تم تحديث الاسم والصورة بنجاح');}
 async function submitChangePassword(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(data)});closeModal();showToast('تم تغيير كلمة المرور لحسابك'); }
 async function loadSystemSettings() { if(!currentUser||['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)<0)return;try{const settings=await api('/api/settings');const form=$('systemSettingsForm');Object.keys(settings).forEach(function(key){const field=form.elements[key];if(!field)return;if(field.type==='checkbox')field.checked=settings[key]==='true';else field.value=settings[key];});if(form.elements.default_language){form.elements.default_language.value=localStorage.getItem('asas_lims_language')||settings.default_language||'ar';}}catch(error){setText($('settingsMessage'),error.message);} }
@@ -1701,16 +1729,62 @@ async function saveFieldVisit() {
   } catch (error) { setText($('fieldMessage'), error.message); showToast(error.message,true); }
 }
 
+function updateProfileMenuAccess() {
+  const settings=$('profileSettingsAction');
+  if(!settings)return;
+  const allowed=currentUser&&['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)>=0;
+  settings.classList.toggle('hidden',!allowed);
+}
+
+function closeProfileMenu() {
+  const menu=$('profileMenu'),toggle=$('profileMenuToggle');
+  if(menu)menu.classList.add('hidden');
+  if(toggle)toggle.setAttribute('aria-expanded','false');
+}
+
+function toggleProfileMenu() {
+  const menu=$('profileMenu'),toggle=$('profileMenuToggle');
+  if(!menu||!toggle)return;
+  const opening=menu.classList.contains('hidden');
+  menu.classList.toggle('hidden',!opening);
+  toggle.setAttribute('aria-expanded',opening?'true':'false');
+}
+
+function toggleProfileLanguage() {
+  const current=localStorage.getItem('asas_lims_language')||'ar';
+  const next=current==='ar'?'en':'ar';
+  setLanguage(next);
+  showToast(next==='en'?'Language changed to English':'تم تغيير اللغة إلى العربية');
+  closeProfileMenu();
+}
+
+function handleProfileAction(action) {
+  closeProfileMenu();
+  if(action==='profile') return openMyProfile();
+  if(action==='avatar') {
+    openMyProfile();
+    setTimeout(function(){const button=$('chooseProfileAvatar');if(button)button.click();},0);
+    return;
+  }
+  if(action==='password') return openChangePassword();
+  if(action==='language') return toggleProfileLanguage();
+  if(action==='settings') return navigate('settings');
+  if(action==='logout') return logout();
+}
+
 function bindEvents() {
   $('loginForm').addEventListener('submit',login);
   $('logoutBtn').addEventListener('click',logout);
-  $('changePassword').addEventListener('click',openChangePassword);
-  $('openProfile').addEventListener('click',openMyProfile);
+  $('profileMenuToggle').addEventListener('click',function(event){event.stopPropagation();toggleProfileMenu();});
+  $('profileMenu').addEventListener('click',function(event){const button=event.target.closest('[data-profile-action]');if(button)handleProfileAction(button.dataset.profileAction);});
+  $('pageBack').addEventListener('click',goBackPage);
   $('staticSetup').addEventListener('click',bootstrapStaticAdmin);
   $('staticSetupForm').addEventListener('submit',submitStaticAdmin);
   $('menuBtn').addEventListener('click',function() { $('sidebar').classList.toggle('open'); });
   $('closeModal').addEventListener('click',closeModal);
   $('modal').addEventListener('click',function(event) { if (event.target === $('modal')) closeModal(); });
+  document.addEventListener('click',function(event){if(!event.target.closest('.profile-menu-wrap'))closeProfileMenu();});
+  document.addEventListener('keydown',function(event){if(event.key==='Escape')closeProfileMenu();});
   document.querySelectorAll('.nav-link[data-page]').forEach(function(button) { button.addEventListener('click',function() { navigate(button.dataset.page); }); });
   document.querySelectorAll('[data-open-project]').forEach(function(button) { button.addEventListener('click',function() { openProjectForm(); }); });
   document.querySelectorAll('[data-page-go]').forEach(function(button) { button.addEventListener('click',function() { navigate(button.dataset.pageGo); }); });
@@ -1742,7 +1816,6 @@ function bindEvents() {
   });
   $('addFieldTest').addEventListener('click',openFieldTestPicker);
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
-  $('syncNow').addEventListener('click',function(){syncNow(true).catch(function(error){showToast(error.message,true);});});
   $('clearAudit').addEventListener('click',function(){clearAuditLog().catch(function(error){showToast(error.message,true);});});
   document.addEventListener('change',function(event) {
     if (event.target.matches('.project-status')) changeProjectStatus(event.target.dataset.projectId,event.target.value);
@@ -1865,6 +1938,7 @@ function bindEvents() {
 
 function init() {
   bindEvents();
+  updateBackButton();
   renderFieldGuides();
   document.querySelectorAll('.page table').forEach(function(table){table.classList.add('engineering-table');});
   installSmartImportButtons();

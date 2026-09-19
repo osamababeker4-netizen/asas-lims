@@ -214,3 +214,50 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0
 
 @media(max-width:900px){.dashboard-brand-hero{grid-template-columns:1fr}.dashboard-brand-logo{width:min(100%,660px);height:125px}.dashboard-brand-actions{grid-template-columns:1fr 1fr;width:100%}.attachment-viewer{grid-template-rows:auto minmax(360px,70vh)}.attachment-viewer-head{align-items:stretch;flex-direction:column}.attachment-viewer-actions{justify-content:stretch}.attachment-viewer-actions .btn{flex:1}}
 @media(max-width:620px){.dashboard-brand-hero{padding:20px 16px;min-height:0}.dashboard-brand-logo{height:105px}.dashboard-brand-actions{grid-template-columns:1fr}.attachment-viewer-actions{display:grid;grid-template-columns:1fr}.modal-card:has(.attachment-viewer){width:100%;padding:10px}.attachment-viewer{grid-template-rows:auto minmax(330px,68vh)}}
+
+
+/* V10.2.4 primary logo, fixed user identity menu, and page back navigation */
+.login-logo{width:min(330px,88%);height:92px;object-fit:contain}
+.brand img{height:68px;object-fit:contain;padding:5px;background:#fff}
+.official-brand img{width:150px;height:50px;object-fit:contain}
+.dashboard-logo-only{display:grid!important;grid-template-columns:1fr!important;place-items:center;min-height:210px}
+.dashboard-logo-only .dashboard-brand-lockup{width:100%;display:grid;place-items:center}
+.dashboard-logo-only .dashboard-brand-logo{width:min(900px,82vw);height:190px;max-width:100%;padding:12px 22px;object-fit:contain;border-radius:18px;background:#fff}
+.dashboard-logo-only .dashboard-brand-actions,.dashboard-logo-only .dashboard-brand-lockup h2{display:none!important}
+
+.topbar{overflow:visible}
+.topbar-title{min-width:0}
+.page-back{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:38px;padding:7px 12px;border:1px solid #cfe0db;border-radius:10px;background:#eef7f4;color:var(--primary-deep);font-weight:900;white-space:nowrap}
+.page-back:hover{background:#e0f0eb;border-color:#9fc9bf}
+
+.profile-menu-wrap{position:relative;margin-inline-start:auto}
+.fixed-profile{display:flex;align-items:center;gap:10px;min-width:245px;padding:7px 10px;border:1px solid #cfe0db;border-radius:16px;background:#eef7f4;color:var(--primary-deep);text-align:start;box-shadow:none}
+.fixed-profile:hover{background:#e4f1ed;border-color:#a9ccc3}
+.fixed-profile .user-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 8px rgba(10,70,80,.14);background:#fff}
+.fixed-profile>span:not(.profile-chevron){display:grid;gap:1px;min-width:0;flex:1}
+.fixed-profile strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem;color:var(--primary-deep)}
+.fixed-profile small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#657a7f;font-size:.72rem}
+.profile-chevron{font-size:1rem;color:#6c8185;transition:transform .16s ease}
+.fixed-profile[aria-expanded="true"] .profile-chevron{transform:rotate(180deg)}
+
+.profile-mini-menu{position:absolute;z-index:70;top:calc(100% + 8px);inset-inline-end:0;display:grid;min-width:230px;padding:8px;border:1px solid #d4e2de;border-radius:14px;background:#fff;box-shadow:0 18px 42px rgba(10,70,80,.18)}
+.profile-mini-menu button{width:100%;border:0;border-radius:9px;padding:10px 12px;background:transparent;color:var(--ink);font:inherit;font-weight:800;text-align:start}
+.profile-mini-menu button:hover{background:#eef7f4;color:var(--primary-deep)}
+.profile-mini-menu .danger-item{color:#a84440;border-top:1px solid #edf1ef;margin-top:4px;border-radius:0 0 9px 9px}
+.profile-mini-menu .danger-item:hover{background:#fff0ef;color:#9b3733}
+
+@media(max-width:900px){
+  .topbar{align-items:flex-start}
+  .fixed-profile{min-width:210px}
+  .dashboard-logo-only .dashboard-brand-logo{height:150px;width:min(100%,720px)}
+}
+@media(max-width:620px){
+  .topbar{flex-wrap:wrap}
+  .topbar-title{width:100%}
+  .profile-menu-wrap{width:100%;margin:0}
+  .fixed-profile{width:100%;min-width:0}
+  .profile-mini-menu{inset-inline:0;min-width:0}
+  .page-back{padding:7px 9px}
+  .dashboard-logo-only{min-height:150px;padding:16px}
+  .dashboard-logo-only .dashboard-brand-logo{height:115px}
+}

@@ -282,16 +282,63 @@ class SchemaMigrationTests(unittest.TestCase):
         for group in ('خرسانة', 'تربة', 'أسفلت', 'الحقل وNDT'):
             self.assertIn("key:'" + group + "'", app)
 
-    def test_dashboard_uses_large_logo_and_company_tagline(self):
+    def test_dashboard_and_login_use_primary_company_logo_without_removed_hero_controls(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
         self.assertNotIn('ASAS OPERATIONS CENTER', html)
         self.assertNotIn('من العينة إلى التقرير — في مسار واحد واضح', html)
-        self.assertNotIn('متابعة التنفيذ الميداني والمختبري، الجودة، الوثائق والموافقات من لوحة تشغيل موحدة.', html)
-        self.assertIn('class="dashboard-brand-logo"', html)
-        self.assertIn('شريكك الاستراتيجي في كل اختبارات مشروعك', html)
-        self.assertIn('.dashboard-brand-logo', css)
-        self.assertIn('width:min(760px,72vw)', css)
+        self.assertIn('src="asas-logo-primary.png" class="login-logo"', html)
+        self.assertIn('src="asas-logo-primary.png" class="dashboard-brand-logo"', html)
+        self.assertIn('dashboard-logo-only', html)
+        hero_start = html.index('<article class="dashboard-brand-hero dashboard-logo-only">')
+        hero_end = html.index('</article>', hero_start)
+        hero = html[hero_start:hero_end]
+        self.assertNotIn('شريكك الاستراتيجي في كل اختبارات مشروعك', hero)
+        self.assertNotIn('dashboard-brand-actions', hero)
+        self.assertIn('.dashboard-logo-only .dashboard-brand-logo', css)
+
+    def test_topbar_uses_fixed_identity_profile_menu_and_back_navigation(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
+        self.assertNotIn('id="saudiClock"', html)
+        self.assertNotIn('id="syncNow"', html)
+        self.assertNotIn('id="changePassword"', html)
+        self.assertNotIn('id="openProfile"', html)
+        self.assertIn('id="profileMenuToggle"', html)
+        self.assertIn('id="profileMenu"', html)
+        self.assertIn('data-profile-action="avatar"', html)
+        self.assertIn('data-profile-action="password"', html)
+        self.assertIn('data-profile-action="language"', html)
+        self.assertIn('id="pageBack"', html)
+        self.assertIn('function goBackPage()', app)
+        self.assertIn('function toggleProfileMenu()', app)
+        self.assertIn("setText($('currentUsername'), currentUser.full_name", app)
+        self.assertNotIn("setText($('currentUsername'), '@' +", app)
+        self.assertIn('.profile-mini-menu', css)
+        self.assertIn('.page-back', css)
+
+    def test_primary_logo_is_served_and_published(self):
+        server_source = (Path(__file__).parent / 'server.py').read_text(encoding='utf-8')
+        sw = (Path(__file__).parent / 'sw.js').read_text(encoding='utf-8')
+        pages = (Path(__file__).parent / '.github/workflows/deploy-pages.yml').read_text(encoding='utf-8')
+        self.assertIn("'/asas-logo-primary.png': ('asas-logo-primary.png', 'image/png')", server_source)
+        self.assertIn("'./asas-logo-primary.png'", sw)
+        self.assertIn('asas-logo-primary.png', pages)
+        self.server.init()
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        try:
+            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+            client.request('GET', '/asas-logo-primary.png')
+            response = client.getresponse()
+            body = response.read()
+            client.close()
+            self.assertEqual(response.status, 200)
+            self.assertTrue(body.startswith(b'\x89PNG\r\n\x1a\n'))
+        finally:
+            httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
 
     def test_original_files_open_in_internal_viewer_and_keep_original_download(self):
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
