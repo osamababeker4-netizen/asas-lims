@@ -51,13 +51,21 @@ class SchemaMigrationTests(unittest.TestCase):
 
     def test_professional_document_center_and_login_contract(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
         self.assertIn('<h1>تسجيل دخول النظام</h1>', html)
-        self.assertNotIn('إدارة المشاريع، أوامر العمل، العينات، الاختبارات والتقارير في واجهة عربية موحّدة.', html)
+        self.assertIn('data-page="dashboard">الرئيسية</button>', html)
+        self.assertNotIn('id="documentCenterNav"', html)
+        self.assertIn('id="qualityFilesEntry"', html)
+        self.assertIn('data-page-go="documentCenter"', html)
         self.assertIn('id="documentCenter"', html)
+        self.assertIn('QUALITY_ACCESS_ROLES', app)
+        self.assertIn("page === 'quality' || page === 'documentCenter'", app)
         for group in ('الأسفلت', 'التربة', 'الخرسانة', 'الحقل وNDT'):
             self.assertIn(group, html)
         self.assertIn('technicalLibrary', self.server.SMART_SECTIONS)
         self.assertIn('companyVault', self.server.SMART_SECTIONS)
+        self.assertTrue(self.server.smart_section_allowed({'role': 'quality_officer'}, 'technicalLibrary'))
+        self.assertFalse(self.server.smart_section_allowed({'role': 'technical_manager'}, 'technicalLibrary'))
 
     def test_attachment_schema_has_material_group(self):
         self.server.init()
@@ -83,12 +91,27 @@ class SchemaMigrationTests(unittest.TestCase):
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
         guide = (Path(__file__).parent / 'field-test-guide.html').read_text(encoding='utf-8')
         self.assertIn('id="fieldGuideFilters"', html)
+        self.assertIn('4 أقسام رئيسية', html)
         self.assertIn('field-test-guide.html', html)
+        self.assertIn('field-group-card', app)
+        self.assertIn("fieldGuideCategory='الكل'", app)
+        self.assertIn("data-field-guide-filter=", app)
         for group in ('أسفلت', 'تربة', 'خرسانة', 'الحقل وNDT'):
             self.assertIn(group, app)
             self.assertIn(group, guide)
         for code in ('D4318', 'D1883', 'D6927', 'C597', 'C876', 'D7091', 'D5162', 'G57', 'D2412'):
             self.assertIn("code:'" + code + "'", app)
+
+    def test_equipment_table_has_technical_status_design(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
+        self.assertIn('equipment-technical-table', html)
+        self.assertIn('function equipmentTone', app)
+        self.assertIn('equipment-badge', app)
+        self.assertIn('.equipment-badge.success', css)
+        self.assertIn('.equipment-badge.warning', css)
+        self.assertIn('.equipment-badge.danger', css)
 
     def test_pwa_assets_are_served_by_the_central_service(self):
         self.server.init()
