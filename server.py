@@ -465,9 +465,47 @@ def telegram_send_photo(photo_data_url, caption=''):
     chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if not token or not chat_id:
         raise RuntimeError('telegram_not_configured')
-    match = re.match(r'^data:(image/(?:jpeg|png|webp));base64,(.+)
-    return phone.startswith('+') and phone[1:].isdigit() and 8 <= len(phone) <= 16
+    value = str(photo_data_url or '')
+    if not value.startswith('data:image/') or ';base64,' not in value:
+        raise ValueError('telegram_invalid_photo')
+    header, encoded = value.split(';base64,', 1)
+    mime = header[5:].lower()
+    if mime not in ('image/jpeg', 'image/png', 'image/webp'):
+        raise ValueError('telegram_invalid_photo')
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error):
+        raise ValueError('telegram_invalid_photo')
+    if len(raw) > 10 * 1024 * 1024:
+        raise ValueError('telegram_photo_too_large')
+    extension = 'jpg' if mime == 'image/jpeg' else mime.split('/', 1)[1]
+    filename = 'asas-field-photo.' + extension
+    boundary = '----ASAS' + secrets.token_hex(12)
+    chunks = []
+    def add_field(name, value):
+        chunks.append(('--' + boundary + '\r\nContent-Disposition: form-data; name="' + name + '"\r\n\r\n' + str(value) + '\r\n').encode('utf-8'))
+    add_field('chat_id', chat_id)
+    if caption:
+        add_field('caption', str(caption)[:1024])
+    chunks.append(('--' + boundary + '\r\nContent-Disposition: form-data; name="photo"; filename="' + filename + '"\r\nContent-Type: ' + mime + '\r\n\r\n').encode('utf-8'))
+    chunks.append(raw)
+    chunks.append(b'\r\n')
+    chunks.append(('--' + boundary + '--\r\n').encode('utf-8'))
+    request = urllib.request.Request(
+        'https://api.telegram.org/bot{}/sendPhoto'.format(token),
+        data=b''.join(chunks),
+        headers={'Content-Type': 'multipart/form-data; boundary=' + boundary},
+        method='POST'
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        result = json.loads(response.read().decode('utf-8'))
+    if not result.get('ok'):
+        raise RuntimeError('telegram_photo_send_failed')
+    return result.get('result', {})
 
+
+def valid_e164(phone):
+    return phone.startswith('+') and phone[1:].isdigit() and 8 <= len(phone) <= 16
 
 def normalize_phone(phone, default_code='+966'):
     raw = str(phone or '').strip()
