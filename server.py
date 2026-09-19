@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.0.0-professional'
+APP_VERSION = '10.1.0-expanded-field'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.path.join(BASE, 'uploads', 'quality')
@@ -389,13 +389,16 @@ def init():
     with open(OFFICIAL_CATALOG, encoding='utf-8') as catalog_file:
         official_catalog = json.load(catalog_file)
     for category, entries in official_catalog.items():
-        for code, name_ar in entries:
+        for entry in entries:
+            code, name_ar = entry[0], entry[1]
+            name_en = entry[2] if len(entry) > 2 else name_ar
+            standard = entry[3] if len(entry) > 3 else 'ASTM ' + code
             connection.execute('''
                 insert into test_catalog(code,name_ar,name_en,category,standard,version,active)
                 values(?,?,?,?,?,'معتمد',1)
                 on conflict(code) do update set name_ar=excluded.name_ar,name_en=excluded.name_en,
                     category=excluded.category,standard=excluded.standard,version=excluded.version,active=1
-            ''', (code, name_ar, name_ar, category, 'ASTM ' + code))
+            ''', (code, name_ar, name_en, category, standard))
     if connection.execute('select count(*) from users').fetchone()[0] == 0:
         password = os.environ.get('LIMS_BOOTSTRAP_PASSWORD')
         if not password:
@@ -1114,6 +1117,7 @@ class H(BaseHTTPRequestHandler):
             '/logo.jpg': ('logo.jpg', 'image/jpeg'),
             '/i18n.js': ('i18n.js', 'application/javascript; charset=utf-8'),
             '/branch-map.js': ('branch-map.js', 'application/javascript; charset=utf-8'),
+            '/field-test-guide.html': ('field-test-guide.html', 'text/html; charset=utf-8'),
             '/company-profile.pdf': ('company-profile.pdf', 'application/pdf')
         }
         if path in static_files:
