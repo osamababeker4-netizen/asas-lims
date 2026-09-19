@@ -87,3 +87,17 @@ body{background:linear-gradient(180deg,#eef4f1 0,#f7f8f5 34%,#f2f5f3 100%)}
 .equipment-code{display:inline-flex;padding:5px 9px;border-radius:8px;background:#eaf4f1;color:var(--primary-deep);font-weight:900;direction:ltr}.equipment-name{color:#153f49}.equipment-section{display:inline-flex;padding:4px 9px;border-radius:999px;background:#eef2f3;color:#425d63;font-size:.76rem}.equipment-notes{max-width:260px;color:#52686e}
 .equipment-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border-radius:999px;font-size:.75rem;font-weight:900;white-space:nowrap}.equipment-badge b{font-size:.72rem}.equipment-badge.success{background:#e3f5eb;color:#166748}.equipment-badge.warning{background:#fff0d8;color:#9a5b08}.equipment-badge.danger{background:#ffe2e1;color:#a83838}.equipment-badge.neutral{background:#edf1f2;color:#687a7e}
 @media(max-width:1180px){.field-guide-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.field-guide-grid{grid-template-columns:1fr}.field-group-card{min-height:0}.equipment-table-shell{border-radius:14px}}
+
+
+/* Test result badges */
+.test-result-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.test-result-badge{display:inline-flex;align-items:center;gap:6px;width:max-content;padding:6px 10px;border-radius:999px;font-size:.78rem;font-weight:900;border:1px solid transparent;white-space:nowrap}
+.test-result-badge.success{background:#e4f5ea;color:#176845;border-color:#bfe5ce}
+.test-result-badge.danger{background:#ffe5e3;color:#a63232;border-color:#f4c3bf}
+.test-result-badge.progress{background:#fff1d9;color:#9a5a05;border-color:#f4d39c}
+.test-result-badge.neutral{background:#eef2f3;color:#687b80;border-color:#dce4e6}
+.test-result-icon{font-size:.92rem;line-height:1}
+.test-result-select.success{border-color:#55a878;background:#f5fcf8}
+.test-result-select.danger{border-color:#d66b68;background:#fff8f7}
+.test-result-select.progress{border-color:#e5a23b;background:#fffbf4}
+.field-test-row label .test-result-badge{margin-top:7px}
