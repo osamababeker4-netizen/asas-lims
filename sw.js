@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-2-6-full-brand-header';
-const APP_SHELL = ['./','./index.html','./style.css?v=10-2-6-full-brand-header','./app-password.js?v=10-2-6-full-brand-header','./branch-map.js?v=10-2-6-full-brand-header','./i18n.js?v=10-2-6-full-brand-header','./runtime-config.js?v=10-2-6-full-brand-header','./field-test-guide.html','./manifest.webmanifest','./logo.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
+const CACHE_NAME = 'asas-lims-pwa-v10-2-7-home-banner';
+const APP_SHELL = ['./','./index.html','./style.css?v=10-2-7-home-banner','./app-password.js?v=10-2-7-home-banner','./branch-map.js?v=10-2-7-home-banner','./i18n.js?v=10-2-7-home-banner','./runtime-config.js?v=10-2-7-home-banner','./field-test-guide.html','./manifest.webmanifest','./logo.jpg','./asas-home-banner.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
