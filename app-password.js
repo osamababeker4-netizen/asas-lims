@@ -15,6 +15,7 @@ const BOARD_STATUSES = ['مخطط', 'نشط', 'قيد المراجعة', 'موق
 const PRIORITIES = ['منخفضة', 'متوسطة', 'عالية', 'حرجة'];
 const WORK_ORDER_STATUSES = ['مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'];
 const ROLE_NAMES = {admin:'مدير النظام',general_manager:'المدير العام',technical_manager:'المدير الفني',laboratory_manager:'مدير المختبر',quality_manager:'مدير الجودة',quality_officer:'مسؤول الجودة',calibration_officer:'مسؤول المعايرة',document_controller:'مسؤول الوثائق',manager:'مدير',technician:'فني مختبر',field:'مفتش ميداني',quality:'الجودة (قديم)'};
+const QUALITY_ACCESS_ROLES = ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'];
 const COUNTRY_CODES = [{code:'+966',name:'السعودية 🇸🇦'},{code:'+971',name:'الإمارات 🇦🇪'},{code:'+973',name:'البحرين 🇧🇭'},{code:'+965',name:'الكويت 🇰🇼'},{code:'+974',name:'قطر 🇶🇦'},{code:'+968',name:'عُمان 🇴🇲'},{code:'+20',name:'مصر 🇪🇬'},{code:'+249',name:'السودان 🇸🇩'},{code:'+962',name:'الأردن 🇯🇴'},{code:'+967',name:'اليمن 🇾🇪'}];
 const OFFICIAL_WHATSAPP_URL = 'https://chat.whatsapp.com/LxqH7L6GorGEhMfUTYthgG?s=sh&p=a&mlu=4&ilr=4';
 const OFFICIAL_TELEGRAM_URL = 'https://t.me/+xPEyC5xPw8w5MjE0';
@@ -467,6 +468,10 @@ function optionList(items, selected, label, value) {
 }
 
 function navigate(page) {
+  if ((page === 'quality' || page === 'documentCenter') && (!currentUser || QUALITY_ACCESS_ROLES.indexOf(currentUser.role) < 0)) {
+    showToast('هذا القسم متاح فقط للمستخدمين المخولين بالجودة والوثائق.', true);
+    page = 'dashboard';
+  }
   if (page === 'field') setTimeout(fillFieldReadyOptions,0);
   document.querySelectorAll('.page').forEach(function(element) { element.classList.remove('active'); });
   const target = $(page);
@@ -474,7 +479,8 @@ function navigate(page) {
   target.classList.add('active');
   document.querySelectorAll('.nav-link[data-page]').forEach(function(button) { button.classList.toggle('active', button.dataset.page === page); });
   const nav = document.querySelector('.nav-link[data-page="' + page + '"]');
-  setText($('pageTitle'), nav ? ((uiTextMemory.get(nav.firstChild) || {}).ar || nav.textContent).trim() : 'أساس LIMS');
+  const nestedTitles = {documentCenter:'مركز الملفات',equipment:'الأجهزة والمعايرة'};
+  setText($('pageTitle'), nav ? ((uiTextMemory.get(nav.firstChild) || {}).ar || nav.textContent).trim() : (nestedTitles[page] || 'أساس LIMS'));
   setText($('pageKicker'), page === 'projects' ? 'تنفيذ ومتابعة' : 'إدارة المختبر');
   $('sidebar').classList.remove('open');
   if (page === 'settings') loadSystemSettings();
@@ -555,8 +561,7 @@ async function completeLogin(result) {
   $('usersNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager'].indexOf(result.user.role) < 0);
   $('settingsNav').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
   $('manageCommunicationLinks').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
-  $('qualityNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(result.user.role) < 0);
-  $('documentCenterNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(result.user.role) < 0);
+  $('qualityNav').classList.toggle('hidden', QUALITY_ACCESS_ROLES.indexOf(result.user.role) < 0);
   $('companyVaultCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager'].indexOf(result.user.role) < 0);
   $('qualityEquipmentCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','technical_manager','laboratory_manager'].indexOf(result.user.role) < 0);
   await loadCatalog(); await refresh(); startLiveUpdates(); navigate('dashboard');
@@ -797,8 +802,37 @@ function renderReports() {
   }).join('') || '<tr><td colspan="5" class="empty">لا توجد تقارير.</td></tr>');
 }
 
+function equipmentTone(value, type) {
+  const raw = String(value || '').trim();
+  if (!raw || raw === '—') return 'neutral';
+  const lower = raw.toLowerCase();
+  if (type === 'calibration' && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    const today = saudiToday();
+    if (raw.slice(0,10) < today) return 'danger';
+    const diff = Math.ceil((new Date(raw.slice(0,10)+'T00:00:00Z') - new Date(today+'T00:00:00Z')) / 86400000);
+    return diff <= 30 ? 'warning' : 'success';
+  }
+  if (/منتهي|expired|غير صالح|fail|فشل|راسب/.test(lower)) return 'danger';
+  if (/قيد|مطلوب|تنبيه|warning|due|صيانة/.test(lower)) return 'warning';
+  if (/صالح|ساري|valid|pass|معاير|مطابق/.test(lower)) return 'success';
+  return 'neutral';
+}
+
+function equipmentBadge(value, type) {
+  const raw = String(value || '—');
+  const tone = equipmentTone(raw, type);
+  const icon = tone === 'success' ? '●' : tone === 'warning' ? '▲' : tone === 'danger' ? '×' : '—';
+  return '<span class="equipment-badge '+tone+'"><b>'+icon+'</b>'+escUI(raw)+'</span>';
+}
+
 function renderEquipment() {
-  setHtml($('equipmentTable'), (dashboard ? dashboard.equipment : []).map(function(item) { return '<tr><td><strong>' + esc(item.equipment_code || '—') + '</strong></td><td>' + esc(item.name) + '</td><td>' + esc(item.serial_no || '—') + '</td><td>' + esc(item.section || '—') + '</td><td>' + esc(item.range_text || '—') + '</td><td>' + esc(item.verification_status || '—') + '</td><td>' + esc(item.calibrated_to || item.next_calibration || '—') + '</td><td>' + esc(item.maintenance_status || '—') + '</td><td>' + esc(item.notes || '—') + '</td></tr>'; }).join('') || '<tr><td colspan="9" class="empty">لا توجد أجهزة.</td></tr>');
+  const rows = dashboard ? dashboard.equipment : [];
+  setHtml($('equipmentTable'), rows.map(function(item) {
+    const calibration = item.calibrated_to || item.next_calibration || '—';
+    const tones = [equipmentTone(item.verification_status,'verification'),equipmentTone(calibration,'calibration'),equipmentTone(item.maintenance_status,'maintenance')];
+    const rowTone = tones.indexOf('danger') >= 0 ? 'danger' : tones.indexOf('warning') >= 0 ? 'warning' : tones.indexOf('success') >= 0 ? 'success' : 'neutral';
+    return '<tr class="equipment-row state-'+rowTone+'"><td><span class="equipment-code">'+esc(item.equipment_code || '—')+'</span></td><td><strong class="equipment-name">'+esc(item.name)+'</strong></td><td>'+esc(item.serial_no || '—')+'</td><td><span class="equipment-section">'+esc(item.section || '—')+'</span></td><td>'+esc(item.range_text || '—')+'</td><td>'+equipmentBadge(item.verification_status || '—','verification')+'</td><td>'+equipmentBadge(calibration,'calibration')+'</td><td>'+equipmentBadge(item.maintenance_status || '—','maintenance')+'</td><td class="equipment-notes">'+esc(item.notes || '—')+'</td></tr>';
+  }).join('') || '<tr><td colspan="9" class="empty">لا توجد أجهزة.</td></tr>');
 }
 
 function renderAudit() {
@@ -1133,16 +1167,27 @@ function renderFieldTests() {
 }
 
 function renderFieldGuides() {
-  const categories = ['الكل','أسفلت','تربة','خرسانة','الحقل وNDT'];
+  const groups = [
+    {key:'خرسانة',code:'CONC',title:'خرسانة',description:'اختبارات الخرسانة الطازجة والمتصلدة والفحوص المرتبطة بها.'},
+    {key:'تربة',code:'SOIL',title:'تربة',description:'اختبارات التربة والتصنيف والدمك والكثافة والخصائص الهندسية.'},
+    {key:'أسفلت',code:'ASPH',title:'أسفلت',description:'اختبارات الخلطات الأسفلتية والمواد البيتومينية والفحوص الميدانية.'},
+    {key:'الحقل وNDT',code:'NDT',title:'الحقل وNDT',description:'الفحوص الميدانية وغير الإتلافية والتحقق من الأجهزة بالموقع.'}
+  ];
   const filters = $('fieldGuideFilters'), grid = $('fieldGuideGrid');
   if (!filters || !grid) return;
-  setHtml(filters, categories.map(function(category) {
-    return '<button class="guide-filter'+(fieldGuideCategory===category?' active':'')+'" data-field-guide-filter="'+esc(category)+'" type="button">'+escUI(category)+'</button>';
-  }).join(''));
-  const rows = FIELD_GUIDES.filter(function(item) { return fieldGuideCategory === 'الكل' || item.category === fieldGuideCategory; });
+  if (fieldGuideCategory === 'الكل') {
+    setHtml(filters, '');
+    setHtml(grid, groups.map(function(group) {
+      const count = FIELD_GUIDES.filter(function(item) { return item.category === group.key; }).length;
+      return '<article class="field-group-card" data-field-group="'+esc(group.key)+'"><span class="field-group-icon">'+esc(group.code)+'</span><div><h3>'+escUI(group.title)+'</h3><p>'+escUI(group.description)+'</p></div><div class="field-group-meta"><span>'+count+' أدلة جاهزة</span></div><button class="btn primary" data-field-guide-filter="'+esc(group.key)+'" type="button">عرض الاختبارات</button></article>';
+    }).join(''));
+    return;
+  }
+  setHtml(filters, '<button class="guide-filter" data-field-guide-filter="الكل" type="button">← الأقسام الرئيسية</button><span class="guide-current">'+escUI(fieldGuideCategory)+'</span>');
+  const rows = FIELD_GUIDES.filter(function(item) { return item.category === fieldGuideCategory; });
   setHtml(grid, rows.map(function(item) {
     return '<article class="field-guide-card"><div><span class="pill">'+escUI(item.category)+'</span><span class="guide-type">'+escUI(item.type)+'</span></div><h4>'+escUI(item.title)+'</h4><p>'+esc(item.standard)+'</p><button class="text-btn" data-field-guide-add="'+esc(item.code)+'" type="button">إضافة للزيارة</button></article>';
-  }).join(''));
+  }).join('') || '<article class="empty-state">لا توجد أدلة جاهزة في هذا القسم بعد.</article>');
 }
 
 function addGuideTest(code) {
@@ -1285,8 +1330,17 @@ function bindEvents() {
   $('fieldCameraInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
   $('fieldGalleryInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
   $('fieldGuideFilters').addEventListener('click',function(event) { const button=event.target.closest('[data-field-guide-filter]'); if(!button)return; fieldGuideCategory=button.dataset.fieldGuideFilter; renderFieldGuides(); });
-  $('fieldGuideGrid').addEventListener('click',function(event) { const button=event.target.closest('[data-field-guide-add]'); if(button)addGuideTest(button.dataset.fieldGuideAdd); });
-  $('addFieldTest').addEventListener('click',function() { if (!catalog.length) return showToast('يجري تحميل كتالوج الاختبارات، حاول بعد لحظة',true); if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true); fieldTests.push({catalog_id:'',name:'',standard:'',result:'',points:''}); renderFieldTests(); });
+  $('fieldGuideGrid').addEventListener('click',function(event) {
+    const group=event.target.closest('[data-field-guide-filter]'); if(group){fieldGuideCategory=group.dataset.fieldGuideFilter;renderFieldGuides();return;}
+    const button=event.target.closest('[data-field-guide-add]'); if(button)addGuideTest(button.dataset.fieldGuideAdd);
+  });
+  $('addFieldTest').addEventListener('click',function() {
+    if (!catalog.length) return showToast('يجري تحميل كتالوج الاختبارات، حاول بعد لحظة',true);
+    if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true);
+    fieldGuideCategory='الكل'; renderFieldGuides();
+    const library=document.querySelector('.field-guide-library'); if(library) library.scrollIntoView({behavior:'smooth',block:'start'});
+    showToast('اختر القسم الرئيسي ثم الاختبار المطلوب.');
+  });
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
   $('syncNow').addEventListener('click',function(){syncNow(true).catch(function(error){showToast(error.message,true);});});
   $('clearAudit').addEventListener('click',function(){clearAuditLog().catch(function(error){showToast(error.message,true);});});
