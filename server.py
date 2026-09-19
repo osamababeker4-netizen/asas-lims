@@ -16,7 +16,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 import urllib.error
 import urllib.request
 
@@ -38,7 +38,7 @@ OTP_RESEND_SECONDS = 60
 EVENT_SUBSCRIBERS = set()
 EVENT_SUBSCRIBERS_LOCK = threading.Lock()
 SESSION_TTL_SECONDS = int(os.environ.get('LIMS_SESSION_TTL_SECONDS', str(12 * 60 * 60)))
-MAX_JSON_BODY_BYTES = int(os.environ.get('LIMS_MAX_JSON_BODY_BYTES', str(2 * 1024 * 1024)))
+MAX_JSON_BODY_BYTES = int(os.environ.get('LIMS_MAX_JSON_BODY_BYTES', str(40 * 1024 * 1024)))
 LOGIN_WINDOW_SECONDS = int(os.environ.get('LIMS_LOGIN_WINDOW_SECONDS', '900'))
 LOGIN_MAX_ATTEMPTS = int(os.environ.get('LIMS_LOGIN_MAX_ATTEMPTS', '5'))
 LOGIN_ATTEMPTS = {}
@@ -968,7 +968,7 @@ class H(BaseHTTPRequestHandler):
         raw = self.rfile.read(length) if length else b'{}'
         return json.loads(raw or b'{}')
 
-    def static(self, filename, content_type):
+    def static(self, filename, content_type, extra_headers=None):
         target = os.path.join(BASE, filename)
         if not os.path.isfile(target):
             return self.send_json({'error': 'الملف غير موجود'}, 404)
@@ -979,6 +979,8 @@ class H(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'")
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -1228,7 +1230,7 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'الملف غير موجود'}, 404)
                 extension = os.path.splitext(row['stored_name'])[1].lower()
                 types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.csv':'text/csv','.txt':'text/plain','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic','.dwg':'application/acad','.dxf':'application/dxf'}
-                return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'))
+                return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'), {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(row['original_name'])})
 
             if path == '/api/lab-suite':
                 if not self.require_permission(user, 'quality'):
