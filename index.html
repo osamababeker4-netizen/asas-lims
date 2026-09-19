@@ -8,15 +8,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="asas-logo-primary.png">
+  <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-2-4-user-menu">
+  <link rel="stylesheet" href="style.css?v=10-2-5-clean-logo">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
-      <img src="asas-logo-primary.png" class="login-logo" alt="شعار شركة مختبر أساس">
-      <span class="login-edition">ASAS LIMS · V10.2.4 Professional</span>
+      <img src="logo.jpg" class="login-logo" alt="شعار شركة مختبر أساس">
+      <span class="login-edition">ASAS LIMS · V10.2.5 Professional</span>
       <h1>تسجيل دخول النظام</h1>
       <form id="loginForm" class="form-stack">
         <label>رقم الجوال<input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="+9665XXXXXXXX"></label>
@@ -40,10 +40,10 @@
   <div id="app" class="app-shell hidden">
     <aside id="sidebar" class="sidebar">
       <div class="brand">
-        <img src="asas-logo-primary.png" alt="شعار شركة مختبر أساس">
+        <img src="logo.jpg" alt="شعار شركة مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.2.4 · Operational</small>
+        <small class="release-chip">V10.2.5 · Operational</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
@@ -71,7 +71,7 @@
     <main class="main-content">
       <header class="official-header" aria-label="هوية مختبر أساس">
         <a class="official-brand" href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">
-          <img src="asas-logo-primary.png" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية">
+          <img src="logo.jpg" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية">
           <span><strong>مختبر أساس</strong><small>بيانات هندسية دقيقة لكل مرحلة من مشروعك</small></span>
         </a>
         <nav class="official-links" aria-label="روابط أساس الرسمية">
@@ -91,7 +91,7 @@
         </div>
         <div class="profile-menu-wrap">
           <button id="profileMenuToggle" class="profile-summary fixed-profile" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="إعدادات المستخدم">
-            <img id="currentUserAvatar" class="user-avatar" src="asas-logo-primary.png" alt="صورة المستخدم">
+            <img id="currentUserAvatar" class="user-avatar" src="logo.jpg" alt="صورة المستخدم">
             <span><strong id="currentUsername">اسم المستخدم</strong><small id="currentUser">الصفة</small></span>
             <span class="profile-chevron" aria-hidden="true">⌄</span>
           </button>
@@ -109,7 +109,7 @@
       <section id="dashboard" class="page active">
         <article class="dashboard-brand-hero dashboard-logo-only">
           <div class="dashboard-brand-lockup">
-            <img src="asas-logo-primary.png" class="dashboard-brand-logo" alt="شعار شركة مختبر أساس">
+            <img src="logo.jpg" class="dashboard-brand-logo" alt="شعار شركة مختبر أساس">
           </div>
         </article>
         <div class="page-heading">
@@ -312,8 +312,8 @@
       <section id="communications" class="page">
         <div class="page-heading"><div><h2>قنوات التواصل</h2><p>روابط مباشرة تُحدَّث تلقائيًا من إعدادات النظام لجميع المستخدمين.</p></div><button id="manageCommunicationLinks" class="btn secondary" data-page-go="settings" type="button">إدارة الروابط</button></div>
         <div class="communication-grid">
-          <article id="whatsappChannelCard" class="panel communication-card whatsapp-channel"><span class="channel-icon" aria-hidden="true">WA</span><div><h3>WhatsApp</h3><p id="whatsappChannelStatus">جارٍ تحميل الرابط…</p></div><a id="whatsappChannelLink" class="btn channel-link disabled" target="_blank" rel="noopener noreferrer" aria-disabled="true">فتح واتساب</a></article>
-          <article id="telegramChannelCard" class="panel communication-card telegram-channel"><span class="channel-icon" aria-hidden="true">TG</span><div><h3>Telegram</h3><p id="telegramChannelStatus">جارٍ تحميل الرابط…</p></div><a id="telegramChannelLink" class="btn channel-link disabled" target="_blank" rel="noopener noreferrer" aria-disabled="true">فتح تلقرام</a></article>
+          <article id="whatsappChannelCard" class="panel communication-card whatsapp-channel"><span class="channel-icon brand-channel-icon whatsapp-brand" aria-hidden="true"><img src="whatsapp-logo.svg" alt=""></span><div><h3>WhatsApp</h3><p id="whatsappChannelStatus">جارٍ تحميل الرابط…</p></div><a id="whatsappChannelLink" class="btn channel-link disabled" target="_blank" rel="noopener noreferrer" aria-disabled="true">فتح واتساب</a></article>
+          <article id="telegramChannelCard" class="panel communication-card telegram-channel"><span class="channel-icon brand-channel-icon telegram-brand" aria-hidden="true"><img src="telegram-logo.svg" alt=""></span><div><h3>Telegram</h3><p id="telegramChannelStatus">جارٍ تحميل الرابط…</p></div><a id="telegramChannelLink" class="btn channel-link disabled" target="_blank" rel="noopener noreferrer" aria-disabled="true">فتح تلقرام</a></article>
         </div>
         <p class="form-note">يظهر الرابط فور حفظه في «إعدادات النظام». لا ينشئ النظام مسودات أو رسائل تلقائية.</p>
       </section>
@@ -416,17 +416,17 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=10-2-4-user-menu"></script>
-  <script src="i18n.js?v=10-2-4-user-menu"></script>
-  <script src="app-password.js?v=10-2-4-user-menu"></script>
-  <script src="branch-map.js?v=10-2-4-user-menu"></script>
+  <script src="runtime-config.js?v=10-2-5-clean-logo"></script>
+  <script src="i18n.js?v=10-2-5-clean-logo"></script>
+  <script src="app-password.js?v=10-2-5-clean-logo"></script>
+  <script src="branch-map.js?v=10-2-5-clean-logo"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-4-user-menu'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-5-clean-logo'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-2-4-user-menu', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-2-5-clean-logo', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>
