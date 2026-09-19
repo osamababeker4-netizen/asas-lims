@@ -282,6 +282,40 @@ class SchemaMigrationTests(unittest.TestCase):
         for group in ('خرسانة', 'تربة', 'أسفلت', 'الحقل وNDT'):
             self.assertIn("key:'" + group + "'", app)
 
+    def test_dashboard_uses_large_logo_and_company_tagline(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
+        self.assertNotIn('ASAS OPERATIONS CENTER', html)
+        self.assertNotIn('من العينة إلى التقرير — في مسار واحد واضح', html)
+        self.assertNotIn('متابعة التنفيذ الميداني والمختبري، الجودة، الوثائق والموافقات من لوحة تشغيل موحدة.', html)
+        self.assertIn('class="dashboard-brand-logo"', html)
+        self.assertIn('شريكك الاستراتيجي في كل اختبارات مشروعك', html)
+        self.assertIn('.dashboard-brand-logo', css)
+        self.assertIn('width:min(760px,72vw)', css)
+
+    def test_original_files_open_in_internal_viewer_and_keep_original_download(self):
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
+        self.assertIn('function openAttachmentInViewer', app)
+        self.assertIn("if(kind==='pdf')", app)
+        self.assertIn("kind==='image'", app)
+        self.assertIn("kind==='text'", app)
+        self.assertIn('الملف محفوظ في النظام بصيغته الأصلية دون تحويل', app)
+        self.assertIn('data-viewer-download', app)
+        self.assertIn('data-viewer-newtab', app)
+        self.assertIn('.attachment-viewer-frame', css)
+        self.assertIn('.attachment-original-format', css)
+        self.assertIn('فتح الملف</button>', app)
+        self.assertNotIn("excel?'تشغيل/تنزيل':'فتح'", app)
+
+    def test_asas_brand_palette_is_consistent(self):
+        css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
+        self.assertIn('--primary:#0f6f78', css)
+        self.assertIn('--primary-deep:#0a4650', css)
+        self.assertIn('--orange:#df7b2a', css)
+        self.assertIn('background:linear-gradient(180deg,#0a4650 0%,#083941 72%,#0d3036 100%)', css)
+        self.assertIn('border-bottom-color:var(--orange)!important', css)
+
     def test_equipment_table_has_technical_status_design(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')

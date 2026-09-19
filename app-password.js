@@ -97,6 +97,7 @@ let documentLibraryRows = [];
 let documentGroupFilter = 'الكل';
 let documentLibrarySearchTerm = '';
 let toastTimer = null;
+let activeAttachmentObjectUrl = '';
 let refreshInFlight = null;
 let realtimeTimer = null;
 let userUpdatesChannel = null;
@@ -470,6 +471,10 @@ function modal(html) {
 function closeModal() {
   $('modal').classList.add('hidden');
   setHtml($('modalBody'), '');
+  if (activeAttachmentObjectUrl) {
+    URL.revokeObjectURL(activeAttachmentObjectUrl);
+    activeAttachmentObjectUrl = '';
+  }
 }
 
 function fieldValue(form, key) {
@@ -1184,8 +1189,79 @@ async function loadDocumentCenter() {
 
 const SMART_SECTION_LABELS={dashboard:'لوحة القيادة',projects:'المشاريع',workOrders:'أوامر العمل',field:'البرنامج الميداني',clients:'العملاء',samples:'العينات',tests:'الاختبارات',catalog:'دليل الاختبارات',reports:'التقارير',communications:'قنوات التواصل',quality:'الجودة والوثائق',technicalLibrary:'المكتبة الفنية',companyVault:'خزنة مستندات الشركة',company:'عن مختبر أساس',audit:'سجل التدقيق',users:'المستخدمون',equipment:'الأجهزة والمعايرة'};
 function installSmartImportButtons(){document.querySelectorAll('.page').forEach(function(page){const heading=page.querySelector(':scope > .page-heading');if(!heading||heading.querySelector('[data-smart-import]')||!SMART_SECTION_LABELS[page.id])return;let actions=heading.querySelector('.heading-actions');if(!actions){actions=document.createElement('div');actions.className='heading-actions';const existing=Array.from(heading.children).filter(function(x){return x.tagName==='BUTTON'||x.tagName==='A';});existing.forEach(function(x){actions.appendChild(x);});heading.appendChild(actions);}const button=document.createElement('button');button.className='btn secondary smart-import-button smart-import-edge';button.type='button';button.dataset.smartImport=page.id;button.textContent='إرفاق ملف';actions.insertBefore(button,actions.firstChild);});}
-async function authenticatedAttachmentDownload(item,openAfter){const headers={};if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;const response=await fetch(API_BASE_URL+'/api/attachments/files/'+item.id,{credentials:'include',headers:headers});if(!response.ok){let message='تعذر تحميل الملف';try{const data=await response.json();message=data.error||message;}catch(_error){}throw new Error(message);}const blob=await response.blob();const objectUrl=URL.createObjectURL(blob);if(openAfter&&/\.(pdf|txt|jpg|jpeg|png|webp)$/i.test(item.original_name||'')){window.open(objectUrl,'_blank','noopener');setTimeout(function(){URL.revokeObjectURL(objectUrl);},60000);return;}const link=document.createElement('a');link.href=objectUrl;link.download=item.original_name||'ASAS-file';document.body.appendChild(link);link.click();link.remove();setTimeout(function(){URL.revokeObjectURL(objectUrl);},30000);}
-async function loadSmartImports(section){const box=$('smartImportResults');if(!box)return;setText(box,'جارٍ تحميل الملفات المرتبة…');try{const rows=await api('/api/smart-imports?section='+encodeURIComponent(section));if(!rows.length){setText(box,'لا توجد ملفات مرفوعة في هذا القسم بعد.');return;}window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};rows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});const groups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'];setHtml(box,groups.map(function(group){const items=rows.filter(function(item){return (item.material_group||'أخرى')===group;});if(!items.length)return '';return '<section class="smart-material-group"><h3>'+esc(group)+' <span class="pill">'+items.length+'</span></h3>'+items.map(function(item){const excel=/\.(xlsx?|csv)$/i.test(item.original_name||'');return '<div class="list-item"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.file_category||'ملف')+' · '+esc(item.classification_status||'مصنف')+'</small></div><div class="item-actions"><button class="text-btn" type="button" data-smart-open="'+item.id+'">'+(excel?'تشغيل/تنزيل':'فتح')+'</button><button class="text-btn" type="button" data-smart-download="'+item.id+'">تنزيل</button></div></div>';}).join('')+'</section>';}).join(''));}catch(error){setText(box,error.message);}}
+async function fetchAuthenticatedAttachment(item){
+  const headers={};
+  if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+  const response=await fetch(API_BASE_URL+'/api/attachments/files/'+item.id,{credentials:'include',headers:headers});
+  if(!response.ok){
+    let message='تعذر تحميل الملف';
+    try{const data=await response.json();message=data.error||message;}catch(_error){}
+    throw new Error(message);
+  }
+  const blob=await response.blob();
+  return {blob:blob,url:URL.createObjectURL(blob)};
+}
+
+function downloadAttachmentBlob(item,blob,objectUrl){
+  const link=document.createElement('a');
+  link.href=objectUrl;
+  link.download=item.original_name||'ASAS-file';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function attachmentViewerKind(name){
+  const lower=String(name||'').toLowerCase();
+  if(/\.pdf$/.test(lower))return 'pdf';
+  if(/\.(jpg|jpeg|png|webp|gif|bmp)$/.test(lower))return 'image';
+  if(/\.(txt|csv|json|xml|log)$/.test(lower))return 'text';
+  if(/\.(doc|docx)$/.test(lower))return 'word';
+  if(/\.(xls|xlsx)$/.test(lower))return 'excel';
+  if(/\.(dwg|dxf)$/.test(lower))return 'cad';
+  if(/\.zip$/.test(lower))return 'zip';
+  return 'other';
+}
+
+function attachmentFormatLabel(kind,name){
+  const ext=(String(name||'').split('.').pop()||'FILE').toUpperCase();
+  const labels={pdf:'PDF',image:'Image',text:'Text',word:'Microsoft Word',excel:'Microsoft Excel',cad:'AutoCAD',zip:'ZIP',other:ext};
+  return labels[kind]||ext;
+}
+
+async function openAttachmentInViewer(item){
+  const fetched=await fetchAuthenticatedAttachment(item);
+  if(activeAttachmentObjectUrl)URL.revokeObjectURL(activeAttachmentObjectUrl);
+  activeAttachmentObjectUrl=fetched.url;
+  const kind=attachmentViewerKind(item.original_name);
+  const format=attachmentFormatLabel(kind,item.original_name);
+  const size=(fetched.blob.size/1024/1024).toFixed(fetched.blob.size>=1024*1024?2:3)+' MB';
+  let content='';
+  if(kind==='pdf'){
+    content='<iframe class="attachment-viewer-frame" src="'+esc(fetched.url)+'#toolbar=1&navpanes=1" title="'+esc(item.original_name||'PDF')+'"></iframe>';
+  }else if(kind==='image'){
+    content='<div class="attachment-image-stage"><img src="'+esc(fetched.url)+'" alt="'+esc(item.original_name||'صورة')+'"></div>';
+  }else if(kind==='text'){
+    const text=await fetched.blob.text();
+    content='<pre class="attachment-text-stage">'+esc(text.slice(0,1000000))+'</pre>';
+  }else{
+    content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(item.original_name||'ملف')+'</h3><p>الملف محفوظ في النظام بصيغته الأصلية دون تحويل. هذه الصيغة لا يضمن المتصفح عرض محتواها داخليًا بنفس برنامجها الأصلي، لذلك يمكنك تنزيل الأصل أو فتحه من الجهاز مع بقاء النسخة الأصلية داخل النظام.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
+  }
+  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Original File Viewer</span><h2>'+esc(item.original_name||'ملف')+'</h2><p>نسخة أصلية محفوظة · '+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-viewer-newtab>فتح في نافذة مستقلة</button><button class="btn primary" type="button" data-viewer-download>تنزيل الأصل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
+  const downloadButton=document.querySelector('[data-viewer-download]');
+  if(downloadButton)downloadButton.addEventListener('click',function(){downloadAttachmentBlob(item,fetched.blob,fetched.url);});
+  const newTabButton=document.querySelector('[data-viewer-newtab]');
+  if(newTabButton)newTabButton.addEventListener('click',function(){window.open(fetched.url,'_blank','noopener');});
+}
+
+async function authenticatedAttachmentDownload(item,openAfter){
+  if(openAfter)return openAttachmentInViewer(item);
+  const fetched=await fetchAuthenticatedAttachment(item);
+  downloadAttachmentBlob(item,fetched.blob,fetched.url);
+  setTimeout(function(){URL.revokeObjectURL(fetched.url);},30000);
+}
+
+async function loadSmartImports(section){const box=$('smartImportResults');if(!box)return;setText(box,'جارٍ تحميل الملفات المرتبة…');try{const rows=await api('/api/smart-imports?section='+encodeURIComponent(section));if(!rows.length){setText(box,'لا توجد ملفات مرفوعة في هذا القسم بعد.');return;}window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};rows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});const groups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'];setHtml(box,groups.map(function(group){const items=rows.filter(function(item){return (item.material_group||'أخرى')===group;});if(!items.length)return '';return '<section class="smart-material-group"><h3>'+esc(group)+' <span class="pill">'+items.length+'</span></h3>'+items.map(function(item){return '<div class="list-item"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.file_category||'ملف')+' · '+esc(item.classification_status||'مصنف')+'</small></div><div class="item-actions"><button class="text-btn" type="button" data-smart-open="'+item.id+'">فتح الملف</button><button class="text-btn" type="button" data-smart-download="'+item.id+'">تنزيل</button></div></div>';}).join('')+'</section>';}).join(''));}catch(error){setText(box,error.message);}}
 function smartSelectedFiles(form) {
   return Array.isArray(form.__selectedFiles) ? form.__selectedFiles : [];
 }
