@@ -341,3 +341,32 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0
 @media(max-width:620px){
   .dashboard-brand-hero.dashboard-logo-only{height:180px!important;min-height:180px!important;border-radius:18px!important}
 }
+
+
+/* V10.2.7 approved dashboard banner */
+.dashboard-brand-hero.dashboard-logo-only{
+  height:clamp(180px,15vw,235px)!important;
+  min-height:180px!important;
+  padding:14px 18px!important;
+  background:#eef1f1!important;
+}
+.dashboard-logo-only .dashboard-brand-lockup{
+  display:grid!important;
+  place-items:center!important;
+}
+.dashboard-logo-only .dashboard-brand-logo.dashboard-home-banner{
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  background:#eef1f1!important;
+  border-radius:0!important;
+  padding:0!important;
+}
+@media(max-width:900px){
+  .dashboard-brand-hero.dashboard-logo-only{height:190px!important;min-height:190px!important;padding:10px 12px!important}
+}
+@media(max-width:620px){
+  .dashboard-brand-hero.dashboard-logo-only{height:145px!important;min-height:145px!important;padding:8px!important}
+}
