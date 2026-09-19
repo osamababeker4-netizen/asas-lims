@@ -1075,8 +1075,10 @@ async function printReport(testId) {
 }
 
 function renderFieldTests() {
+  const pointOptions = Array.from({length:50}, function(_,i) { const n=String(i+1); return '<option value="'+n+'"'+(String(this.points||'')===n?' selected':'')+'>'+n+'</option>'; });
   setHtml($('fieldTests'), fieldTests.map(function(test,index) {
-    return '<div class="field-test-row"><select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="الاختبار الرسمي"><option value="">— اختر اختباراً رسمياً —</option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select><input data-field-test="' + index + '" data-field-key="result" value="' + esc(test.result || '') + '" placeholder="النتيجة / القراءات الميدانية"><input data-field-test="' + index + '" data-field-key="points" type="number" min="0" step="1" value="' + esc(test.points || '') + '" placeholder="عدد النقاط المأخوذة"><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
+    const points = Array.from({length:50}, function(_,i) { const n=String(i+1); return '<option value="'+n+'"'+(String(test.points||'')===n?' selected':'')+'>'+n+'</option>'; }).join('');
+    return '<div class="field-test-row"><label>نوع الاختبار<select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="الاختبار الرسمي"><option value="">— اختر اختباراً رسمياً —</option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select></label><label>النتيجة<select data-field-test="' + index + '" data-field-key="result"><option value="">— اختر النتيجة —</option><option value="ناجح"'+(test.result==='ناجح'?' selected':'')+'>ناجح</option><option value="راسب"'+(test.result==='راسب'?' selected':'')+'>راسب</option></select></label><label>عدد النقاط<select data-field-test="' + index + '" data-field-key="points"><option value="">— اختر عدد النقاط —</option>'+points+'</select></label><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
   }).join('') || '<div class="empty">اختر الاختبارات الرسمية المنفذة في هذه الزيارة.</div>');
 }
 
