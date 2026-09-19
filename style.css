@@ -261,3 +261,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0
   .dashboard-logo-only{min-height:150px;padding:16px}
   .dashboard-logo-only .dashboard-brand-logo{height:115px}
 }
+
+
+/* V10.2.5 clean brand assets */
+.brand-channel-icon{display:grid!important;place-items:center!important;width:72px!important;height:72px!important;border-radius:22px!important;background:#fff!important;border:1px solid #dce7e3!important;box-shadow:0 8px 20px rgba(10,70,80,.08)!important;overflow:hidden}
+.brand-channel-icon img{display:block;width:48px;height:48px;object-fit:contain}
+.whatsapp-channel .brand-channel-icon,.telegram-channel .brand-channel-icon{background:#fff!important;color:inherit!important}
+.whatsapp-channel .channel-link{background:#25D366!important;color:#fff!important}
+.telegram-channel .channel-link{background:#26A5E4!important;color:#fff!important}
+.dashboard-logo-only .dashboard-brand-logo{image-rendering:auto;filter:none!important}
+.login-logo,.brand img,.official-brand img,.dashboard-brand-logo{image-rendering:auto}

@@ -287,8 +287,8 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
         self.assertNotIn('ASAS OPERATIONS CENTER', html)
         self.assertNotIn('من العينة إلى التقرير — في مسار واحد واضح', html)
-        self.assertIn('src="asas-logo-primary.png" class="login-logo"', html)
-        self.assertIn('src="asas-logo-primary.png" class="dashboard-brand-logo"', html)
+        self.assertIn('src="logo.jpg" class="login-logo"', html)
+        self.assertIn('src="logo.jpg" class="dashboard-brand-logo"', html)
         self.assertIn('dashboard-logo-only', html)
         hero_start = html.index('<article class="dashboard-brand-hero dashboard-logo-only">')
         hero_end = html.index('</article>', hero_start)
@@ -318,25 +318,43 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('.profile-mini-menu', css)
         self.assertIn('.page-back', css)
 
-    def test_primary_logo_is_served_and_published(self):
+    def test_clean_primary_logo_and_messaging_brand_icons_are_served_and_published(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         server_source = (Path(__file__).parent / 'server.py').read_text(encoding='utf-8')
         sw = (Path(__file__).parent / 'sw.js').read_text(encoding='utf-8')
         pages = (Path(__file__).parent / '.github/workflows/deploy-pages.yml').read_text(encoding='utf-8')
-        self.assertIn("'/asas-logo-primary.png': ('asas-logo-primary.png', 'image/png')", server_source)
-        self.assertIn("'./asas-logo-primary.png'", sw)
-        self.assertIn('asas-logo-primary.png', pages)
+        self.assertIn('src="logo.jpg" class="login-logo"', html)
+        self.assertIn('src="logo.jpg" class="dashboard-brand-logo"', html)
+        self.assertNotIn('src="asas-logo-primary.png"', html)
+        self.assertIn('src="whatsapp-logo.svg"', html)
+        self.assertIn('src="telegram-logo.svg"', html)
+        self.assertNotIn('>WA</span>', html)
+        self.assertNotIn('>TG</span>', html)
+        self.assertIn("'/whatsapp-logo.svg': ('whatsapp-logo.svg', 'image/svg+xml; charset=utf-8')", server_source)
+        self.assertIn("'/telegram-logo.svg': ('telegram-logo.svg', 'image/svg+xml; charset=utf-8')", server_source)
+        self.assertIn("'./logo.jpg'", sw)
+        self.assertIn("'./whatsapp-logo.svg'", sw)
+        self.assertIn("'./telegram-logo.svg'", sw)
+        self.assertNotIn("'./asas-logo-primary.png'", sw)
+        self.assertIn('whatsapp-logo.svg', pages)
+        self.assertIn('telegram-logo.svg', pages)
         self.server.init()
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
         worker = threading.Thread(target=httpd.serve_forever)
         worker.start()
         try:
-            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
-            client.request('GET', '/asas-logo-primary.png')
-            response = client.getresponse()
-            body = response.read()
-            client.close()
-            self.assertEqual(response.status, 200)
-            self.assertTrue(body.startswith(b'\x89PNG\r\n\x1a\n'))
+            for path, signature in (
+                ('/logo.jpg', b'\xff\xd8\xff'),
+                ('/whatsapp-logo.svg', b'<svg'),
+                ('/telegram-logo.svg', b'<svg'),
+            ):
+                client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+                client.request('GET', path)
+                response = client.getresponse()
+                body = response.read()
+                client.close()
+                self.assertEqual(response.status, 200)
+                self.assertTrue(body.startswith(signature))
         finally:
             httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
 
