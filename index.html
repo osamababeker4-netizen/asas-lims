@@ -606,6 +606,13 @@
         }
       });
 
+      const blobToDataURL = (blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error || new Error('تعذر قراءة الصورة'));
+        reader.readAsDataURL(blob);
+      });
+
       // الإرسال الآمن عبر خادم أساس؛ لا يتم كشف رمز البوت في المتصفح.
       const uniquePhotos = [];
       const seenPhotos = new Set();
