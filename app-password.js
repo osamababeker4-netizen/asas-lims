@@ -432,6 +432,7 @@ function optionList(items, selected, label, value) {
 }
 
 function navigate(page) {
+  if (page === 'field') setTimeout(fillFieldReadyOptions,0);
   document.querySelectorAll('.page').forEach(function(element) { element.classList.remove('active'); });
   const target = $(page);
   if (!target) return;
@@ -1072,6 +1073,18 @@ async function printReport(testId) {
   const inputRows = Object.keys(report.data.inputs || {}).map(function(key) { return '<tr><th>' + esc(key) + '</th><td>' + esc(report.data.inputs[key]) + '</td></tr>'; }).join('');
   const resultRows = Object.keys(report.data.results || {}).map(function(key) { return '<tr><th>' + esc(key) + '</th><td>' + esc(report.data.results[key]) + '</td></tr>'; }).join('');
   modal('<section class="report-preview">' + '<h1>' + escUI(report.lab_name) + '</h1><h2>تقرير اختبار</h2><table><tr><th>رقم التقرير</th><td>' + esc(report.report_no) + '</td></tr><tr><th>رقم الاختبار</th><td>' + esc(report.test_no) + '</td></tr><tr><th>العينة</th><td>' + esc(report.sample_no) + '</td></tr><tr><th>الاختبار</th><td>' + escUI(report.name_ar) + '</td></tr><tr><th>المعيار</th><td>' + esc(report.standard) + '</td></tr><tr><th>الحالة</th><td>' + escUI(report.status) + '</td></tr></table><h3>المدخلات</h3><table>' + (inputRows || '<tr><td>—</td></tr>') + '</table><h3>النتائج</h3><table>' + (resultRows || '<tr><td>—</td></tr>') + '</table>' + '</section><button class="btn primary no-print" type="button" data-print-preview>طباعة</button>');
+}
+
+function fillFieldReadyOptions() {
+  if (!dashboard) return;
+  const setOptions = function(id, values) { const el=$(id); if(!el)return; const unique=[...new Set(values.filter(Boolean).map(String))]; setHtml(el, unique.map(function(v){return '<option value="'+esc(v)+'"></option>';}).join('')); };
+  const visits=Array.isArray(dashboard.field_visits)?dashboard.field_visits:[];
+  setOptions('fieldLicenseOptions', visits.map(function(v){return v.license_no;}));
+  setOptions('fieldContractorOptions', visits.map(function(v){return v.contractor_name;}));
+  setOptions('fieldProjectOptions', (dashboard.projects||[]).map(function(v){return v.name;}).concat(visits.map(function(v){return v.project_name;})));
+  setOptions('fieldProjectIdOptions', (dashboard.projects||[]).map(function(v){return v.id;}));
+  setOptions('fieldSampleIdOptions', (dashboard.samples||[]).map(function(v){return v.id;}));
+  setOptions('fieldLocationOptions', (dashboard.projects||[]).map(function(v){return v.location;}).concat(visits.map(function(v){return v.location;})));
 }
 
 function renderFieldTests() {
