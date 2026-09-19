@@ -1216,6 +1216,7 @@ function bindEvents() {
   $('openUser').addEventListener('click',function() { openUserForm(); });
   $('openBalady').addEventListener('click',openBaladyWindow);
   $('searchLicenseBtn').addEventListener('click',searchLicense);
+  if (navigator.geolocation) getLocation();
   $('openFieldCamera').addEventListener('click',function() { $('fieldCameraInput').click(); });
   $('openFieldGallery').addEventListener('click',function() { $('fieldGalleryInput').click(); });
   $('fieldCameraInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
