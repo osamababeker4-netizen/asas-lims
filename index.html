@@ -621,7 +621,7 @@
       }
       capturedPhotos = []; // تفريغ الذاكرة
     } catch (err) {
-      console.warn("تنبيه الإرسال:", err);
+      console.warn("تنبيه الإرسال:", err); alert("تعذر إرسال المسودة إلى تليجرام: " + (err && err.message ? err.message : "خطأ غير معروف"));
     } finally {
       setTimeout(() => { isDispatching = false; }, 800);
     }
@@ -633,7 +633,7 @@
     if (!btn) return;
     const txt = (btn.textContent || btn.value || '').trim();
 
-    if (txt.includes('حفظ الزيارة') || txt.includes('إرسال المسودة') || txt.includes('إرسال إلى تليجرام')) {
+    if (txt.includes('حفظ الزيارة') || txt === 'إرسال' || txt.includes('إرسال المسودة') || txt.includes('إرسال إلى تليجرام')) {
       setTimeout(() => sendTelegramFieldDraft(btn), 50);
     }
   });
