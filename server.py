@@ -2119,6 +2119,30 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json({'ok': True, 'imported': imported, 'total': len(imported), 'matched': matched,
                                        'review': len(imported) - matched, 'skipped': skipped})
 
+            if path == '/api/catalog':
+                if user.get('role') not in {'admin','general_manager','technical_manager','laboratory_manager','quality_manager','quality_officer','manager'}:
+                    return self.send_json({'error': 'إضافة اختبار جديد متاحة للمستخدم المخول فقط'}, 403)
+                category = str(data.get('category') or '').strip()
+                code = str(data.get('code') or '').strip()
+                name_ar = str(data.get('name_ar') or '').strip()
+                name_en = str(data.get('name_en') or '').strip()
+                standard = str(data.get('standard') or '').strip()
+                version = str(data.get('version') or '').strip()
+                notes = str(data.get('notes') or '').strip()
+                if category not in {'خرسانة','تربة','أسفلت','الحقل وNDT'}:
+                    return self.send_json({'error': 'التصنيف يجب أن يكون خرسانة أو تربة أو أسفلت أو الحقل وNDT'}, 400)
+                if not code or not name_ar or not standard:
+                    return self.send_json({'error': 'كود الاختبار والاسم والمواصفة مطلوبة'}, 400)
+                existing = connection.execute('select id,code,category from test_catalog where lower(code)=lower(?)', (code,)).fetchone()
+                if existing:
+                    return self.send_json({'error': 'يوجد اختبار بهذا الكود بالفعل'}, 409)
+                cursor = connection.execute('''insert into test_catalog(code,name_ar,name_en,category,standard,version,notes,active)
+                    values(?,?,?,?,?,?,?,1)''', (code[:80], name_ar[:240], name_en[:240], category, standard[:240], version[:80], notes[:1000]))
+                catalog_id = cursor.lastrowid
+                audit(connection, user['id'], 'إضافة اختبار إلى الكتالوج', 'test_catalog', catalog_id, code + ' - ' + name_ar)
+                connection.commit(); publish_event('catalog', 'create', catalog_id)
+                return self.send_json({'ok': True, 'id': catalog_id, 'code': code, 'category': category})
+
             if path == '/api/catalog/resources':
                 if not self.require_permission(user, 'quality'):
                     return
