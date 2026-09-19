@@ -364,6 +364,14 @@ def migrate_schema(connection):
         for name, definition in columns:
             if name not in existing:
                 connection.execute('alter table ' + table + ' add column ' + definition)
+    connection.execute('''create table if not exists upload_receipts(
+        upload_id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        section TEXT NOT NULL,
+        response_json TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )''')
+    connection.execute('create index if not exists idx_upload_receipts_created on upload_receipts(created_at)')
     connection.execute('create index if not exists idx_projects_due_date on projects(due_date)')
     connection.execute(
         "update settings set value=? where key='whatsapp_group_url' and (value is null or value='' or value=?)",
@@ -2080,6 +2088,15 @@ class H(BaseHTTPRequestHandler):
                 section = str(data.get('section') or '')
                 if not smart_section_allowed(user, section):
                     return self.send_json({'error': 'لا تملك صلاحية هذا القسم'}, 403)
+                upload_id = str(data.get('upload_id') or '').strip()[:160]
+                if upload_id:
+                    receipt = connection.execute('select response_json from upload_receipts where upload_id=? and user_id=?', (upload_id, user['id'])).fetchone()
+                    if receipt:
+                        try:
+                            return self.send_json(json.loads(receipt['response_json']))
+                        except (TypeError, json.JSONDecodeError):
+                            connection.execute('delete from upload_receipts where upload_id=?', (upload_id,))
+                            connection.commit()
                 try:
                     encoded = str(data.get('file_base64') or '')
                     content = base64.b64decode(encoded, validate=True)
@@ -2114,10 +2131,15 @@ class H(BaseHTTPRequestHandler):
                     connection.rollback()
                     return self.send_json({'error': str(error)}, 400)
                 matched = sum(1 for item in imported if item['entity_id'])
+                response_payload = {'ok': True, 'imported': imported, 'total': len(imported), 'matched': matched,
+                                    'review': len(imported) - matched, 'skipped': skipped}
                 audit(connection, user['id'], 'إرفاق وفرز ذكي', section, 0, '{} ملف، {} مرتبط'.format(len(imported), matched))
+                if upload_id:
+                    connection.execute('insert or replace into upload_receipts(upload_id,user_id,section,response_json) values(?,?,?,?)',
+                                       (upload_id, user['id'], section, json.dumps(response_payload, ensure_ascii=False)))
+                    connection.execute("delete from upload_receipts where created_at < datetime('now','-7 day')")
                 connection.commit(); publish_event(section, 'smart_import', 0)
-                return self.send_json({'ok': True, 'imported': imported, 'total': len(imported), 'matched': matched,
-                                       'review': len(imported) - matched, 'skipped': skipped})
+                return self.send_json(response_payload)
 
             if path == '/api/catalog':
                 if user.get('role') not in {'admin','general_manager','technical_manager','laboratory_manager','quality_manager','quality_officer','manager'}:
