@@ -180,7 +180,7 @@
               <div id="fieldTests"></div>
             </div>
             <label>ملاحظات ميدانية<textarea id="fieldNotes" rows="4"></textarea></label>
-            <button id="saveFieldVisit" class="btn primary wide" type="button">حفظ الزيارة الميدانية</button>
+            <button id="saveFieldVisit" class="btn primary wide" type="button">إرسال</button>
             <p id="fieldMessage" class="form-message"></p>
           </article>
           <article class="panel"><div class="panel-heading"><h3>آخر الزيارات</h3></div><div id="fieldRecent" class="stack-list"></div></article>
@@ -444,68 +444,18 @@
 
   // 3. محرك فحص شامل لجميع الاختبارات (تربة، خرسانة، أسفلت، كيمياء، فيزياء - ASTM)
   function extractAllDynamicTests(container) {
-    let collectedTests = [];
     const BLANK_RESULT_TEXT = 'لم تُسجل النتيجة ⏳';
-
-    // مسح كافة العناصر تحت قسم "اختبارات الزيارة" أو الجداول أو الصفوف المضافة
-    const testItems = container.querySelectorAll('.test-item, .test-row, .field-test-item, table tbody tr, table tr, [data-test-id]');
-
-    testItems.forEach(item => {
-      if (item.querySelector('th')) return; // تجاهل العناوين
-      const text = item.textContent || '';
-
-      // البحث عن اسم الاختبار أو القائمة المنسدلة
-      let testName = '';
-      let testStandard = '';
-
-      const selTest = item.querySelector('select:not([name*="res"]):not([name*="status"])');
-      if (selTest && selTest.value) {
-        testName = selTest.options[selTest.selectedIndex]?.text || selTest.value;
-      } else {
-        const cells = Array.from(item.querySelectorAll('td, span, div, strong')).map(c => c.textContent.trim()).filter(Boolean);
-        const foundAstm = cells.find(t => /ASTM/i.test(t) || /AASHTO/i.test(t) || /^[DC]\s*\d+/i.test(t));
-        if (foundAstm) testStandard = foundAstm;
-
-        const foundTitle = cells.find(t => 
-          t.includes('تربة') || t.includes('خرسانة') || t.includes('أسفلت') || t.includes('اسفلت') || 
-          t.includes('كيميائ') || t.includes('فيزيائ') || t.includes('كثافة') || t.includes('هبوط') || 
-          t.includes('بروكتور') || t.includes('ضغط') || t.includes('شد') || t.includes('تدرج') || 
-          t.includes('سيلت') || t.includes('أملاح') || t.includes('كلوريد') || t.includes('كبريتات') || 
-          t.includes('مارشال') || t.includes('تصنيف') || t.includes('حدود')
-        );
-
-        if (foundTitle) testName = foundTitle;
-        else if (cells[1] && cells[1].length > 2) testName = cells[1];
-        else if (cells[0] && cells[0].length > 2) testName = cells[0];
-      }
-
-      if (!testName || testName.includes('حذف') || testName.includes('تعديل') || testName.includes('إجراء') || testName.length < 3) return;
-      if (testStandard && !testName.includes(testStandard)) testName = `${testName} (${testStandard})`;
-
-      // فرز النتيجة بدقة تامة
-      let badge = BLANK_RESULT_TEXT;
-      const resSelect = item.querySelector('select[name*="res"], select[name*="status"], select.result-select');
-      let resVal = resSelect ? (resSelect.options[resSelect.selectedIndex]?.text || resSelect.value) : '';
-
-      if (!resVal) {
-        const checkedRadio = item.querySelector('input[type="radio"]:checked');
-        resVal = checkedRadio ? checkedRadio.value : text;
-      }
-
-      if (resVal.includes('ناجح') || resVal.includes('مطابق') || /pass/i.test(resVal)) {
-        badge = 'ناجح ✅';
-      } else if (resVal.includes('راسب') || resVal.includes('فاشل') || resVal.includes('غير مطابق') || /fail/i.test(resVal)) {
-        badge = 'راسب ❌';
-      } else {
-        badge = BLANK_RESULT_TEXT;
-      }
-
-      testName = testName.replace(/[\n\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
-      collectedTests.push(`🕳 الاختبار الرسمي : ${testName} : ${badge}`);
-    });
-
-    collectedTests = [...new Set(collectedTests)];
-    return collectedTests.length > 0 ? collectedTests.join('\n') : `🕳 الاختبار الرسمي : فحص المواد والموقع الميداني : ${BLANK_RESULT_TEXT}`;
+    const tests = (typeof fieldTests !== 'undefined' && Array.isArray(fieldTests)) ? fieldTests : [];
+    if (tests.length) {
+      return tests.map(function(test) {
+        const cat = (typeof catalog !== 'undefined' && Array.isArray(catalog)) ? catalog.find(function(item) { return String(item.id) === String(test.catalog_id); }) : null;
+        const type = cat ? ((cat.category ? cat.category + ' — ' : '') + (cat.code || '') + ' — ' + (cat.name_ar || '')) : (test.name || 'اختبار ميداني');
+        const result = String(test.result || '').trim() || BLANK_RESULT_TEXT;
+        const points = String(test.points || '').trim() || 'غير مدخل';
+        return '🧪 نوع الاختبار : ' + type + '\n📊 النتيجة : ' + result + '\n📍 عدد النقاط المأخوذة : ' + points;
+      }).join('\n───────────────────\n');
+    }
+    return '🧪 نوع الاختبار : غير مدخل\n📊 النتيجة : ' + BLANK_RESULT_TEXT + '\n📍 عدد النقاط المأخوذة : غير مدخل';
   }
 
   // 4. سحب الإحداثيات الجغرافية الحقيقية من الشاشة أو الـ GPS
@@ -521,7 +471,7 @@
   }
 
   // 5. بناء وإرسال المسودة لتليجرام ديناميكياً 100%
-  async function sendTelegramFieldDraft(triggerEl) {
+  window.sendTelegramFieldDraft = async function sendTelegramFieldDraft(triggerEl) {
     if (isDispatching) return;
     isDispatching = true;
 
@@ -632,23 +582,15 @@
         throw new Error('تعذر الوصول إلى جلسة نظام أساس');
       }
       capturedPhotos = []; // تفريغ الذاكرة
+      return true;
     } catch (err) {
-      console.warn("تنبيه الإرسال:", err); alert("تعذر إرسال المسودة إلى تليجرام: " + (err && err.message ? err.message : "خطأ غير معروف"));
+      console.warn("تنبيه الإرسال:", err); alert("تعذر إرسال المسودة إلى تليجرام: " + (err && err.message ? err.message : "خطأ غير معروف")); return false;
     } finally {
       setTimeout(() => { isDispatching = false; }, 800);
     }
   }
 
-  // الاستماع لزر "حفظ الزيارة الميدانية" وزر "إرسال"
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('button, input[type="submit"], .btn');
-    if (!btn) return;
-    const txt = (btn.textContent || btn.value || '').trim();
-
-    if (txt.includes('حفظ الزيارة') || txt === 'إرسال' || txt.includes('إرسال المسودة') || txt.includes('إرسال إلى تليجرام')) {
-      setTimeout(() => sendTelegramFieldDraft(btn), 50);
-    }
-  });
+  // الإرسال يتم من زر الحقل مباشرة عبر app-password.js لمنع الحفظ أو الإرسال المكرر.
 
 })();
 </script>
