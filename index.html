@@ -8,14 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="logo.jpg">
+  <link rel="apple-touch-icon" href="asas-logo-primary.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-1-0-expanded-field">
+  <link rel="stylesheet" href="style.css?v=10-2-4-user-menu">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
-      <img src="logo.jpg" class="login-logo" alt="شعار مختبر أساس">
+      <img src="asas-logo-primary.png" class="login-logo" alt="شعار شركة مختبر أساس">
       <span class="login-edition">ASAS LIMS · V10 Professional</span>
       <h1>تسجيل دخول النظام</h1>
       <form id="loginForm" class="form-stack">
@@ -40,7 +40,7 @@
   <div id="app" class="app-shell hidden">
     <aside id="sidebar" class="sidebar">
       <div class="brand">
-        <img src="logo.jpg" alt="شعار مختبر أساس">
+        <img src="asas-logo-primary.png" alt="شعار شركة مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
         <small class="release-chip">V10.1 · Expanded Field</small>
@@ -71,7 +71,7 @@
     <main class="main-content">
       <header class="official-header" aria-label="هوية مختبر أساس">
         <a class="official-brand" href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">
-          <img src="logo.jpg" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية">
+          <img src="asas-logo-primary.png" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية">
           <span><strong>مختبر أساس</strong><small>بيانات هندسية دقيقة لكل مرحلة من مشروعك</small></span>
         </a>
         <nav class="official-links" aria-label="روابط أساس الرسمية">
@@ -83,23 +83,33 @@
       <header class="topbar">
         <div class="topbar-title">
           <button id="menuBtn" class="icon-btn" type="button" aria-label="فتح القائمة">☰</button>
+          <button id="pageBack" class="page-back hidden" type="button" aria-label="الرجوع إلى الصفحة السابقة">← رجوع</button>
           <div>
             <p class="eyebrow" id="pageKicker">إدارة المختبر</p>
             <h2 id="pageTitle">الرئيسية</h2>
           </div>
         </div>
-        <div class="user-chip"><span id="saudiClock" class="muted">توقيت السعودية: —</span><button id="syncNow" class="text-btn" type="button">مزامنة الآن</button><button id="openProfile" class="profile-summary" type="button" aria-label="فتح الملف الشخصي"><img id="currentUserAvatar" class="user-avatar" src="logo.jpg" alt="صورة المستخدم"><span><strong id="currentUsername">اسم المستخدم</strong><small id="currentUser">—</small></span></button><button id="changePassword" class="text-btn" type="button">تغيير كلمة المرور</button></div>
+        <div class="profile-menu-wrap">
+          <button id="profileMenuToggle" class="profile-summary fixed-profile" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="إعدادات المستخدم">
+            <img id="currentUserAvatar" class="user-avatar" src="asas-logo-primary.png" alt="صورة المستخدم">
+            <span><strong id="currentUsername">اسم المستخدم</strong><small id="currentUser">الصفة</small></span>
+            <span class="profile-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div id="profileMenu" class="profile-mini-menu hidden" role="menu">
+            <button type="button" data-profile-action="profile" role="menuitem">الملف الشخصي</button>
+            <button type="button" data-profile-action="avatar" role="menuitem">تغيير الصورة</button>
+            <button type="button" data-profile-action="password" role="menuitem">تغيير كلمة المرور</button>
+            <button type="button" data-profile-action="language" role="menuitem">تغيير اللغة</button>
+            <button id="profileSettingsAction" type="button" data-profile-action="settings" role="menuitem">إعدادات النظام</button>
+            <button type="button" data-profile-action="logout" role="menuitem" class="danger-item">تسجيل الخروج</button>
+          </div>
+        </div>
       </header>
 
       <section id="dashboard" class="page active">
-        <article class="dashboard-brand-hero">
+        <article class="dashboard-brand-hero dashboard-logo-only">
           <div class="dashboard-brand-lockup">
-            <img src="logo.jpg" class="dashboard-brand-logo" alt="شعار مختبر أساس">
-            <h2>شريكك الاستراتيجي في كل اختبارات مشروعك</h2>
-          </div>
-          <div class="dashboard-brand-actions">
-            <button class="btn hero-primary" data-open-project type="button">مشروع جديد</button>
-            <button class="btn hero-secondary" data-page-go="field" type="button">زيارة ميدانية</button>
+            <img src="asas-logo-primary.png" class="dashboard-brand-logo" alt="شعار شركة مختبر أساس">
           </div>
         </article>
         <div class="page-heading">
@@ -406,10 +416,10 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=10-1-0-expanded-field"></script>
-  <script src="i18n.js?v=10-1-0-expanded-field"></script>
-  <script src="app-password.js?v=10-1-0-expanded-field"></script>
-  <script src="branch-map.js?v=10-1-0-expanded-field"></script>
+  <script src="runtime-config.js?v=10-2-4-user-menu"></script>
+  <script src="i18n.js?v=10-2-4-user-menu"></script>
+  <script src="app-password.js?v=10-2-4-user-menu"></script>
+  <script src="branch-map.js?v=10-2-4-user-menu"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
