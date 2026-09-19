@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.jpg">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=9-2-1-field-send">
+  <link rel="stylesheet" href="style.css?v=9-2-2-field-options">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -163,14 +163,15 @@
           <article class="panel">
             <div class="panel-heading"><h3>زيارة ميدانية جديدة</h3><button id="searchLicenseBtn" class="text-btn" type="button">بحث برقم الرخصة</button></div>
             <div class="form-grid">
-              <label>رقم الرخصة<input id="fieldLicense" required></label>
-              <label>المقاول<input id="fieldContractor"></label>
-              <label>اسم المشروع<input id="fieldProjectName"></label>
-              <label>القطاع<input id="fieldSector"></label>
-              <label>رقم الطبقة<input id="fieldLayer"></label>
-              <label>معرف المشروع<input id="fieldProjectId" type="number" min="1"></label>
-              <label>معرف العينة<input id="fieldSampleId" type="number" min="1"></label>
-              <label>الموقع<input id="fieldLocation"></label>
+              <label>رقم الرخصة<input id="fieldLicense" list="fieldLicenseOptions" required placeholder="اختر أو اكتب رقم الرخصة"></label>
+              <label>المقاول<input id="fieldContractor" list="fieldContractorOptions" placeholder="اختر أو اكتب اسم المقاول"></label>
+              <label>اسم المشروع<input id="fieldProjectName" list="fieldProjectOptions" placeholder="اختر أو اكتب اسم المشروع"></label>
+              <label>القطاع<input id="fieldSector" list="fieldSectorOptions" placeholder="اختر أو اكتب القطاع"></label>
+              <label>رقم الطبقة<input id="fieldLayer" list="fieldLayerOptions" placeholder="اختر أو اكتب رقم الطبقة"></label>
+              <label>معرف المشروع<input id="fieldProjectId" list="fieldProjectIdOptions" inputmode="numeric" placeholder="اختر أو اكتب معرف المشروع"></label>
+              <label>معرف العينة<input id="fieldSampleId" list="fieldSampleIdOptions" inputmode="numeric" placeholder="اختر أو اكتب معرف العينة"></label>
+              <label>الموقع<input id="fieldLocation" list="fieldLocationOptions" placeholder="اختر أو اكتب الموقع"></label>
+              <datalist id="fieldLicenseOptions"></datalist><datalist id="fieldContractorOptions"></datalist><datalist id="fieldProjectOptions"></datalist><datalist id="fieldSectorOptions"><option value="335"></option></datalist><datalist id="fieldLayerOptions"><option value="1"></option><option value="2"></option><option value="3"></option><option value="4"></option><option value="5"></option><option value="6"></option><option value="7"></option><option value="8"></option><option value="9"></option><option value="10"></option><option value="11"></option><option value="12"></option><option value="13"></option><option value="14"></option><option value="15"></option><option value="16"></option><option value="17"></option><option value="18"></option><option value="19"></option><option value="20"></option><option value="21"></option><option value="22"></option><option value="23"></option><option value="24"></option><option value="25"></option><option value="26"></option><option value="27"></option><option value="28"></option><option value="29"></option><option value="30"></option><option value="31"></option><option value="32"></option><option value="33"></option><option value="34"></option><option value="35"></option><option value="36"></option><option value="37"></option><option value="38"></option><option value="39"></option><option value="40"></option><option value="41"></option><option value="42"></option><option value="43"></option><option value="44"></option><option value="45"></option><option value="46"></option><option value="47"></option><option value="48"></option><option value="49"></option><option value="50"></option></datalist><datalist id="fieldProjectIdOptions"></datalist><datalist id="fieldSampleIdOptions"></datalist><datalist id="fieldLocationOptions"></datalist>
             </div>
             <div class="field-actions"><button id="getLocationBtn" class="btn secondary" type="button">تحديد الموقع</button><span id="gpsStatus" class="muted">لم يتم تحديد الموقع</span></div>
             <div id="coordinatesCard" class="coordinates-card hidden" aria-live="polite"><div><small>خط العرض</small><strong id="fieldLatitude">—</strong></div><div><small>خط الطول</small><strong id="fieldLongitude">—</strong></div><div><small>الدقة</small><strong id="fieldAccuracy">—</strong></div><a id="fieldMapLink" class="btn secondary" target="_blank" rel="noopener noreferrer">عرض على الخريطة</a></div>
@@ -340,17 +341,17 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=9-2-1-field-send"></script>
-  <script src="i18n.js?v=9-2-1-field-send"></script>
-  <script src="app-password.js?v=9-2-1-field-send"></script>
-  <script src="branch-map.js?v=9-2-1-field-send"></script>
+  <script src="runtime-config.js?v=9-2-2-field-options"></script>
+  <script src="i18n.js?v=9-2-2-field-options"></script>
+  <script src="app-password.js?v=9-2-2-field-options"></script>
+  <script src="branch-map.js?v=9-2-2-field-options"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v9-2-1-field-send'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v9-2-2-field-options'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=9-2-1-field-send', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=9-2-2-field-options', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>
