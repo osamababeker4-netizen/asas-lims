@@ -1076,7 +1076,7 @@ async function printReport(testId) {
 
 function renderFieldTests() {
   setHtml($('fieldTests'), fieldTests.map(function(test,index) {
-    return '<div class="field-test-row"><select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="الاختبار الرسمي"><option value="">— اختر اختباراً رسمياً —</option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select><input data-field-test="' + index + '" data-field-key="result" value="' + esc(test.result) + '" placeholder="النتيجة / القراءات الميدانية"><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
+    return '<div class="field-test-row"><select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="الاختبار الرسمي"><option value="">— اختر اختباراً رسمياً —</option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select><input data-field-test="' + index + '" data-field-key="result" value="' + esc(test.result || '') + '" placeholder="النتيجة / القراءات الميدانية"><input data-field-test="' + index + '" data-field-key="points" type="number" min="0" step="1" value="' + esc(test.points || '') + '" placeholder="عدد النقاط المأخوذة"><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
   }).join('') || '<div class="empty">اختر الاختبارات الرسمية المنفذة في هذه الزيارة.</div>');
 }
 
@@ -1165,16 +1165,15 @@ async function uploadFieldPhotos(visitId) {
 async function saveFieldVisit() {
   const license = $('fieldLicense').value.trim();
   if (!license) return showToast('رقم الرخصة مطلوب',true);
+  if (!fieldTests.length) return showToast('اختر نوع الاختبار قبل الإرسال',true);
   try {
-    const result = await api('/api/field/visits',{method:'POST',body:JSON.stringify({
-      license_no:license,contractor_name:$('fieldContractor').value,project_name:$('fieldProjectName').value,sector_name:$('fieldSector').value,layer_no:$('fieldLayer').value,location:$('fieldLocation').value,latitude:fieldLat,longitude:fieldLng,project_id:$('fieldProjectId').value || null,sample_id:$('fieldSampleId').value || null,tests:fieldTests.map(syncFieldTestCatalog).filter(function(test) { return test.catalog_id; }),notes:$('fieldNotes').value,status:'مسودة',balady_permit_no:$('field').dataset.balady_permit_no || '',balady_municipality:$('field').dataset.balady_municipality || '',balady_permit_type:$('field').dataset.balady_permit_type || '',balady_permit_status:$('field').dataset.balady_permit_status || '',balady_reference_url:$('field').dataset.balady_reference_url || ''
-    })});
-    if (fieldPhotos.length) await uploadFieldPhotos(result.id);
-    setText($('fieldMessage'), 'تم حفظ الزيارة رقم ' + result.id + (fieldPhotos.length ? ' مع ' + fieldPhotos.length + ' صورة' : ''));
-    fieldTests = []; fieldPhotos = []; renderFieldTests(); renderFieldPhotos(); await loadFieldRecent(); await refresh();
-  } catch (error) { setText($('fieldMessage'), error.message); }
+    if (typeof window.sendTelegramFieldDraft !== 'function') throw new Error('خدمة إرسال Telegram غير جاهزة');
+    const result = await window.sendTelegramFieldDraft($('saveFieldVisit'));
+    if (result === false) return;
+    setText($('fieldMessage'), 'تم إرسال الزيارة إلى Telegram' + (fieldPhotos.length ? ' مع ' + fieldPhotos.length + ' صورة' : ''));
+    fieldTests = []; fieldPhotos = []; renderFieldTests(); renderFieldPhotos();
+  } catch (error) { setText($('fieldMessage'), error.message); showToast(error.message,true); }
 }
-
 async function loadFieldRecent() {
   try {
     const rows = await api('/api/field/recent');
@@ -1219,7 +1218,7 @@ function bindEvents() {
   $('openFieldGallery').addEventListener('click',function() { $('fieldGalleryInput').click(); });
   $('fieldCameraInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
   $('fieldGalleryInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
-  $('addFieldTest').addEventListener('click',function() { if (!catalog.length) return showToast('يجري تحميل كتالوج الاختبارات، حاول بعد لحظة',true); if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true); fieldTests.push({catalog_id:'',name:'',standard:'',result:''}); renderFieldTests(); });
+  $('addFieldTest').addEventListener('click',function() { if (!catalog.length) return showToast('يجري تحميل كتالوج الاختبارات، حاول بعد لحظة',true); if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true); fieldTests.push({catalog_id:'',name:'',standard:'',result:'',points:''}); renderFieldTests(); });
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
   $('syncNow').addEventListener('click',function(){syncNow(true).catch(function(error){showToast(error.message,true);});});
   $('clearAudit').addEventListener('click',function(){clearAuditLog().catch(function(error){showToast(error.message,true);});});
