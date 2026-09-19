@@ -1127,7 +1127,6 @@ class H(BaseHTTPRequestHandler):
             '/logo.jpg': ('logo.jpg', 'image/jpeg'),
             '/whatsapp-logo.svg': ('whatsapp-logo.svg', 'image/svg+xml; charset=utf-8'),
             '/telegram-logo.svg': ('telegram-logo.svg', 'image/svg+xml; charset=utf-8'),
-            '/asas-logo-primary.png': ('asas-logo-primary.png', 'image/png'),
             '/i18n.js': ('i18n.js', 'application/javascript; charset=utf-8'),
             '/branch-map.js': ('branch-map.js', 'application/javascript; charset=utf-8'),
             '/field-test-guide.html': ('field-test-guide.html', 'text/html; charset=utf-8'),
