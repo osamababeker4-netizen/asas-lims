@@ -1250,6 +1250,7 @@ function openSmartImportPanel(section){
   modal('<h2>إرفاق ملف — '+esc(SMART_SECTION_LABELS[section]||section)+'</h2><p>يمكنك الاختيار بالطريقة الآمنة أو سحب الملفات وإفلاتها. الطريقة الآمنة تبدأ من مجلد التنزيلات لتجنب مسارات Windows القديمة أو غير المتاحة.</p><form id="smartImportForm"><input type="hidden" name="section" value="'+esc(section)+'"><label>نوع الملف<select id="smartFileType"><option value="all">جميع الملفات المدعومة</option><option value=".xls,.xlsx,.csv">Excel / CSV</option><option value=".pdf">PDF</option><option value=".doc,.docx">Word</option><option value=".jpg,.jpeg,.png,.webp,.heic">صور</option><option value=".txt">نصوص TXT</option><option value=".zip">ZIP</option><option value=".dwg,.dxf">AutoCAD DWG / DXF</option></select></label><input name="files" id="smartNativeFileInput" class="hidden" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.zip,.dwg,.dxf"><div class="smart-upload-actions"><button id="safeSmartPicker" class="btn primary" type="button">اختيار ملفات بأمان</button><button id="nativeSmartPicker" class="btn secondary" type="button">فتح مستكشف الملفات</button></div><div id="smartDropZone" class="smart-drop-zone" tabindex="0"><strong>اسحب الملفات هنا وأفلتها</strong><span>PDF · Word · Excel · CSV · صور · ZIP · DWG · DXF</span></div><div id="smartSelectedFiles" class="smart-selected-files"></div><p class="form-note">يمكن رفع أي عدد من الملفات. إذا فشل ملف واحد يستمر رفع بقية الملفات ويظهر تقرير الملفات المتجاوزة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">إرفاق وتحميل</button></div></form><div id="smartImportSummary" class="import-summary"></div><div id="smartImportResults" class="stack-list"></div>');
   const form=$('smartImportForm'), type=$('smartFileType'), input=$('smartNativeFileInput'), drop=$('smartDropZone');
   form.__selectedFiles=[];
+  form.__uploadTokens={};
   renderSmartSelectedFiles(form);
   if(type&&input)type.addEventListener('change',function(){input.accept=this.value==='all'?'.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.zip,.dwg,.dxf':this.value;});
   input.addEventListener('change',function(){setSmartSelectedFiles(form,this.files,true);this.value='';});
@@ -1262,8 +1263,111 @@ function openSmartImportPanel(section){
   loadSmartImports(section);
 }
 
-async function smartFileBase64(file){if(file.size>25*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 25MB');const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));return btoa(binary);}
-async function submitSmartImport(form){const files=smartSelectedFiles(form).length?smartSelectedFiles(form).slice():Array.from(form.elements.files.files||[]);if(!files.length)throw new Error('اختر ملفًا واحدًا على الأقل');const section=form.elements.section.value;const button=form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');const summary=$('smartImportSummary');if(button)button.disabled=true;if(summary)setText(summary,'بدأ رفع '+files.length+' ملف…');let total=0,matched=0,review=0;const succeeded=[],failed=[];try{for(let index=0;index<files.length;index+=1){const file=files[index];if(button)setText(button,'جارٍ رفع '+(index+1)+' من '+files.length);try{if(/\.rar$/i.test(file.name))throw new Error('صيغة RAR غير مدعومة؛ استخدم ZIP');const result=await api('/api/smart-import',{method:'POST',body:JSON.stringify({section:section,file_name:file.name,file_base64:await smartFileBase64(file)})});total+=result.total;matched+=result.matched;review+=result.review;(result.imported||[]).forEach(function(item){succeeded.push({name:item.name,group:item.material_group||'أخرى'});});(result.skipped||[]).forEach(function(item){failed.push({name:item.name,reason:item.reason||'تعذر الاستيراد'});});}catch(error){failed.push({name:file.name,reason:error&&error.message?error.message:'تعذر رفع الملف'});}if(summary)setText(summary,'تمت معالجة '+(index+1)+' من '+files.length+'…');}}finally{if(button){button.disabled=false;setText(button,'رفع وتعرّف وفرز');}}form.__selectedFiles=[];form.reset();renderSmartSelectedFiles(form);await loadSmartImports(section);if(section==='technicalLibrary'||section==='companyVault')await loadDocumentCenter();if(summary){const successGroups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'].map(function(group){const count=succeeded.filter(function(item){return item.group===group;}).length;return count?'<span class="pill">'+group+': '+count+'</span>':'';}).join(' ');const failures=failed.length?'<details open><summary>ملفات لم تدخل النظام ('+failed.length+')</summary><ul>'+failed.map(function(item){return '<li><strong>'+esc(item.name)+'</strong>: '+esc(item.reason)+'</li>';}).join('')+'</ul></details>':'<p class="success-text">دخلت جميع الملفات بنجاح.</p>';setHtml(summary,'<h3>نتيجة الرفع</h3><p>نجح: '+succeeded.length+' · لم يدخل: '+failed.length+'</p><div>'+successGroups+'</div>'+failures);}showToast('اكتمل الرفع: '+succeeded.length+' ناجح و'+failed.length+' لم يدخل'+(failed.length?' — راجع التقرير':''),Boolean(failed.length));}
+async function smartFileBase64(file){
+  if(file.size>25*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 25MB');
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  let binary='';
+  for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+  return btoa(binary);
+}
+
+function smartUploadToken(form,file){
+  form.__uploadTokens=form.__uploadTokens||{};
+  const key=smartFileKey(file);
+  if(!form.__uploadTokens[key]){
+    const random=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
+    form.__uploadTokens[key]='asas-'+random;
+  }
+  return form.__uploadTokens[key];
+}
+
+function smartUploadCanRetry(error){
+  const message=String(error&&error.message||error||'').toLowerCase();
+  if(!navigator.onLine)return true;
+  if(/25mb|غير مدعوم|rar|صلاحية|غير صالح|فارغ|unsupported|forbidden|401|403|400/.test(message))return false;
+  return /network|failed to fetch|fetch|timeout|timed out|502|503|504|اتصال|شبكة|الخادم|مؤقت/.test(message);
+}
+
+function smartUploadDelay(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
+
+async function uploadSmartFile(form,section,file){
+  if(/\.rar$/i.test(file.name))throw new Error('صيغة RAR غير مدعومة؛ استخدم ZIP');
+  const payload={
+    section:section,
+    file_name:file.name,
+    file_base64:await smartFileBase64(file),
+    upload_id:smartUploadToken(form,file)
+  };
+  let lastError=null;
+  for(let attempt=1;attempt<=3;attempt+=1){
+    if(!navigator.onLine){
+      lastError=new Error('لا يوجد اتصال بالإنترنت حاليًا؛ أبقينا الملف لإعادة المحاولة.');
+    }else{
+      try{
+        return await api('/api/smart-import',{method:'POST',body:JSON.stringify(payload)});
+      }catch(error){
+        lastError=error;
+        if(!smartUploadCanRetry(error))throw error;
+      }
+    }
+    if(attempt<3)await smartUploadDelay(attempt===1?900:1800);
+  }
+  throw lastError||new Error('تعذر رفع الملف بعد إعادة المحاولة');
+}
+
+async function submitSmartImport(form){
+  const files=smartSelectedFiles(form).length?smartSelectedFiles(form).slice():Array.from(form.elements.files.files||[]);
+  if(!files.length)throw new Error('اختر ملفًا واحدًا على الأقل');
+  const section=form.elements.section.value;
+  const button=form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
+  const summary=$('smartImportSummary');
+  if(button)button.disabled=true;
+  if(summary)setText(summary,'بدأ رفع '+files.length+' ملف…');
+
+  let total=0,matched=0,review=0;
+  const succeeded=[],failed=[],skipped=[],failedFiles=[];
+  try{
+    for(let index=0;index<files.length;index+=1){
+      const file=files[index];
+      if(button)setText(button,'جارٍ رفع '+(index+1)+' من '+files.length);
+      try{
+        const result=await uploadSmartFile(form,section,file);
+        total+=result.total||0;matched+=result.matched||0;review+=result.review||0;
+        (result.imported||[]).forEach(function(item){succeeded.push({name:item.name,group:item.material_group||'أخرى'});});
+        (result.skipped||[]).forEach(function(item){skipped.push({name:item.name,reason:item.reason||'تعذر الاستيراد'});});
+      }catch(error){
+        failed.push({name:file.name,reason:error&&error.message?error.message:'تعذر رفع الملف'});
+        failedFiles.push(file);
+      }
+      if(summary)setText(summary,'تمت معالجة '+(index+1)+' من '+files.length+'…');
+    }
+  }finally{
+    if(button){button.disabled=false;setText(button,'رفع وتعرّف وفرز');}
+  }
+
+  // Keep only the files that genuinely failed. Successful files are removed so
+  // a retry cannot upload them again.
+  form.__selectedFiles=failedFiles;
+  renderSmartSelectedFiles(form);
+  if(!failedFiles.length){
+    form.reset();
+    form.__uploadTokens={};
+  }
+
+  await loadSmartImports(section);
+  if(section==='technicalLibrary'||section==='companyVault')await loadDocumentCenter();
+
+  if(summary){
+    const successGroups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'].map(function(group){
+      const count=succeeded.filter(function(item){return item.group===group;}).length;
+      return count?'<span class="pill">'+group+': '+count+'</span>':'';
+    }).join(' ');
+    const skippedHtml=skipped.length?'<details><summary>عناصر تم تجاوزها داخل الملفات ('+skipped.length+')</summary><ul>'+skipped.map(function(item){return '<li><strong>'+esc(item.name)+'</strong>: '+esc(item.reason)+'</li>';}).join('')+'</ul></details>':'';
+    const failures=failed.length?'<details open><summary>ملفات تحتاج إعادة محاولة ('+failed.length+')</summary><ul>'+failed.map(function(item){return '<li><strong>'+esc(item.name)+'</strong>: '+esc(item.reason)+'</li>';}).join('')+'</ul><button class="btn primary" type="button" data-smart-retry-failed>إعادة محاولة الملفات الفاشلة فقط</button></details>':'<p class="success-text">دخلت جميع الملفات بنجاح.</p>';
+    setHtml(summary,'<h3>نتيجة الرفع</h3><p>نجح: '+succeeded.length+' · يحتاج إعادة محاولة: '+failed.length+' · تم تجاوزه داخل الحزم: '+skipped.length+'</p><div>'+successGroups+'</div>'+failures+skippedHtml);
+  }
+  showToast(failed.length?'تم حفظ الملفات الناجحة وإبقاء الملفات المتعثرة لإعادة المحاولة.':'اكتمل رفع جميع الملفات بنجاح.',Boolean(failed.length));
+}
 
 async function changeProjectStatus(id, status) {
   try {
@@ -1574,6 +1678,7 @@ function bindEvents() {
     const fieldPickerAdd=event.target.closest('[data-field-picker-add]');if(fieldPickerAdd){event.preventDefault();addFieldTestFromPicker(fieldPickerAdd.dataset.fieldPickerAdd);return;}
     const catalogFile=event.target.closest('[data-catalog-file]');if(catalogFile){event.preventDefault();const item={id:Number(catalogFile.dataset.catalogFile),original_name:catalogFile.dataset.catalogFileName||'test-resource.pdf'};try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
     const removeSelected=event.target.closest('[data-smart-remove-selected]');if(removeSelected){event.preventDefault();const form=$('smartImportForm');if(form){form.__selectedFiles=smartSelectedFiles(form).filter(function(_file,index){return index!==Number(removeSelected.dataset.smartRemoveSelected);});renderSmartSelectedFiles(form);}return;}
+    const retryFailed=event.target.closest('[data-smart-retry-failed]');if(retryFailed){event.preventDefault();const form=$('smartImportForm');if(form)try{await submitSmartImport(form);}catch(error){showToast(error.message,true);}return;}
     const smartOpen=event.target.closest('[data-smart-open]');if(smartOpen){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartOpen.dataset.smartOpen)];if(item)try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
     const smartDownload=event.target.closest('[data-smart-download]');if(smartDownload){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartDownload.dataset.smartDownload)];if(item)try{await authenticatedAttachmentDownload(item,false);}catch(error){showToast(error.message,true);}return;}
     const button = event.target.closest('button');
