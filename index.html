@@ -607,7 +607,18 @@
       });
 
       // الإرسال الآمن عبر خادم أساس؛ لا يتم كشف رمز البوت في المتصفح.
-      const payload = { text: messageText, coordinates: coords || null };
+      const uniquePhotos = [];
+      const seenPhotos = new Set();
+      for (const blob of photoBlobs) {
+        if (!blob || blob.size > 8 * 1024 * 1024) continue;
+        const dataUrl = await blobToDataURL(blob);
+        if (dataUrl && !seenPhotos.has(dataUrl)) {
+          seenPhotos.add(dataUrl);
+          uniquePhotos.push(dataUrl);
+        }
+        if (uniquePhotos.length >= 10) break;
+      }
+      const payload = { text: messageText, coordinates: coords || null, photos: uniquePhotos };
       if (typeof api === 'function') {
         await api('/api/telegram/draft', { method: 'POST', body: JSON.stringify(payload) });
       } else {
