@@ -94,7 +94,9 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('4 أقسام رئيسية', html)
         self.assertIn('field-test-guide.html', html)
         self.assertIn('field-group-card', app)
-        self.assertIn("fieldGuideCategory='الكل'", app)
+        for english in ('Concrete', 'Soil', 'Asphalt', 'Field & NDT'):
+            self.assertIn("english:'" + english + "'", app)
+        self.assertIn("let fieldGuideCategory = 'الكل'", app)
         self.assertIn("data-field-guide-filter=", app)
         for group in ('أسفلت', 'تربة', 'خرسانة', 'الحقل وNDT'):
             self.assertIn(group, app)
