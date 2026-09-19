@@ -288,7 +288,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertNotIn('ASAS OPERATIONS CENTER', html)
         self.assertNotIn('من العينة إلى التقرير — في مسار واحد واضح', html)
         self.assertIn('src="logo.jpg" class="login-logo"', html)
-        self.assertIn('src="logo.jpg" class="dashboard-brand-logo"', html)
+        self.assertIn('src="asas-home-banner.jpg" class="dashboard-brand-logo dashboard-home-banner"', html)
         self.assertIn('dashboard-logo-only', html)
         hero_start = html.index('<article class="dashboard-brand-hero dashboard-logo-only">')
         hero_end = html.index('</article>', hero_start)
@@ -296,9 +296,10 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertNotIn('شريكك الاستراتيجي في كل اختبارات مشروعك', hero)
         self.assertNotIn('dashboard-brand-actions', hero)
         self.assertIn('.dashboard-logo-only .dashboard-brand-logo', css)
+        self.assertIn('/* V10.2.7 approved dashboard banner */', css)
         self.assertIn('width:100%!important', css)
         self.assertIn('height:100%!important', css)
-        self.assertIn('object-fit:cover!important', css)
+        self.assertIn('object-fit:contain!important', css)
         self.assertIn('padding:0!important', css)
 
     def test_topbar_uses_fixed_identity_profile_menu_and_back_navigation(self):
@@ -331,6 +332,9 @@ class SchemaMigrationTests(unittest.TestCase):
         sw = (Path(__file__).parent / 'sw.js').read_text(encoding='utf-8')
         pages = (Path(__file__).parent / '.github/workflows/deploy-pages.yml').read_text(encoding='utf-8')
         self.assertIn('src="logo.jpg" class="login-logo"', html)
+        self.assertIn('src="asas-home-banner.jpg" class="dashboard-brand-logo dashboard-home-banner"', html)
+        self.assertIn('src="logo.jpg" class="brand-logo"', html)
+        self.assertIn('src="logo.jpg" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية"', html)
         self.assertIn('src="logo.jpg" class="dashboard-brand-logo"', html)
         self.assertNotIn('src="asas-logo-primary.png"', html)
         self.assertIn('src="whatsapp-logo.svg"', html)
@@ -340,11 +344,13 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("'/whatsapp-logo.svg': ('whatsapp-logo.svg', 'image/svg+xml; charset=utf-8')", server_source)
         self.assertIn("'/telegram-logo.svg': ('telegram-logo.svg', 'image/svg+xml; charset=utf-8')", server_source)
         self.assertIn("'./logo.jpg'", sw)
+        self.assertIn("'./asas-home-banner.jpg'", sw)
         self.assertIn("'./whatsapp-logo.svg'", sw)
         self.assertIn("'./telegram-logo.svg'", sw)
         self.assertNotIn("'./asas-logo-primary.png'", sw)
         self.assertIn('whatsapp-logo.svg', pages)
         self.assertIn('telegram-logo.svg', pages)
+        self.assertIn('asas-home-banner.jpg', pages)
         self.server.init()
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
         worker = threading.Thread(target=httpd.serve_forever)
@@ -352,6 +358,7 @@ class SchemaMigrationTests(unittest.TestCase):
         try:
             for path, signature in (
                 ('/logo.jpg', b'\xff\xd8\xff'),
+                ('/asas-home-banner.jpg', b'\xff\xd8\xff'),
                 ('/whatsapp-logo.svg', b'<svg'),
                 ('/telegram-logo.svg', b'<svg'),
             ):
