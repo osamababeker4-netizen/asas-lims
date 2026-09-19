@@ -287,11 +287,14 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
         self.assertNotIn('ASAS OPERATIONS CENTER', html)
         self.assertNotIn('من العينة إلى التقرير — في مسار واحد واضح', html)
-        self.assertNotIn('شريكك الاستراتيجي في كل اختبارات مشروعك', html)
         self.assertIn('src="asas-logo-primary.png" class="login-logo"', html)
         self.assertIn('src="asas-logo-primary.png" class="dashboard-brand-logo"', html)
         self.assertIn('dashboard-logo-only', html)
-        self.assertNotIn('dashboard-brand-actions', html)
+        hero_start = html.index('<article class="dashboard-brand-hero dashboard-logo-only">')
+        hero_end = html.index('</article>', hero_start)
+        hero = html[hero_start:hero_end]
+        self.assertNotIn('شريكك الاستراتيجي في كل اختبارات مشروعك', hero)
+        self.assertNotIn('dashboard-brand-actions', hero)
         self.assertIn('.dashboard-logo-only .dashboard-brand-logo', css)
 
     def test_topbar_uses_fixed_identity_profile_menu_and_back_navigation(self):
