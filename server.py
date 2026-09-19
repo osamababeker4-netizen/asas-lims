@@ -1144,6 +1144,26 @@ class H(BaseHTTPRequestHandler):
                 types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.csv':'text/csv','.txt':'text/plain','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic','.dwg':'application/acad','.dxf':'application/dxf'}
                 return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'))
 
+            if path == '/api/lab-suite':
+                if not self.require_permission(user, 'quality'):
+                    return
+                def rows(sql):
+                    return [dict(row) for row in connection.execute(sql).fetchall()]
+                return self.send_json({
+                    'inventory': rows('select * from inventory_items order by name'),
+                    'requests': rows('select * from order_requests order by id desc'),
+                    'methods': rows('select * from test_methods order by id desc'),
+                    'ncr': rows('select * from nonconformities order by id desc'),
+                    'capa': rows('select * from corrective_actions order by id desc'),
+                    'training': rows('select * from training_records order by id desc'),
+                    'environment': rows('select * from environmental_monitoring order by id desc'),
+                    'maintenance': rows('select * from maintenance_records order by id desc'),
+                    'suppliers': rows('select * from suppliers order by name'),
+                    'quotations': rows('select * from quotations order by id desc'),
+                    'contracts': rows('select * from contracts order by id desc'),
+                    'complaints': rows('select * from customer_complaints order by id desc')
+                })
+
             if path == '/api/quality':
                 if not self.require_permission(user, 'quality'):
                     return
@@ -1724,6 +1744,65 @@ class H(BaseHTTPRequestHandler):
                 connection.commit()
                 publish_event('field_visit', 'create', entity_id)
                 return self.send_json({'ok': True, 'id': entity_id})
+
+            if path.startswith('/api/lab-suite/'):
+                if not self.require_permission(user, 'quality'):
+                    return
+                resource = path.split('/')[-1]
+                entity_id = None
+                if resource == 'ncr':
+                    number = str(data.get('ncr_no') or nextno(connection, 'NCR-', 'nonconformities')).strip()
+                    description = str(data.get('description') or '').strip()
+                    if not description:
+                        return self.send_json({'error': 'وصف عدم المطابقة مطلوب'}, 400)
+                    connection.execute('insert into nonconformities(ncr_no,source_type,source_id,category,severity,description,immediate_action,root_cause,status,owner_id,due_date,created_by) values(?,?,?,?,?,?,?,?,?,?,?,?)',
+                        (number,data.get('source_type'),parse_optional_int(data.get('source_id')),data.get('category'),data.get('severity') or 'minor',description,data.get('immediate_action'),data.get('root_cause'),data.get('status') or 'open',parse_optional_int(data.get('owner_id')),data.get('due_date'),user['id']))
+                elif resource == 'capa':
+                    description = str(data.get('description') or '').strip()
+                    if not description:
+                        return self.send_json({'error': 'وصف الإجراء مطلوب'}, 400)
+                    connection.execute('insert into corrective_actions(ncr_id,action_no,action_type,description,owner_id,due_date,status) values(?,?,?,?,?,?,?)',
+                        (parse_optional_int(data.get('ncr_id')),data.get('action_no'),data.get('action_type') or 'corrective',description,parse_optional_int(data.get('owner_id')),data.get('due_date'),data.get('status') or 'open'))
+                elif resource == 'training':
+                    uid = parse_optional_int(data.get('user_id'))
+                    title = str(data.get('training_title') or '').strip()
+                    if not uid or not title:
+                        return self.send_json({'error': 'الموظف واسم التدريب مطلوبان'}, 400)
+                    connection.execute('insert into training_records(user_id,training_title,competency_area,provider,training_date,expiry_date,result,certificate_ref,authorization_scope,notes) values(?,?,?,?,?,?,?,?,?,?)',
+                        (uid,title,data.get('competency_area'),data.get('provider'),data.get('training_date'),data.get('expiry_date'),data.get('result'),data.get('certificate_ref'),data.get('authorization_scope'),data.get('notes')))
+                elif resource == 'environment':
+                    area = str(data.get('area') or '').strip(); parameter = str(data.get('parameter') or '').strip()
+                    if not area or not parameter:
+                        return self.send_json({'error': 'المنطقة ومعيار المراقبة مطلوبان'}, 400)
+                    value = data.get('value_num'); minimum = data.get('min_limit'); maximum = data.get('max_limit')
+                    status = 'not_evaluated'
+                    try:
+                        numeric = float(value)
+                        status = 'out_of_spec' if (minimum not in (None,'') and numeric < float(minimum)) or (maximum not in (None,'') and numeric > float(maximum)) else 'pass'
+                    except (TypeError,ValueError):
+                        pass
+                    connection.execute('insert into environmental_monitoring(area,parameter,value_num,unit,min_limit,max_limit,compliance_status,recorded_by,notes) values(?,?,?,?,?,?,?,?,?)',
+                        (area,parameter,value,data.get('unit'),minimum,maximum,status,user['id'],data.get('notes')))
+                elif resource == 'maintenance':
+                    equipment_id = parse_optional_int(data.get('equipment_id'))
+                    if not equipment_id or not data.get('service_date'):
+                        return self.send_json({'error': 'الجهاز وتاريخ الصيانة مطلوبان'}, 400)
+                    connection.execute('insert into maintenance_records(equipment_id,maintenance_type,service_date,provider,description,parts_used,cost,next_due,status,performed_by,attachment_ref) values(?,?,?,?,?,?,?,?,?,?,?)',
+                        (equipment_id,data.get('maintenance_type') or 'preventive',data.get('service_date'),data.get('provider'),data.get('description'),data.get('parts_used'),data.get('cost'),data.get('next_due'),data.get('status') or 'completed',user['id'],data.get('attachment_ref')))
+                elif resource == 'complaint':
+                    number = str(data.get('complaint_no') or nextno(connection, 'CMP-', 'customer_complaints')).strip()
+                    subject = str(data.get('subject') or '').strip(); description = str(data.get('description') or '').strip()
+                    if not subject or not description:
+                        return self.send_json({'error': 'موضوع الشكوى ووصفها مطلوبان'}, 400)
+                    connection.execute('insert into customer_complaints(complaint_no,client_id,project_id,subject,description,priority,status,owner_id) values(?,?,?,?,?,?,?,?)',
+                        (number,parse_optional_int(data.get('client_id')),parse_optional_int(data.get('project_id')),subject,description,data.get('priority') or 'normal',data.get('status') or 'open',parse_optional_int(data.get('owner_id'))))
+                else:
+                    return self.send_json({'error': 'الوحدة غير مدعومة'}, 404)
+                entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                audit(connection,user['id'],'إضافة سجل مختبري متقدم',resource,entity_id,json.dumps(data,ensure_ascii=False))
+                connection.commit()
+                publish_event(resource,'create',entity_id)
+                return self.send_json({'ok':True,'id':entity_id})
 
             if path == '/api/clients':
                 if not self.require_permission(user, 'clients'):
