@@ -893,17 +893,18 @@ async function submitWorkOrder(form) {
   closeModal(); await refresh(); showToast('تم إنشاء أمر العمل');
 }
 
+function modalAttachFileField(section){return '<div class="modal-attach-file"><label>إرفاق ملف<select data-modal-file-type><option value="all">جميع الملفات المدعومة</option><option value=".xls,.xlsx,.csv">Excel / CSV</option><option value=".pdf">PDF</option><option value=".doc,.docx">Word</option><option value=".jpg,.jpeg,.png,.webp,.heic">صور</option><option value=".txt">TXT</option><option value=".zip">ZIP</option><option value=".dwg,.dxf">DWG / DXF</option></select><input type="file" data-modal-files multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.zip,.dwg,.dxf"></label><small class="muted">يتم التعرف على الملف وتحميله داخل البرنامج.</small></div>';}
 function openClientForm() {
-  modal('<h2>عميل جديد</h2><form id="clientForm"><div class="modal-grid"><label>اسم العميل<input name="name" required></label><label>الهاتف<input name="phone"></label><label style="grid-column:1/-1">البريد الإلكتروني<input name="email" type="email"></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العميل</button></div></form>');
+  modal('<h2>عميل جديد</h2><form id="clientForm"><div class="modal-grid"><label>اسم العميل<input name="name" required></label><label>الهاتف<input name="phone"></label><label style="grid-column:1/-1">البريد الإلكتروني<input name="email" type="email"></label></div>'+modalAttachFileField('clients')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العميل</button></div></form>');
 }
 
 function openSampleForm() {
   const projects = dashboard ? dashboard.projects : [];
-  modal('<h2>تسجيل عينة</h2><form id="sampleForm"><div class="modal-grid"><label>رقم العينة<input name="sample_no" required></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material"><option>تربة</option><option>خرسانة</option><option>أسفلت</option></select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + today() + '" required></label><label>المصدر<input name="source"></label><label>ملاحظات<textarea name="notes"></textarea></label></div><p class="form-message">سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العينة والخطة</button></div></form>');
+  modal('<h2>تسجيل عينة</h2><form id="sampleForm"><div class="modal-grid"><label>رقم العينة<input name="sample_no" required></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material"><option>تربة</option><option>خرسانة</option><option>أسفلت</option></select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + today() + '" required></label><label>المصدر<input name="source"></label><label>ملاحظات<textarea name="notes"></textarea></label></div><p class="form-message">سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.</p>'+modalAttachFileField('samples')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العينة والخطة</button></div></form>');
 }
 
 function openEquipmentForm() {
-  modal('<h2>إضافة جهاز</h2><form id="equipmentForm"><div class="modal-grid"><label>اسم الجهاز<input name="name" required></label><label>الرقم التسلسلي<input name="serial_no"></label><label>الشركة المصنعة<input name="manufacturer"></label><label>الموديل<input name="model"></label><label>آخر معايرة<input name="last_calibration" type="date"></label><label>المعايرة القادمة<input name="next_calibration" type="date"></label><label>رقم الشهادة<input name="certificate_no"></label><label>ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الجهاز</button></div></form>');
+  modal('<h2>إضافة جهاز</h2><form id="equipmentForm"><div class="modal-grid"><label>اسم الجهاز<input name="name" required></label><label>الرقم التسلسلي<input name="serial_no"></label><label>الشركة المصنعة<input name="manufacturer"></label><label>الموديل<input name="model"></label><label>آخر معايرة<input name="last_calibration" type="date"></label><label>المعايرة القادمة<input name="next_calibration" type="date"></label><label>رقم الشهادة<input name="certificate_no"></label><label>ملاحظات<textarea name="notes"></textarea></label></div>'+modalAttachFileField('equipment')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الجهاز</button></div></form>');
 }
 
 function genericFields(testCatalog) {
@@ -1177,6 +1178,7 @@ async function uploadFieldPhotos(visitId) {
 }
 
 async function saveFieldVisit() {
+  if (!fieldLat || !fieldLng) return showToast('تفعيل الموقع إلزامي قبل إرسال الزيارة الميدانية',true);
   const license = $('fieldLicense').value.trim();
   if (!license) return showToast('رقم الرخصة مطلوب',true);
   if (!fieldTests.length) return showToast('اختر نوع الاختبار قبل الإرسال',true);
@@ -1214,7 +1216,6 @@ function bindEvents() {
   $('openUser').addEventListener('click',function() { openUserForm(); });
   $('openBalady').addEventListener('click',openBaladyWindow);
   $('searchLicenseBtn').addEventListener('click',searchLicense);
-  $('getLocationBtn').addEventListener('click',getLocation);
   $('openFieldCamera').addEventListener('click',function() { $('fieldCameraInput').click(); });
   $('openFieldGallery').addEventListener('click',function() { $('fieldGalleryInput').click(); });
   $('fieldCameraInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
