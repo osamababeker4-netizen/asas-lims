@@ -172,8 +172,9 @@
       <section id="field" class="page">
         <div class="page-heading"><div><h2>البرنامج الميداني</h2><p>تسجيل الزيارات الميدانية وربطها بالمشروع والعينة.</p></div></div>
         <section class="panel field-guide-library">
-          <div class="panel-heading"><div><h3>اختبارات البرنامج الميداني</h3><p class="muted">ابدأ من أحد الأقسام الأربعة الرئيسية، ثم اختر الاختبار المطلوب وأضفه إلى الزيارة.</p></div><div class="heading-actions"><span class="pill">4 أقسام رئيسية</span><a class="text-btn" href="field-test-guide.html" target="_blank" rel="noopener">فتح دليل التشغيل</a></div></div>
-          <div id="fieldGuideFilters" class="field-guide-filters" aria-label="تصنيف حزم الاختبارات"></div>
+          <div class="panel-heading"><div><h3>اختبارات البرنامج الميداني</h3><p class="muted">ابدأ من أحد الأقسام الأربعة، ثم ابحث باسم الاختبار أو كوده أو المواصفة وأضفه مباشرة إلى الزيارة.</p></div><div class="heading-actions"><span class="pill">4 أقسام رئيسية</span><a class="text-btn" href="field-test-guide.html" target="_blank" rel="noopener">فتح دليل التشغيل</a></div></div>
+          <div class="field-catalog-toolbar"><label class="field-search-box"><span>بحث الاختبارات</span><input id="fieldTestSearch" type="search" placeholder="مثال: C39 أو CBR أو D1557 أو UPV"><button id="fieldTestSearchBtn" class="btn primary" type="button">بحث</button></label><button id="openCustomFieldTest" class="btn secondary" type="button">+ إضافة اختبار جديد</button></div>
+          <div id="fieldGuideFilters" class="field-guide-filters" aria-label="تصنيف الاختبارات"></div>
           <div id="fieldGuideGrid" class="field-guide-grid"></div>
         </section>
         <div class="field-layout">
@@ -194,7 +195,7 @@
             <div id="coordinatesCard" class="hidden" aria-hidden="true"><span id="fieldLatitude"></span><span id="fieldLongitude"></span><span id="fieldAccuracy"></span><a id="fieldMapLink"></a></div>
             <section class="field-media panel inset-panel"><div class="panel-heading"><div><h3>الصور</h3><p class="muted">التقط صورة جديدة أو اختر صورًا من الاستديو.</p></div><div class="heading-actions"><button id="openFieldCamera" class="btn primary" type="button">فتح الكاميرا</button><button id="openFieldGallery" class="btn secondary" type="button">فتح الاستديو</button></div></div><input id="fieldCameraInput" class="hidden" type="file" accept="image/*" capture="environment"><input id="fieldGalleryInput" class="hidden" type="file" accept="image/*" multiple><div id="fieldPhotoPreview" class="field-photo-preview"><span class="muted">لم تُرفق صور بعد</span></div></section>
             <div class="field-tests panel inset-panel">
-              <div class="panel-heading"><div><h3>نتيجة الاختبار</h3><div class="test-result-legend" aria-label="حالات نتيجة الاختبار"><span class="test-result-badge success"><span class="test-result-icon">✅</span>ناجح</span><span class="test-result-badge danger"><span class="test-result-icon">❌</span>راسب</span><span class="test-result-badge progress"><span class="test-result-icon">⏳</span>قيد الإجراء</span></div></div><button id="addFieldTest" class="btn secondary" type="button">+ إضافة اختبار</button></div>
+              <div class="panel-heading"><div><h3>الاختبارات المضافة للزيارة</h3><p class="muted">تظهر حالة النتيجة داخل كل اختبار فقط.</p></div><button id="addFieldTest" class="btn secondary" type="button">+ إضافة اختبار</button></div>
               <div id="fieldTests"></div>
             </div>
             <label>ملاحظات ميدانية<textarea id="fieldNotes" rows="4"></textarea></label>
@@ -249,9 +250,9 @@
           <article class="panel"><div class="panel-heading"><h3>سجلات الموظفين</h3><button class="text-btn" data-quality-template="staff" type="button">تنزيل قالب Excel</button></div><p class="muted">ارفع Excel مباشرة؛ يتعرف النظام على البيانات تلقائيًا. لا ينشئ الاستيراد حسابات دخول.</p><input id="staffImport" class="quality-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><button class="btn primary" data-quality-import="staff" type="button">تعرف واستورد الموظفين</button></article>
         </div>
         <div class="quality-lists">
-          <article class="panel table-panel"><div class="panel-heading"><h3>وثائق الجودة</h3></div><table><thead><tr><th>التصنيف</th><th>الكود</th><th>العنوان</th><th>الإصدار</th><th>الحالة</th><th>الملف</th><th>الإجراءات</th></tr></thead><tbody id="qualityDocumentsTable"></tbody></table></article>
-          <article class="panel table-panel"><div class="panel-heading"><h3>اختبارات الكفاءة</h3><button class="text-btn" data-quality-add="proficiency" type="button">+ مشاركة</button></div><table><thead><tr><th>الاختبار</th><th>المادة</th><th>المزود</th><th>التاريخ</th><th>النتيجة</th><th>Z-score</th></tr></thead><tbody id="proficiencyTable"></tbody></table></article>
-          <article class="panel table-panel"><div class="panel-heading"><h3>ملفات الموظفين للجودة</h3><button class="text-btn" data-quality-add="staff" type="button">+ موظف</button></div><table><thead><tr><th>الاسم</th><th>المسمى</th><th>التخصص</th><th>الخبرة</th><th>المؤهل</th><th>الحالة</th></tr></thead><tbody id="qualityStaffTable"></tbody></table></article>
+          <article class="panel table-panel quality-card quality-table-card"><div class="quality-table-head"><span class="quality-code">QMS-04</span><div><h3>وثائق الجودة</h3><p>الوثائق المضبوطة والإصدارات والملفات المعتمدة.</p></div></div><div class="engineering-table-wrap"><table><thead><tr><th>التصنيف</th><th>الكود</th><th>العنوان</th><th>الإصدار</th><th>الحالة</th><th>الملف</th><th>الإجراءات</th></tr></thead><tbody id="qualityDocumentsTable"></tbody></table></div></article>
+          <article class="panel table-panel quality-card quality-table-card"><div class="quality-table-head"><span class="quality-code">QMS-05</span><div><h3>اختبارات الكفاءة</h3><p>متابعة المشاركات والنتائج ومؤشرات الأداء.</p></div><button class="btn secondary" data-quality-add="proficiency" type="button">+ مشاركة</button></div><div class="engineering-table-wrap"><table><thead><tr><th>الاختبار</th><th>المادة</th><th>المزود</th><th>التاريخ</th><th>النتيجة</th><th>Z-score</th></tr></thead><tbody id="proficiencyTable"></tbody></table></div></article>
+          <article class="panel table-panel quality-card quality-table-card"><div class="quality-table-head"><span class="quality-code">QMS-06</span><div><h3>ملفات الموظفين للجودة</h3><p>المؤهلات والخبرة والسجلات المرتبطة بالكفاءة.</p></div><button class="btn secondary" data-quality-add="staff" type="button">+ موظف</button></div><div class="engineering-table-wrap"><table><thead><tr><th>الاسم</th><th>المسمى</th><th>التخصص</th><th>الخبرة</th><th>المؤهل</th><th>الحالة</th></tr></thead><tbody id="qualityStaffTable"></tbody></table></div></article>
         </div>
       </section>
 
@@ -260,21 +261,26 @@
           <div><span class="section-kicker">Document Control</span><h2>مركز الملفات</h2><p>مكتبة موحّدة للقوالب الفنية وملفات الأجهزة ووثائق الشركة، مع فصل واضح للصلاحيات.</p></div>
           <div class="heading-actions"><button class="btn secondary" data-page-go="quality" type="button">العودة إلى الجودة والوثائق</button><button class="btn primary" data-smart-import="technicalLibrary" type="button">رفع وفرز القوالب</button></div>
         </div>
-        <div class="document-stats">
-          <article><span>التربة</span><strong>97</strong><small>Worksheet · Excel · PDF</small></article>
-          <article><span>الخرسانة</span><strong>75</strong><small>Strength · Core · NDT</small></article>
-          <article><span>الأسفلت</span><strong>53</strong><small>Marshall · GMM · Extraction</small></article>
-          <article><span>الحقل وNDT</span><strong>18</strong><small>RC Detector · Site Reports</small></article>
+        <div class="document-browser-toolbar">
+          <label class="document-search"><span>بحث في الملفات</span><input id="documentLibrarySearch" type="search" placeholder="ابحث باسم الملف أو النوع أو التصنيف"></label>
+          <div id="documentGroupFilters" class="document-group-filters" aria-label="تصنيف الملفات">
+            <button class="active" data-document-group="الكل" type="button">الكل</button>
+            <button data-document-group="تربة" type="button">التربة</button>
+            <button data-document-group="خرسانة" type="button">الخرسانة</button>
+            <button data-document-group="أسفلت" type="button">الأسفلت</button>
+            <button data-document-group="الحقل وNDT" type="button">الحقل وNDT</button>
+            <button data-document-group="أخرى" type="button">أخرى</button>
+          </div>
         </div>
         <div class="document-library-grid">
           <article class="panel library-zone technical-zone">
             <div class="library-zone-head"><span class="library-icon">TL</span><div><small>Technical Library</small><h3>المكتبة الفنية</h3></div><span class="access-tag internal">داخلي</span></div>
             <p>نماذج Word وExcel وPDF مصنفة تلقائيًا إلى الأسفلت والتربة والخرسانة والحقل وNDT. يستمر الرفع إذا تعذر ملف منفرد.</p>
             <div class="library-folders">
-              <button data-smart-import="technicalLibrary" data-library-group="أسفلت" type="button"><strong>الأسفلت</strong><span>Marshall · GMM · Core Density</span></button>
-              <button data-smart-import="technicalLibrary" data-library-group="تربة" type="button"><strong>التربة</strong><span>CBR · Proctor · Sieve · Atterberg</span></button>
-              <button data-smart-import="technicalLibrary" data-library-group="خرسانة" type="button"><strong>الخرسانة</strong><span>C39 · C42 · UPVT · Schmidt</span></button>
-              <button data-smart-import="technicalLibrary" data-library-group="الحقل وNDT" type="button"><strong>الحقل وNDT</strong><span>RC Detector · Field Reports</span></button>
+              <button data-document-group="أسفلت" type="button"><strong>الأسفلت</strong><span>فتح الملفات المصنفة وعرضها</span></button>
+              <button data-document-group="تربة" type="button"><strong>التربة</strong><span>فتح الملفات المصنفة وعرضها</span></button>
+              <button data-document-group="خرسانة" type="button"><strong>الخرسانة</strong><span>فتح الملفات المصنفة وعرضها</span></button>
+              <button data-document-group="الحقل وNDT" type="button"><strong>الحقل وNDT</strong><span>فتح الملفات المصنفة وعرضها</span></button>
             </div>
           </article>
           <article class="panel library-zone vault-zone" id="companyVaultCard">
@@ -284,6 +290,10 @@
             <button class="btn secondary" data-smart-import="companyVault" type="button">فتح الخزنة ورفع الملفات</button>
           </article>
         </div>
+        <article class="panel document-files-panel">
+          <div class="panel-heading"><div><span class="section-kicker">Live Library</span><h3>الملفات الفعلية</h3><p class="muted">يعرض هذا الجزء الملفات المرفوعة فعليًا فقط. افتح الملف للمعاينة أو نزّله حسب نوعه وصلاحيتك.</p></div><button class="btn secondary" data-smart-import="technicalLibrary" type="button">+ رفع ملفات</button></div>
+          <div id="documentLibraryFiles" class="document-file-grid"><div class="empty-state">جارٍ تحميل الملفات…</div></div>
+        </article>
         <article class="panel document-governance">
           <div><span class="section-kicker">Governance</span><h3>ضبط الوثائق والإصدارات</h3></div>
           <ol><li><strong>تصنيف تلقائي</strong><span>الأسفلت / التربة / الخرسانة / الحقل وNDT</span></li><li><strong>صلاحيات</strong><span>وصول حسب الدور الوظيفي</span></li><li><strong>سجل تدقيق</strong><span>كل رفع وتعديل وتنزيل</span></li><li><strong>نسخة معتمدة</strong><span>مرجع واحد لكل قالب رسمي</span></li></ol>

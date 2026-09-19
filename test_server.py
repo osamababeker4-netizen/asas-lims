@@ -116,6 +116,92 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('.test-result-badge.progress', css)
         self.assertIn("rawResult === 'قيد الإجراء' ? '⏳ قيد الإجراء'", html)
 
+    def test_field_program_uses_full_searchable_catalog_and_internal_result_badges(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        self.assertIn('id="fieldTestSearch"', html)
+        self.assertIn('id="fieldTestSearchBtn"', html)
+        self.assertIn('id="openCustomFieldTest"', html)
+        self.assertNotIn('class="test-result-legend"', html)
+        self.assertIn('function fieldCatalogRows()', app)
+        self.assertIn('return catalog.filter(function(item)', app)
+        self.assertIn('data-field-guide-add', app)
+        self.assertIn('testResultBadge(test.result)', app)
+        self.assertIn("option value=\"قيد الإجراء\"", app)
+
+    def test_document_center_browses_real_files_without_fake_counts(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        self.assertNotIn('<strong>97</strong>', html)
+        self.assertNotIn('<strong>75</strong>', html)
+        self.assertNotIn('<strong>53</strong>', html)
+        self.assertNotIn('<strong>18</strong>', html)
+        self.assertIn('id="documentLibraryFiles"', html)
+        self.assertIn('id="documentLibrarySearch"', html)
+        self.assertIn('function loadDocumentCenter()', app)
+        self.assertIn("/api/smart-imports?section=technicalLibrary", app)
+        self.assertIn('data-smart-open', app)
+        self.assertIn('data-smart-download', app)
+
+    def test_quality_bottom_sections_match_card_design_and_tables_use_engineering_style(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
+        for code in ('QMS-04', 'QMS-05', 'QMS-06'):
+            self.assertIn(code, html)
+        self.assertIn('quality-table-card', html)
+        self.assertIn("table.classList.add('engineering-table')", app)
+        self.assertIn('.page table.engineering-table thead th', css)
+        self.assertIn('.page table.engineering-table tbody td', css)
+
+    def test_authorized_user_can_extend_catalog_but_field_user_cannot(self):
+        self.server.init()
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        connection.close()
+        admin_token = self.server.create_session(admin)
+        denied_token = 'field-catalog-denied'
+        self.server.SESSIONS[denied_token] = {'id': 9090, 'username': 'field-only', 'full_name': 'Field Only', 'role': 'field'}
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        port = httpd.server_address[1]
+
+        def post(token, payload):
+            client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            client.request('POST', '/api/catalog', json.dumps(payload).encode('utf-8'), {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            })
+            response = client.getresponse()
+            data = json.loads(response.read().decode('utf-8'))
+            client.close()
+            return response.status, data
+
+        payload = {
+            'category': 'الحقل وNDT',
+            'code': 'WORLD-TEST-001',
+            'name_ar': 'اختبار مخصص قابل للتوسعة',
+            'name_en': 'Custom Extensible Test',
+            'standard': 'Project / International Standard',
+            'version': 'Current'
+        }
+        try:
+            status, created = post(admin_token, payload)
+            self.assertEqual(status, 200)
+            self.assertEqual(created['code'], 'WORLD-TEST-001')
+            connection = self.server.db()
+            stored = connection.execute("select category,standard from test_catalog where code='WORLD-TEST-001'").fetchone()
+            connection.close()
+            self.assertEqual(stored['category'], 'الحقل وNDT')
+            self.assertEqual(post(denied_token, dict(payload, code='WORLD-TEST-002'))[0], 403)
+        finally:
+            self.server.SESSIONS.pop(admin_token, None)
+            self.server.SESSIONS.pop(denied_token, None)
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(timeout=5)
+
     def test_equipment_table_has_technical_status_design(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
