@@ -40,7 +40,9 @@ with tempfile.TemporaryDirectory() as tmp:
     ensure("files.length>30" not in compact_js and "الحدالأقصى30" not in compact_js, "legacy 30-file limit still present")
     ensure("for(letindex=0;index<files.length;index+=1)" in compact_js, "client does not iterate selected files")
     ensure("failed.push" in app_js, "per-file failure collection missing")
-    ensure("ملفات لم تدخل النظام" in app_js, "final skipped-file report missing")
+    ensure("ملفات تحتاج إعادة محاولة" in app_js, "failed-file retry report missing")
+    ensure("data-smart-retry-failed" in app_js, "failed-file retry action missing")
+    ensure("upload_id:smartUploadToken(form,file)" in app_js, "idempotent upload token missing")
     ensure("/api/attachments/files/" in app_js, "direct download UI link missing")
     ensure(server.MAX_JSON_BODY_BYTES >= 40 * 1024 * 1024, "request body limit is below 40MB")
 
