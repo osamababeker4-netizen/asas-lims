@@ -12,6 +12,10 @@ services:
         value: /opt/render/project/src/storage/lims.db
       - key: LIMS_BACKUP_DIR
         value: /opt/render/project/src/storage/backups
+      - key: LIMS_QUALITY_UPLOADS
+        value: /opt/render/project/src/storage/uploads/quality
+      - key: LIMS_RECORD_UPLOADS
+        value: /opt/render/project/src/storage/uploads/records
       - key: LIMS_SESSION_TTL_SECONDS
         value: 43200
       - key: LIMS_LOGIN_WINDOW_SECONDS
