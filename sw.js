@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v9-2-10-attachment-auth-fix';
-const APP_SHELL = ['./','./index.html','./style.css?v=9-2-5-telegram-photo-fix','./app-password.js?v=9-2-5-telegram-photo-fix','./branch-map.js?v=9-2-5-telegram-photo-fix','./i18n.js?v=9-2-5-telegram-photo-fix','./runtime-config.js?v=9-2-5-telegram-photo-fix','./manifest.webmanifest','./logo.jpg'];
+const CACHE_NAME = 'asas-lims-pwa-v10-0-0-professional';
+const APP_SHELL = ['./','./index.html','./style.css?v=10-0-0-professional','./app-password.js?v=10-0-0-professional','./branch-map.js?v=10-0-0-professional','./i18n.js?v=10-0-0-professional','./runtime-config.js?v=10-0-0-professional','./manifest.webmanifest','./logo.jpg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
