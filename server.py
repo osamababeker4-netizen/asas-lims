@@ -21,6 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+APP_VERSION = '10.0.0-professional'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.path.join(BASE, 'uploads', 'quality')
@@ -178,6 +179,8 @@ SMART_SECTIONS = {
     'tests': ('test', 'tests'), 'catalog': ('catalog', 'catalog'),
     'reports': ('report', 'reports'), 'communications': ('communications', 'settings'),
     'quality': ('quality', 'quality'), 'company': ('company', 'dashboard'),
+    'technicalLibrary': ('technical_library', 'quality'),
+    'companyVault': ('company_vault', 'users'),
     'audit': ('audit', 'audit'), 'users': ('user', 'users'), 'settings': ('settings', 'settings'),
     'equipment': ('equipment', 'equipment')
 }
@@ -191,7 +194,8 @@ SMART_FILE_TYPES = {
 MATERIAL_GROUP_KEYWORDS = {
     'خرسانة': ('خرسانة','خرساني','concrete','cement','مكعب','cube','cylinder','اسطوانة','slump','هبوط','compressive','compression','c39','c143','c31','c192','c42','c78','c496'),
     'تربة': ('تربة','تربه','soil','subgrade','ردم','fill','proctor','atterberg','حدود اتربرج','cbr','moisture content','محتوى الرطوبة','sand cone','الكثافة الحقلية','d1557','d698','d4318','d1883','d2216','d6938','d2487'),
-    'أسفلت': ('أسفلت','اسفلت','asphalt','bitumen','bituminous','marshall','marshal','مارشال','gmm','gmb','binder','رابط اسفلتي','اختراق','penetration','d6927','d2041','d2726','d979','d5','d5444','d6307','d2172')
+    'أسفلت': ('أسفلت','اسفلت','asphalt','bitumen','bituminous','marshall','marshal','مارشال','gmm','gmb','binder','رابط اسفلتي','اختراق','penetration','d6927','d2041','d2726','d979','d5','d5444','d6307','d2172'),
+    'الحقل وNDT': ('الحقل','ميداني','field','ndt','non destructive','nondestructive','rcdetector','rc detector','rebar detector','cover meter','rebar corrosion','half cell','ultrasonic','upvt','u910','schmidt','hammer','road profiler','roughness','iri','d6132','d7091','c597')
 }
 
 
@@ -1120,9 +1124,9 @@ class H(BaseHTTPRequestHandler):
                 connection = db()
                 connection.execute('select 1').fetchone()
                 connection.close()
-                return self.send_json({'status': 'ok', 'database': 'ready', 'service': 'asas-lims'})
+                return self.send_json({'status': 'ok', 'database': 'ready', 'service': 'asas-lims', 'version': APP_VERSION})
             except sqlite3.Error:
-                return self.send_json({'status': 'degraded', 'database': 'unavailable', 'service': 'asas-lims'}, 503)
+                return self.send_json({'status': 'degraded', 'database': 'unavailable', 'service': 'asas-lims', 'version': APP_VERSION}, 503)
 
         user = user_from(self)
         if path.startswith('/api/') and not user:
@@ -1141,6 +1145,7 @@ class H(BaseHTTPRequestHandler):
                 integrity = connection.execute('PRAGMA quick_check').fetchone()[0]
                 queued = connection.execute("select count(*) from sync_queue where status='queued'").fetchone()[0]
                 return self.send_json({
+                    'version': APP_VERSION,
                     'status': 'ok' if integrity == 'ok' else 'degraded',
                     'database_integrity': integrity,
                     'database_size_bytes': os.path.getsize(DB) if os.path.exists(DB) else 0,

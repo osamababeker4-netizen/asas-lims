@@ -45,7 +45,19 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(self.server.detect_material_group('ASTM-D1557-Proctor.pdf', b''), 'تربة')
         self.assertEqual(self.server.detect_material_group('Marshall-D6927.xlsx', b''), 'أسفلت')
         self.assertEqual(self.server.detect_material_group('Concrete-C39-Cubes.pdf', b''), 'خرسانة')
+        self.assertEqual(self.server.detect_material_group('RCDetector-Rebar-Cover-NDT.docx', b''), 'الحقل وNDT')
+        self.assertEqual(self.server.detect_material_group('Road-Profiler-IRI-Field-Report.pdf', b''), 'الحقل وNDT')
         self.assertEqual(self.server.detect_material_group('general-document.pdf', b''), 'أخرى')
+
+    def test_professional_document_center_and_login_contract(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('<h1>تسجيل دخول النظام</h1>', html)
+        self.assertNotIn('إدارة المشاريع، أوامر العمل، العينات، الاختبارات والتقارير في واجهة عربية موحّدة.', html)
+        self.assertIn('id="documentCenter"', html)
+        for group in ('الأسفلت', 'التربة', 'الخرسانة', 'الحقل وNDT'):
+            self.assertIn(group, html)
+        self.assertIn('technicalLibrary', self.server.SMART_SECTIONS)
+        self.assertIn('companyVault', self.server.SMART_SECTIONS)
 
     def test_attachment_schema_has_material_group(self):
         self.server.init()
