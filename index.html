@@ -348,16 +348,18 @@
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v9-0-0-runtime-fix'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v9-2-0-telegram'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=9-0-0-runtime-fix', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
-});
+        navigator.serviceWorker.register('sw.js?v=9-2-0-telegram', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+      });
     }
+  </script>
 <script>
 (function() {
   const TELEGRAM_SETTINGS = {
-    botToken: ["8876017413", "AAGKujXC8EZsZk1GFqRqBLQNNpR8YBC9a3I"].join(":"),
-    chatId: "-1003927157003"
+    // Never store the bot token in the public GitHub Pages bundle.
+    // Telegram delivery is handled by the authenticated ASAS backend.
+    endpoint: '/api/telegram/draft'
   };
 
   let isDispatching = false;
@@ -515,7 +517,7 @@
     const lng = document.querySelector('#lng, [name*="lng"], .lng-val')?.textContent?.trim();
     if (lat && lng) return `${lat},${lng}`;
 
-    return "26.329800,43.972800";
+    return "";
   }
 
   // 5. بناء وإرسال المسودة لتليجرام ديناميكياً 100%
@@ -604,49 +606,19 @@
         }
       });
 
-      const botUrl = `https://api.telegram.org/bot${TELEGRAM_SETTINGS.botToken}`;
-      let isSuccess = false;
-
-      // إرسال الصور كألبوم موثق (بدون تشفير ماركداون لضمان عدم الرفض)
-      if (photoBlobs.length > 0) {
-        try {
-          if (photoBlobs.length > 1) {
-            const fd = new FormData();
-            fd.append('chat_id', TELEGRAM_SETTINGS.chatId);
-            const media = [];
-            photoBlobs.slice(0, 6).forEach((file, idx) => {
-              fd.append(`pic_${idx}`, file, `photo_${idx}.jpg`);
-              const item = { type: 'photo', media: `attach://pic_${idx}` };
-              if (idx === 0) item.caption = messageText;
-              media.push(item);
-            });
-            fd.append('media', JSON.stringify(media));
-            const res = await fetch(`${botUrl}/sendMediaGroup`, { method: 'POST', body: fd });
-            if (res.ok) isSuccess = true;
-          } else {
-            const fd = new FormData();
-            fd.append('chat_id', TELEGRAM_SETTINGS.chatId);
-            fd.append('photo', photoBlobs[0], 'photo_single.jpg');
-            fd.append('caption', messageText);
-            const res = await fetch(`${botUrl}/sendPhoto`, { method: 'POST', body: fd });
-            if (res.ok) isSuccess = true;
-          }
-        } catch (err) {}
+      // الإرسال الآمن عبر خادم أساس؛ لا يتم كشف رمز البوت في المتصفح.
+      const payload = { text: messageText, coordinates: coords || null };
+      const response = await fetch(TELEGRAM_SETTINGS.endpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        let detail = 'تعذر إرسال المسودة إلى تليجرام';
+        try { const err = await response.json(); detail = err.error || err.message || detail; } catch (_) {}
+        throw new Error(detail);
       }
-
-      // خطة الطوارئ النصية الفورية البديلة لضمان الوصول دائماً
-      if (!isSuccess) {
-        await fetch(`${botUrl}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: TELEGRAM_SETTINGS.chatId,
-            text: messageText,
-            disable_web_page_preview: true
-          })
-        });
-      }
-
       capturedPhotos = []; // تفريغ الذاكرة
     } catch (err) {
       console.warn("تنبيه الإرسال:", err);
@@ -661,7 +633,7 @@
     if (!btn) return;
     const txt = (btn.textContent || btn.value || '').trim();
 
-    if (txt.includes('حفظ الزيارة') || txt.includes('إرسال') || txt.includes('تنزيل')) {
+    if (txt.includes('حفظ الزيارة') || txt.includes('إرسال المسودة') || txt.includes('إرسال إلى تليجرام')) {
       setTimeout(() => sendTelegramFieldDraft(btn), 50);
     }
   });
