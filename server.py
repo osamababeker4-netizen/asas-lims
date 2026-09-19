@@ -504,6 +504,58 @@ def telegram_send_photo(photo_data_url, caption=''):
     return result.get('result', {})
 
 
+
+def telegram_send_media_group(photo_data_urls, caption=''):
+    token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+    if not token or not chat_id:
+        raise RuntimeError('telegram_not_configured')
+    photos = list(photo_data_urls or [])[:10]
+    if not photos:
+        return []
+    boundary = '----ASAS' + secrets.token_hex(12)
+    chunks = []
+    media = []
+    for index, value in enumerate(photos):
+        value = str(value or '')
+        if not value.startswith('data:image/') or ';base64,' not in value:
+            raise ValueError('telegram_invalid_photo')
+        header, encoded = value.split(';base64,', 1)
+        mime = header[5:].lower()
+        if mime not in ('image/jpeg', 'image/png', 'image/webp'):
+            raise ValueError('telegram_invalid_photo')
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error):
+            raise ValueError('telegram_invalid_photo')
+        if len(raw) > 10 * 1024 * 1024:
+            raise ValueError('telegram_photo_too_large')
+        field = 'photo{}'.format(index)
+        item = {'type': 'photo', 'media': 'attach://' + field}
+        if index == 0 and caption:
+            item['caption'] = str(caption)[:1024]
+        media.append(item)
+        extension = 'jpg' if mime == 'image/jpeg' else mime.split('/', 1)[1]
+        chunks.append(('--' + boundary + '\r\nContent-Disposition: form-data; name="' + field + '"; filename="asas-field-' + str(index + 1) + '.' + extension + '"\r\nContent-Type: ' + mime + '\r\n\r\n').encode('utf-8'))
+        chunks.append(raw)
+        chunks.append(b'\r\n')
+    def add_field(name, value):
+        chunks.insert(0, ('--' + boundary + '\r\nContent-Disposition: form-data; name="' + name + '"\r\n\r\n' + str(value) + '\r\n').encode('utf-8'))
+    add_field('media', json.dumps(media, ensure_ascii=False))
+    add_field('chat_id', chat_id)
+    chunks.append(('--' + boundary + '--\r\n').encode('utf-8'))
+    request = urllib.request.Request(
+        'https://api.telegram.org/bot{}/sendMediaGroup'.format(token),
+        data=b''.join(chunks),
+        headers={'Content-Type': 'multipart/form-data; boundary=' + boundary},
+        method='POST'
+    )
+    with urllib.request.urlopen(request, timeout=45) as response:
+        result = json.loads(response.read().decode('utf-8'))
+    if not result.get('ok'):
+        raise RuntimeError('telegram_media_group_send_failed')
+    return result.get('result', [])
+
 def valid_e164(phone):
     return phone.startswith('+') and phone[1:].isdigit() and 8 <= len(phone) <= 16
 
@@ -1304,21 +1356,19 @@ class H(BaseHTTPRequestHandler):
                 sender_row = connection.execute('select full_name,username from users where id=?', (user['id'],)).fetchone()
                 sender_name = ((sender_row['full_name'] if sender_row else '') or user.get('full_name') or (sender_row['username'] if sender_row else '') or user.get('username') or 'مستخدم أساس').strip()
                 lines = text.splitlines()
-                if lines and lines[0].startswith('👤 المرسل الميداني:'):
-                    lines[0] = '👤 المرسل الفعلي: ' + sender_name
+                if lines and (lines[0].startswith('👤 المرسل الميداني:') or lines[0].startswith('👤 المرسل الفعلي:')):
+                    lines[0] = sender_name
                     text = '\n'.join(lines)
                 else:
-                    text = '👤 المرسل الفعلي: ' + sender_name + '\n' + text
+                    text = sender_name + '\n' + text
                 photos = data.get('photos') or []
                 if not isinstance(photos, list):
                     photos = []
                 photos = photos[:10]
                 try:
                     sent = telegram_send_text(text)
-                    photo_ids = []
-                    for index, photo in enumerate(photos):
-                        item = telegram_send_photo(photo, 'صورة ميدانية {}/{} · {}'.format(index + 1, len(photos), sender_name))
-                        photo_ids.append(item.get('message_id'))
+                    photo_items = telegram_send_media_group(photos, 'صور الزيارة الميدانية · ' + sender_name) if photos else []
+                    photo_ids = [item.get('message_id') for item in photo_items]
                 except (RuntimeError, ValueError) as error:
                     return self.send_json({'error': str(error)}, 503)
                 except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
