@@ -6,10 +6,18 @@ services:
     plan: 0.5c-512mb
     buildCommand: ""
     startCommand: python server.py
-    healthCheckPath: /
+    healthCheckPath: /api/health
     envVars:
       - key: LIMS_DB_PATH
         value: /opt/render/project/src/storage/lims.db
+      - key: LIMS_BACKUP_DIR
+        value: /opt/render/project/src/storage/backups
+      - key: LIMS_SESSION_TTL_SECONDS
+        value: 43200
+      - key: LIMS_LOGIN_WINDOW_SECONDS
+        value: 900
+      - key: LIMS_LOGIN_MAX_ATTEMPTS
+        value: 5
       - key: LIMS_ALLOWED_ORIGIN
         value: https://osamababeker4-netizen.github.io
       - key: LIMS_BOOTSTRAP_PASSWORD
