@@ -1091,7 +1091,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.2.23-field-guide-proxy'", server)
+        self.assertIn("APP_VERSION = '10.3.0-decision-intelligence'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1110,7 +1110,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-2-23-field-guide-proxy', sw)
+        self.assertIn('v10-3-0-decision-intelligence', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1399,6 +1399,53 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(self.server.ensure_field_manual_cache(), str(cache))
         finally:
             self.server.FIELD_MANUAL_CACHE = old_cache
+
+
+    def test_v1030_decision_intelligence_is_live_and_operational(self):
+        root = Path(__file__).parent
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        css = (root / 'style.css').read_text(encoding='utf-8')
+        server = (root / 'server.py').read_text(encoding='utf-8')
+        sw = (root / 'sw.js').read_text(encoding='utf-8')
+
+        self.assertIn("APP_VERSION = '10.3.0-decision-intelligence'", server)
+        self.assertIn('v10-3-0-decision-intelligence', sw)
+        self.assertIn('id="decisionIntelligenceCenter"', html)
+        self.assertIn('id="refreshDecisionIntelligence"', html)
+        self.assertIn('id="exportDecisionIntelligence"', html)
+        self.assertIn('id="openDecisionReport"', html)
+        for item in (
+            'decisionProjectProgress','decisionWorkOrderRate','decisionTestRate','decisionReportRate',
+            'decisionDataIssueCount','decisionCriticalCount','decisionExecutiveSummary',
+            'decisionDataQuality','decisionProjectHealth','decisionRecommendations'
+        ):
+            self.assertIn('id="' + item + '"', html)
+
+        self.assertIn('function decisionIntelligenceModel()', app)
+        self.assertIn('function renderDecisionIntelligence()', app)
+        self.assertIn('function exportDecisionIntelligence()', app)
+        self.assertIn('function openDecisionIntelligenceReport()', app)
+        self.assertIn("XLSX.writeFile(workbook,'ASAS_Decision_Intelligence_'", app)
+        self.assertIn("أوامر عمل بلا مسؤول", app)
+        self.assertIn("اختبارات غير مسندة لفني", app)
+        self.assertIn("أجهزة تجاوزت تاريخ المعايرة", app)
+        self.assertIn("أسماء عملاء مكررة", app)
+        self.assertIn("هذا التقرير يعتمد على بيانات النظام المسجلة", app)
+        self.assertIn('.decision-intelligence', css)
+        self.assertIn('.decision-kpi-grid', css)
+        self.assertIn('body.decision-print-mode', css)
+
+    def test_v1030_decision_intelligence_buttons_have_handlers(self):
+        root = Path(__file__).parent
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        self.assertIn("refreshDecisionIntelligence').addEventListener('click'", app)
+        self.assertIn("exportDecisionIntelligence').addEventListener('click'", app)
+        self.assertIn("openDecisionReport').addEventListener('click'", app)
+        self.assertIn("data-decision-report-export", app)
+        self.assertIn("data-decision-report-print", app)
+        self.assertIn("data-decision-go", app)
+        self.assertIn('renderDecisionIntelligence();', app)
 
 
 if __name__ == '__main__':
