@@ -19,7 +19,7 @@ const QUALITY_ACCESS_ROLES = ['admin','general_manager','manager','quality_manag
 const COUNTRY_CODES = [{code:'+966',name:'السعودية 🇸🇦'},{code:'+971',name:'الإمارات 🇦🇪'},{code:'+973',name:'البحرين 🇧🇭'},{code:'+965',name:'الكويت 🇰🇼'},{code:'+974',name:'قطر 🇶🇦'},{code:'+968',name:'عُمان 🇴🇲'},{code:'+20',name:'مصر 🇪🇬'},{code:'+249',name:'السودان 🇸🇩'},{code:'+962',name:'الأردن 🇯🇴'},{code:'+967',name:'اليمن 🇾🇪'}];
 const OFFICIAL_WHATSAPP_URL = 'https://chat.whatsapp.com/LxqH7L6GorGEhMfUTYthgG?s=sh&p=a&mlu=4&ilr=4';
 const OFFICIAL_TELEGRAM_URL = 'https://t.me/+xPEyC5xPw8w5MjE0';
-const FIELD_MANUAL_URL = 'https://momah.gov.sa/sites/default/files/2024-12/aldlyl%20alshaml%20lla%27%60mal%20almdnyt%20llbnyt%20althtyt.pdf';
+const FIELD_MANUAL_REF = '/api/field/manual';
 const FIELD_MANUAL_TITLE = 'الدليل الشامل للأعمال المدنية للبنية التحتية — 2024 / 1446 — الإصدار الأول';
 // الكتالوج الرسمي الموحد: يظهر في الموقع المركزي، ويطابق التطبيق الميداني.
 const OFFICIAL_TEST_CATALOG = Object.freeze({
@@ -937,8 +937,28 @@ function renderCatalog() {
 function openCatalogResources(id) { const item=catalog.find(function(x){return x.id===Number(id);});if(!item)return;modal('<h2>ملفات '+esc(item.code)+'</h2><p>يمكن رفع المواصفة وورقة العمل وملف النتائج بأي صيغة حتى 100MB، وتفتح الملفات المحفوظة من داخل النظام.</p><form id="catalogResourcesForm"><input type="hidden" name="catalog_id" value="'+item.id+'"><div class="modal-grid"><label>المواصفة<input name="astm" type="file"></label><label>Work Sheet<input name="worksheet" type="file"></label><label>ملف النتائج<input name="results" type="file"></label></div><p class="form-note">الحد التشغيلي لكل ملف 100MB. اترك الحقل فارغًا للإبقاء على الملف الحالي.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الملفات</button></div></form>'); }
 async function submitCatalogResources(form) { const catalogId=form.elements.catalog_id.value; let count=0; for(const type of ['astm','worksheet','results']) { const file=form.elements[type].files[0]; if(!file)continue; if(file.size>100*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 100MB'); const bytes=new Uint8Array(await file.arrayBuffer()); let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/catalog/resources',{method:'POST',body:JSON.stringify({catalog_id:catalogId,resource_type:type,file_name:file.name,file_base64:btoa(binary)})});count++; } if(!count)throw new Error('اختر ملفًا واحدًا على الأقل');closeModal();await refresh();showToast('تم ربط ملفات الاختبار بدليل الجودة'); }
 
-function openFieldManual(){
-  modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><iframe class="field-manual-frame" src="'+esc(FIELD_MANUAL_URL)+'#toolbar=1&navpanes=1" title="'+esc(FIELD_MANUAL_TITLE)+'"></iframe></section>');
+async function openFieldManual(){
+  modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><div class="field-manual-loading">جارٍ تحميل الدليل داخل البرنامج…</div></section>');
+  const headers={};if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+  try{
+    const response=await fetch(API_BASE_URL+FIELD_MANUAL_REF,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
+    if(!response.ok){let message='تعذر تحميل دليل الاختبارات الميدانيه';try{const data=await response.json();message=data.error||message;}catch(_error){}throw new Error(message);}
+    const blob=await response.blob();
+    if(!blob.size||!String(blob.type||'').toLowerCase().includes('pdf'))throw new Error('ملف الدليل غير صالح أو فارغ');
+    if(activeAttachmentObjectUrl)URL.revokeObjectURL(activeAttachmentObjectUrl);
+    activeAttachmentObjectUrl=URL.createObjectURL(blob);
+    modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn primary" type="button" data-field-manual-download>تنزيل الدليل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><iframe class="field-manual-frame" src="'+esc(activeAttachmentObjectUrl)+'#toolbar=1&navpanes=1" title="'+esc(FIELD_MANUAL_TITLE)+'"></iframe></section>');
+    const downloadButton=document.querySelector('[data-field-manual-download]');
+    if(downloadButton)downloadButton.addEventListener('click',function(){
+      downloadAttachmentBlob({original_name:'الدليل الشامل للأعمال المدنية للبنية التحتية.pdf'},blob,activeAttachmentObjectUrl);
+    });
+  }catch(error){
+    modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><div class="attachment-original-format field-manual-error"><h3>تعذر تحميل نسخة PDF الآن</h3><p>'+esc(error.message||'تعذر تحميل الدليل')+'</p><button class="btn secondary" type="button" data-field-local-guide>عرض الدليل التشغيلي المحلي داخل البرنامج</button></div></section>');
+    const local=document.querySelector('[data-field-local-guide]');
+    if(local)local.addEventListener('click',function(){
+      modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>نسخة التشغيل المحلية</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><iframe class="field-manual-frame" src="field-test-guide.html" title="دليل الاختبارات الميدانيه"></iframe></section>');
+    });
+  }
 }
 
 function catalogBatchUploadId(file){

@@ -993,3 +993,39 @@ input:focus,select:focus,textarea:focus{
   #field .field-guide-sidebar .field-catalog-actions .text-btn{width:100%;text-align:center}
   #field .form-grid{grid-template-columns:1fr}
 }
+
+
+/* V10.2.23 field guide internal proxy viewer */
+.field-manual-loading{
+  min-height:56vh;
+  display:grid;
+  place-items:center;
+  text-align:center;
+  padding:28px;
+  border:1px solid #d7e4e8;
+  border-radius:14px;
+  background:linear-gradient(180deg,#fbfdfd,#f3f8fa);
+  color:#365a6f;
+  font-weight:800;
+}
+.field-manual-error{
+  min-height:48vh;
+  display:grid;
+  align-content:center;
+  justify-items:center;
+  gap:12px;
+  text-align:center;
+}
+.field-manual-viewer .field-manual-frame{
+  width:100%;
+  min-height:66vh;
+  border:1px solid #d6e2e7;
+  border-radius:12px;
+  background:#f5f7f8;
+}
+@media(max-width:620px){
+  .field-manual-viewer .attachment-viewer-head{align-items:flex-start;gap:12px}
+  .field-manual-viewer .attachment-viewer-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}
+  .field-manual-viewer .attachment-viewer-actions .btn{width:100%}
+  .field-manual-viewer .field-manual-frame{min-height:72vh}
+}

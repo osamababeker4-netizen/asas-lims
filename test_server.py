@@ -97,7 +97,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertNotIn('4 أقسام رئيسية', html)
         self.assertIn('id="openFieldManual"', html)
         self.assertIn('دليل الاختبارات الميدانيه', html)
-        self.assertIn('FIELD_MANUAL_URL', app)
+        self.assertIn('FIELD_MANUAL_REF', app)
         self.assertIn('field-group-card', app)
         for english in ('Concrete', 'Soil', 'Asphalt', 'Field & NDT'):
             self.assertIn("english:'" + english + "'", app)
@@ -1091,7 +1091,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.2.22-field-sidebar-layout'", server)
+        self.assertIn("APP_VERSION = '10.2.23-field-guide-proxy'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1110,7 +1110,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-2-22-field-sidebar-layout', sw)
+        self.assertIn('v10-2-23-field-guide-proxy', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1176,7 +1176,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('spreadsheetPreviewHtml', app)
         self.assertIn('wordPreviewHtml', app)
         self.assertIn('zipPreviewHtml', app)
-        self.assertIn('FIELD_MANUAL_URL', app)
+        self.assertIn('FIELD_MANUAL_REF', app)
         self.assertIn('detect_catalog_target', server)
         self.assertIn('detect_catalog_resource_type', server)
         self.assertIn('.spreadsheet-preview-table', css)
@@ -1378,6 +1378,27 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("('quality_file', 0, str(data.get('name') or stored_name)", server)
         self.assertIn("if path == '/api/trash/file':", server)
         self.assertIn("row['entity_type'] == 'quality_file'", server)
+
+
+    def test_field_manual_uses_authenticated_proxy_and_local_pdf_cache(self):
+        root = Path(__file__).parent
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        server = (root / 'server.py').read_text(encoding='utf-8')
+        self.assertIn("const FIELD_MANUAL_REF = '/api/field/manual';", app)
+        self.assertIn("fetch(API_BASE_URL+FIELD_MANUAL_REF", app)
+        self.assertIn("if path == '/api/field/manual':", server)
+        self.assertIn("'Content-Disposition': \"inline; filename*=UTF-8''\" + quote(filename)", server)
+        self.assertNotIn('FIELD_MANUAL_URL', app)
+        self.assertIn('عرض الدليل التشغيلي المحلي داخل البرنامج', app)
+
+        cache = Path(self.temp.name) / 'field-guide.pdf'
+        cache.write_bytes(b'%PDF-' + b'x' * 2048)
+        old_cache = self.server.FIELD_MANUAL_CACHE
+        try:
+            self.server.FIELD_MANUAL_CACHE = str(cache)
+            self.assertEqual(self.server.ensure_field_manual_cache(), str(cache))
+        finally:
+            self.server.FIELD_MANUAL_CACHE = old_cache
 
 
 if __name__ == '__main__':

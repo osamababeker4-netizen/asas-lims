@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.2.22-field-sidebar-layout'
+APP_VERSION = '10.2.23-field-guide-proxy'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -47,6 +47,15 @@ LOGIN_MAX_ATTEMPTS = int(os.environ.get('LIMS_LOGIN_MAX_ATTEMPTS', '5'))
 LOGIN_ATTEMPTS = {}
 LOGIN_ATTEMPTS_LOCK = threading.Lock()
 BACKUP_DIR = os.environ.get('LIMS_BACKUP_DIR', os.path.join(BASE, 'backups'))
+FIELD_MANUAL_SOURCE_URL = os.environ.get(
+    'LIMS_FIELD_MANUAL_SOURCE_URL',
+    "https://momah.gov.sa/sites/default/files/2024-12/aldlyl%20alshaml%20lla%27%60mal%20almdnyt%20llbnyt%20althtyt.pdf"
+).strip()
+FIELD_MANUAL_CACHE = os.environ.get(
+    'LIMS_FIELD_MANUAL_CACHE',
+    os.path.join(QUALITY_UPLOADS, 'field-testing-guide.pdf')
+)
+FIELD_MANUAL_MAX_BYTES = int(os.environ.get('LIMS_FIELD_MANUAL_MAX_BYTES', str(30 * 1024 * 1024)))
 
 PROJECT_STATUSES = {'مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل', 'مفتوح'}
 WORK_ORDER_STATUSES = {'مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'}
@@ -127,6 +136,51 @@ def _find_value(payload, aliases):
         elif isinstance(current, list):
             stack.extend(current)
     return ''
+
+
+def ensure_field_manual_cache():
+    """Return a local PDF copy so the browser never embeds the external ministry site directly."""
+    try:
+        if os.path.isfile(FIELD_MANUAL_CACHE) and os.path.getsize(FIELD_MANUAL_CACHE) > 1024:
+            with open(FIELD_MANUAL_CACHE, 'rb') as existing:
+                if existing.read(5) == b'%PDF-':
+                    return FIELD_MANUAL_CACHE
+    except OSError:
+        pass
+
+    if not FIELD_MANUAL_SOURCE_URL:
+        raise RuntimeError('مصدر دليل الاختبارات الميداني غير مهيأ')
+    request = urllib.request.Request(
+        FIELD_MANUAL_SOURCE_URL,
+        headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; ASAS-LIMS/10.2.23)',
+            'Accept': 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'ar,en;q=0.8'
+        }
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            chunks, total = [], 0
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > FIELD_MANUAL_MAX_BYTES:
+                    raise RuntimeError('حجم دليل الاختبارات الميداني يتجاوز الحد التشغيلي')
+                chunks.append(chunk)
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as error:
+        raise RuntimeError('تعذر جلب دليل الاختبارات الميداني من المصدر الرسمي: ' + str(error))
+
+    content = b''.join(chunks)
+    if len(content) < 1024 or not content.startswith(b'%PDF-'):
+        raise RuntimeError('المصدر الرسمي لم يرجع ملف PDF صالحًا')
+    os.makedirs(os.path.dirname(FIELD_MANUAL_CACHE), exist_ok=True)
+    temporary = FIELD_MANUAL_CACHE + '.tmp-' + secrets.token_hex(6)
+    with open(temporary, 'wb') as output:
+        output.write(content)
+    os.replace(temporary, FIELD_MANUAL_CACHE)
+    return FIELD_MANUAL_CACHE
 
 
 def fetch_balady_permit(license_no):
@@ -1659,6 +1713,23 @@ class H(BaseHTTPRequestHandler):
                 extension = os.path.splitext(filename)[1].lower()
                 types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.rtf':'application/rtf','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.xlsm':'application/vnd.ms-excel.sheet.macroEnabled.12','.csv':'text/csv','.txt':'text/plain','.json':'application/json','.xml':'application/xml','.log':'text/plain','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic','.gif':'image/gif','.bmp':'image/bmp','.dwg':'application/acad','.dxf':'application/dxf','.ppt':'application/vnd.ms-powerpoint','.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation','.zip':'application/zip','.rar':'application/vnd.rar','.7z':'application/x-7z-compressed','.mp3':'audio/mpeg','.wav':'audio/wav','.m4a':'audio/mp4','.ogg':'audio/ogg','.mp4':'video/mp4','.webm':'video/webm','.mov':'video/quicktime','.m4v':'video/x-m4v'}
                 return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'), {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(filename)})
+
+            if path == '/api/field/manual':
+                if not self.require_permission(user, 'field'):
+                    return
+                try:
+                    target = ensure_field_manual_cache()
+                except RuntimeError as error:
+                    return self.send_json({'error': str(error)}, 502)
+                filename = 'ASAS-Field-Testing-Guide.pdf'
+                return self.static(
+                    os.path.relpath(target, BASE),
+                    'application/pdf',
+                    {
+                        'Content-Disposition': "inline; filename*=UTF-8''" + quote(filename),
+                        'Cache-Control': 'private, max-age=86400'
+                    }
+                )
 
             if path == '/api/dashboard':
                 if not self.require_permission(user, 'dashboard'):
