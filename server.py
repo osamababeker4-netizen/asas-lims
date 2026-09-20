@@ -1641,8 +1641,9 @@ class H(BaseHTTPRequestHandler):
                 target = os.path.join(QUALITY_UPLOADS, filename)
                 if not filename or not os.path.isfile(target):
                     return self.send_json({'error': 'الملف غير موجود'}, 404)
-                content_type = 'application/pdf' if filename.endswith('.pdf') else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' if filename.endswith('.docx') else 'application/msword'
-                return self.static(os.path.relpath(target, BASE), content_type)
+                extension = os.path.splitext(filename)[1].lower()
+                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.rtf':'application/rtf','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.xlsm':'application/vnd.ms-excel.sheet.macroEnabled.12','.csv':'text/csv','.txt':'text/plain','.json':'application/json','.xml':'application/xml','.log':'text/plain','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic','.gif':'image/gif','.bmp':'image/bmp','.dwg':'application/acad','.dxf':'application/dxf','.ppt':'application/vnd.ms-powerpoint','.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation','.zip':'application/zip','.rar':'application/vnd.rar','.7z':'application/x-7z-compressed','.mp3':'audio/mpeg','.wav':'audio/wav','.m4a':'audio/mp4','.ogg':'audio/ogg','.mp4':'video/mp4','.webm':'video/webm','.mov':'video/quicktime','.m4v':'video/x-m4v'}
+                return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'), {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(filename)})
 
             if path == '/api/dashboard':
                 if not self.require_permission(user, 'dashboard'):
@@ -2691,15 +2692,16 @@ class H(BaseHTTPRequestHandler):
                 file_data = str(data.get('file_base64') or '')
                 file_name = os.path.basename(str(data.get('file_name') or ''))
                 if file_data:
-                    extension = os.path.splitext(file_name)[1].lower()
-                    if extension not in {'.pdf', '.doc', '.docx'} or len(file_data) > 35_000_000:
-                        return self.send_json({'error': 'يسمح فقط بملفات PDF أو Word حتى 25MB'}, 400)
+                    extension = safe_file_extension(file_name)
+                    max_encoded = int(MAX_SMART_FILE_BYTES * 1.40) + 4096
+                    if not file_name or len(file_data) > max_encoded:
+                        return self.send_json({'error': 'ملف الجودة غير صالح أو يتجاوز الحد التشغيلي'}, 400)
                     try:
                         content = base64.b64decode(file_data, validate=True)
                     except ValueError:
                         return self.send_json({'error': 'ملف مرفوع غير صالح'}, 400)
-                    if len(content) > 25 * 1024 * 1024:
-                        return self.send_json({'error': 'حجم الملف يتجاوز 25MB'}, 400)
+                    if len(content) > MAX_SMART_FILE_BYTES:
+                        return self.send_json({'error': 'حجم الملف يتجاوز الحد التشغيلي {}MB'.format(MAX_SMART_FILE_BYTES // 1024 // 1024)}, 400)
                     os.makedirs(QUALITY_UPLOADS, exist_ok=True)
                     stored_name = secrets.token_urlsafe(18) + extension
                     with open(os.path.join(QUALITY_UPLOADS, stored_name), 'wb') as uploaded:
@@ -2976,16 +2978,17 @@ class H(BaseHTTPRequestHandler):
                 if not self.require_permission(user, 'quality'):
                     return
                 file_data = str(data.get('file_base64') or '')
-                file_name = os.path.basename(str(data.get('file_name') or ''))
-                extension = os.path.splitext(file_name)[1].lower()
-                if not file_data or extension not in {'.pdf', '.doc', '.docx'} or len(file_data) > 35_000_000:
-                    return self.send_json({'error': 'يسمح فقط بملفات PDF أو Word حتى 25MB'}, 400)
+                file_name = os.path.basename(str(data.get('file_name') or '')).strip()
+                extension = safe_file_extension(file_name)
+                max_encoded = int(MAX_SMART_FILE_BYTES * 1.40) + 4096
+                if not file_data or not file_name or len(file_data) > max_encoded:
+                    return self.send_json({'error': 'ملف الجودة غير صالح أو يتجاوز الحد التشغيلي'}, 400)
                 try:
                     content = base64.b64decode(file_data, validate=True)
                 except ValueError:
                     return self.send_json({'error': 'ملف مرفوع غير صالح'}, 400)
-                if len(content) > 25 * 1024 * 1024:
-                    return self.send_json({'error': 'حجم الملف يتجاوز 25MB'}, 400)
+                if len(content) > MAX_SMART_FILE_BYTES:
+                    return self.send_json({'error': 'حجم الملف يتجاوز الحد التشغيلي {}MB'.format(MAX_SMART_FILE_BYTES // 1024 // 1024)}, 400)
                 os.makedirs(QUALITY_UPLOADS, exist_ok=True)
                 stored_name = secrets.token_urlsafe(18) + extension
                 with open(os.path.join(QUALITY_UPLOADS, stored_name), 'wb') as uploaded:
@@ -2993,6 +2996,30 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'رفع ملف جودة', 'quality_file', 0, file_name)
                 connection.commit()
                 return self.send_json({'ok': True, 'ref': '/api/quality/files/' + stored_name})
+
+            if path == '/api/quality/files/delete':
+                if user.get('role') not in FILE_DELETE_ROLES:
+                    return self.send_json({'error': 'ليس لديك صلاحية حذف ملفات الجودة'}, 403)
+                ref = str(data.get('ref') or '').strip()
+                prefix = '/api/quality/files/'
+                if not ref.startswith(prefix):
+                    return self.send_json({'error': 'مرجع الملف غير صالح'}, 400)
+                stored_name = os.path.basename(ref[len(prefix):])
+                if not stored_name:
+                    return self.send_json({'error': 'مرجع الملف غير صالح'}, 400)
+                connection.execute('update quality_documents set document_ref=null where document_ref=?', (ref,))
+                connection.execute('update proficiency_tests set report_ref=null where report_ref=?', (ref,))
+                connection.execute('update quality_staff set qualification_ref=null where qualification_ref=?', (ref,))
+                connection.execute('update quality_staff set cv_ref=null where cv_ref=?', (ref,))
+                connection.commit()
+                target = os.path.join(QUALITY_UPLOADS, stored_name)
+                if os.path.isfile(target):
+                    try:
+                        os.remove(target)
+                    except OSError:
+                        pass
+                publish_event('quality_file', 'delete', 0)
+                return self.send_json({'ok': True, 'deleted': stored_name})
 
             if path == '/api/quality/proficiency':
                 if not self.require_permission(user, 'quality'):
