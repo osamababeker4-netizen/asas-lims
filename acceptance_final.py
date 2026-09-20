@@ -147,8 +147,10 @@ with tempfile.TemporaryDirectory() as tmp:
             "file_base64": base64.b64encode(archive_buffer.getvalue()).decode(),
         })
         ensure(status == 200, f"mixed ZIP request failed: {zip_result}")
-        ensure(zip_result.get("total") == 2, f"ZIP should import 2 supported files: {zip_result}")
-        ensure(any(item.get("name") == "unsupported.exe" for item in (zip_result.get("skipped") or [])), "skipped ZIP member was not reported")
+        ensure(zip_result.get("total") == 3, f"ZIP should preserve and import all 3 files regardless of extension: {zip_result}")
+        exe_item = next((item for item in (zip_result.get("imported") or []) if item.get("name") == "unsupported.exe"), None)
+        ensure(exe_item is not None and exe_item.get("category") == "ملف EXE", f"arbitrary ZIP member was not preserved: {zip_result}")
+        ensure(not (zip_result.get("skipped") or []), f"no ZIP member should be skipped only because of extension: {zip_result}")
 
         status, downloaded, headers = request("GET", f"/api/attachments/files/{download_id}", raw=True)
         ensure(status == 200, f"direct download returned HTTP {status}")

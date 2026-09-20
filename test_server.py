@@ -94,9 +94,9 @@ class SchemaMigrationTests(unittest.TestCase):
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
         guide = (Path(__file__).parent / 'field-test-guide.html').read_text(encoding='utf-8')
         self.assertIn('id="fieldGuideFilters"', html)
-        self.assertIn('4 أقسام رئيسية', html)
+        self.assertNotIn('4 أقسام رئيسية', html)
         self.assertIn('id="openFieldManual"', html)
-        self.assertIn('دليل الاختبارات الميداني', html)
+        self.assertIn('دليل الاختبارات الميدانيه', html)
         self.assertIn('FIELD_MANUAL_URL', app)
         self.assertIn('field-group-card', app)
         for english in ('Concrete', 'Soil', 'Asphalt', 'Field & NDT'):
@@ -605,10 +605,12 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("kind==='text'", app)
         self.assertIn('الملف محفوظ في النظام بصيغته الأصلية دون تحويل', app)
         self.assertIn('data-viewer-download', app)
-        self.assertIn('data-viewer-newtab', app)
+        self.assertNotIn('data-viewer-newtab', app)
+        self.assertIn("kind==='audio'", app)
+        self.assertIn("kind==='video'", app)
         self.assertIn('.attachment-viewer-frame', css)
         self.assertIn('.attachment-original-format', css)
-        self.assertIn('فتح الملف</button>', app)
+        self.assertIn('data-smart-open', app)
         self.assertNotIn("excel?'تشغيل/تنزيل':'فتح'", app)
 
     def test_asas_brand_palette_is_consistent(self):
@@ -1089,7 +1091,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.2.20-smart-standards-field-guide'", server)
+        self.assertIn("APP_VERSION = '10.2.21-field-guide-file-actions'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1108,7 +1110,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-2-20-smart-standards-field-guide', sw)
+        self.assertIn('v10-2-21-field-guide-file-actions', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1209,6 +1211,68 @@ class SchemaMigrationTests(unittest.TestCase):
         connection.commit()
         connection.close()
 
+
+
+    def test_v10221_all_uploaded_files_have_open_download_delete_and_any_format_storage(self):
+        root = Path(__file__).parent
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        server = (root / 'server.py').read_text(encoding='utf-8')
+
+        self.assertIn('دليل الاختبارات الميدانيه', html)
+        self.assertNotIn('4 أقسام رئيسية', html)
+        self.assertIn('data-smart-open', app)
+        self.assertIn('data-smart-download', app)
+        self.assertIn('data-smart-delete', app)
+        self.assertIn('data-catalog-download', app)
+        self.assertIn('data-catalog-delete', app)
+        self.assertIn('data-quality-file-download', app)
+        self.assertIn('data-quality-file-delete', app)
+        self.assertIn("'/api/attachments/delete'", server)
+        self.assertIn("'/api/quality/files/delete'", server)
+        self.assertIn('FILE_DELETE_ROLES', server)
+        self.assertIn('smart_file_category', server)
+        self.assertIn("return ('ملف ' + extension.lstrip('.').upper()) if extension else 'ملف'", server)
+
+        self.server.init()
+        self.server.RECORD_UPLOADS = str(Path(self.temp.name) / 'records-v10221')
+        os.makedirs(self.server.RECORD_UPLOADS, exist_ok=True)
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        technician = {'role':'technician'}
+        before_audit = connection.execute('select count(*) from audit_log').fetchone()[0]
+
+        stored = self.server.store_smart_file(connection, admin, 'technicalLibrary', 'device-output.sensorbin', b'\x00\x01ASAS binary payload')
+        self.assertEqual(stored['category'], 'ملف SENSORBIN')
+        row = connection.execute('select * from record_attachments where id=?', (stored['id'],)).fetchone()
+        self.assertTrue(self.server.attachment_delete_allowed(admin, row))
+        self.assertFalse(self.server.attachment_delete_allowed(technician, row))
+        stored_path = Path(self.server.RECORD_UPLOADS) / row['stored_name']
+        self.assertTrue(stored_path.exists())
+
+        deleted = self.server.delete_record_attachment(connection, stored['id'])
+        self.assertEqual(deleted['original_name'], 'device-output.sensorbin')
+        connection.commit()
+        after_audit = connection.execute('select count(*) from audit_log').fetchone()[0]
+        self.assertEqual(before_audit, after_audit)
+        self.assertIsNone(connection.execute('select id from record_attachments where id=?', (stored['id'],)).fetchone())
+        connection.close()
+
+    def test_v10221_catalog_file_delete_clears_resource_link(self):
+        self.server.init()
+        self.server.RECORD_UPLOADS = str(Path(self.temp.name) / 'records-catalog-delete')
+        os.makedirs(self.server.RECORD_UPLOADS, exist_ok=True)
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        d1557 = connection.execute("select id from test_catalog where code='D1557'").fetchone()['id']
+        stored = self.server.store_smart_file(connection, admin, 'catalog', 'ASTM D1557 specification.custom', b'ASTM D1557 standard specification')
+        link = connection.execute('select astm_attachment_id from catalog_resources where test_catalog_id=?', (d1557,)).fetchone()
+        self.assertEqual(link['astm_attachment_id'], stored['id'])
+        self.server.delete_record_attachment(connection, stored['id'])
+        connection.commit()
+        link = connection.execute('select astm_attachment_id from catalog_resources where test_catalog_id=?', (d1557,)).fetchone()
+        self.assertIsNone(link['astm_attachment_id'])
+        connection.close()
 
 
 if __name__ == '__main__':

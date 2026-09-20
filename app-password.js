@@ -918,18 +918,27 @@ function renderTests() {
 function renderCatalog() {
   const query = $('catalogSearch') ? $('catalogSearch').value.toLowerCase() : '';
   setHtml($('catalogTable'), catalog.filter(function(item) { return [item.code,item.name_ar,item.name_en,item.standard,item.category].join(' ').toLowerCase().indexOf(query) >= 0; }).map(function(item) {
-    const fileLink = function(id,label,nameHint){return id ? '<button class="text-btn download-link" type="button" data-catalog-file="'+id+'" data-catalog-file-name="'+esc(nameHint||item.code+'-'+label)+'">فتح '+label+'</button>' : '';};
-    const resources = [fileLink(item.astm_attachment_id,'المواصفة',item.code+'-standard.pdf'),fileLink(item.worksheet_attachment_id,'Work Sheet',item.code+'-worksheet.xlsx'),fileLink(item.results_attachment_id,'ملف النتائج',item.code+'-results.xlsx')].filter(Boolean).join(' ');
     const canManage = currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','document_controller','quality'].indexOf(currentUser.role) >= 0;
-    return '<tr><td>' + esc(item.code) + '</td><td>' + escUI(item.name_ar) + '<small>' + esc(item.name_en || '') + '</small></td><td>' + escUI(item.category) + '</td><td>' + esc(item.standard) + '</td><td>' + esc(item.version || '—') + '</td><td><div class="row-actions">'+(resources || '—')+(canManage ? '<button class="text-btn" data-catalog-resources="'+item.id+'">إدارة الملفات</button>' : '')+'</div></td></tr>';
+    const canDeleteFile = canDeleteUploadedFiles();
+    const resource = function(id,label,name){
+      if(!id)return '';
+      const fileName=name||item.code+'-'+label;
+      return '<span class="catalog-resource-actions"><strong>'+esc(label)+'</strong><button class="text-btn" type="button" data-catalog-file="'+id+'" data-catalog-file-name="'+esc(fileName)+'">فتح</button><button class="text-btn" type="button" data-catalog-download="'+id+'" data-catalog-file-name="'+esc(fileName)+'">تنزيل</button>'+(canDeleteFile?'<button class="text-btn danger-link" type="button" data-catalog-delete="'+id+'" data-catalog-file-name="'+esc(fileName)+'">حذف</button>':'')+'</span>';
+    };
+    const resources = [
+      resource(item.astm_attachment_id,'المواصفة',item.astm_attachment_name||item.code+'-standard.pdf'),
+      resource(item.worksheet_attachment_id,'Work Sheet',item.worksheet_attachment_name||item.code+'-worksheet.xlsx'),
+      resource(item.results_attachment_id,'ملف النتائج',item.results_attachment_name||item.code+'-results.xlsx')
+    ].filter(Boolean).join('');
+    return '<tr><td>' + esc(item.code) + '</td><td>' + escUI(item.name_ar) + '<small>' + esc(item.name_en || '') + '</small></td><td>' + escUI(item.category) + '</td><td>' + esc(item.standard) + '</td><td>' + esc(item.version || '—') + '</td><td><div class="catalog-resources">'+(resources || '—')+(canManage ? '<button class="text-btn" data-catalog-resources="'+item.id+'">إدارة الملفات</button>' : '')+'</div></td></tr>';
   }).join('') || '<tr><td colspan="6" class="empty">لا توجد نتائج.</td></tr>');
 }
 
-function openCatalogResources(id) { const item=catalog.find(function(x){return x.id===Number(id);});if(!item)return;modal('<h2>ملفات '+esc(item.code)+'</h2><p>ارفع النسخة المرخّصة من مواصفة ASTM وWork Sheet وExcel النتائج. تظل الملفات متاحة للقراءة والتنزيل حسب الصلاحيات.</p><form id="catalogResourcesForm"><input type="hidden" name="catalog_id" value="'+item.id+'"><div class="modal-grid"><label>مواصفة ASTM (PDF أو Word)<input name="astm" type="file" accept=".pdf,.doc,.docx"></label><label>Work Sheet (PDF أو Word أو Excel)<input name="worksheet" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx"></label><label>Excel الاختبارات والنتائج<input name="results" type="file" accept=".xls,.xlsx,.pdf"></label></div><p class="form-note">الحد التشغيلي لكل ملف 100MB. اترك الحقل فارغًا للإبقاء على الملف الحالي.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الملفات</button></div></form>'); }
+function openCatalogResources(id) { const item=catalog.find(function(x){return x.id===Number(id);});if(!item)return;modal('<h2>ملفات '+esc(item.code)+'</h2><p>يمكن رفع المواصفة وورقة العمل وملف النتائج بأي صيغة حتى 100MB، وتفتح الملفات المحفوظة من داخل النظام.</p><form id="catalogResourcesForm"><input type="hidden" name="catalog_id" value="'+item.id+'"><div class="modal-grid"><label>المواصفة<input name="astm" type="file"></label><label>Work Sheet<input name="worksheet" type="file"></label><label>ملف النتائج<input name="results" type="file"></label></div><p class="form-note">الحد التشغيلي لكل ملف 100MB. اترك الحقل فارغًا للإبقاء على الملف الحالي.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الملفات</button></div></form>'); }
 async function submitCatalogResources(form) { const catalogId=form.elements.catalog_id.value; let count=0; for(const type of ['astm','worksheet','results']) { const file=form.elements[type].files[0]; if(!file)continue; if(file.size>100*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 100MB'); const bytes=new Uint8Array(await file.arrayBuffer()); let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/catalog/resources',{method:'POST',body:JSON.stringify({catalog_id:catalogId,resource_type:type,file_name:file.name,file_base64:btoa(binary)})});count++; } if(!count)throw new Error('اختر ملفًا واحدًا على الأقل');closeModal();await refresh();showToast('تم ربط ملفات الاختبار بدليل الجودة'); }
 
 function openFieldManual(){
-  modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميداني</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><a class="btn secondary" href="'+esc(FIELD_MANUAL_URL)+'" target="_blank" rel="noopener">فتح النسخة الرسمية</a><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><iframe class="field-manual-frame" src="'+esc(FIELD_MANUAL_URL)+'#toolbar=1&navpanes=1" title="'+esc(FIELD_MANUAL_TITLE)+'"></iframe></section>');
+  modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><iframe class="field-manual-frame" src="'+esc(FIELD_MANUAL_URL)+'#toolbar=1&navpanes=1" title="'+esc(FIELD_MANUAL_TITLE)+'"></iframe></section>');
 }
 
 function catalogBatchUploadId(file){
@@ -970,7 +979,7 @@ async function uploadCatalogStandardsBatch(files){
 async function chooseCatalogStandards(){
   if(window.showOpenFilePicker){
     try{
-      const handles=await window.showOpenFilePicker({multiple:true,startIn:'downloads',types:[{description:'Standards and test resources',accept:{'application/pdf':['.pdf'],'application/msword':['.doc'],'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx'],'application/vnd.ms-excel':['.xls'],'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx'],'text/csv':['.csv']}}]});
+      const handles=await window.showOpenFilePicker({multiple:true,startIn:'downloads'});
       const files=[];for(const handle of handles){try{files.push(await handle.getFile());}catch(error){showToast('تعذر الوصول إلى '+handle.name+'؛ اختر الملف من مكانه الحالي.',true);}}
       if(files.length)await uploadCatalogStandardsBatch(files);
       return;
@@ -1124,7 +1133,12 @@ async function renderQuality() {
   try {
     qualityData = await api('/api/quality');
     const categoryNames = {procedure:'إجراء',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
-    const fileAction=function(item){return item.document_ref&&item.document_ref.indexOf('/api/')===0?'<button class="text-btn" type="button" data-quality-file-ref="'+esc(item.document_ref)+'" data-quality-file-name="'+esc(item.code||item.title||'quality-file')+'">فتح الملف</button>':(item.document_ref?esc(item.document_ref):'—');};
+    const qualityRefActions=function(ref,name){
+      if(!ref||ref.indexOf('/api/')!==0)return ref?esc(ref):'—';
+      const label=name||decodeURIComponent(String(ref).split('/').pop()||'quality-file');
+      return '<span class="item-actions"><button class="text-btn" type="button" data-quality-file-ref="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">فتح</button><button class="text-btn" type="button" data-quality-file-download="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" type="button" data-quality-file-delete="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">حذف</button>':'')+'</span>';
+    };
+    const fileAction=function(item){return qualityRefActions(item.document_ref,item.code||item.title||'quality-file');};
     const docActions=function(item){return '<div class="row-actions">'+fileAction(item)+'<button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="'+item.id+'" data-record-label="'+esc(item.code)+'" type="button">حذف</button></div>';};
     const docs=qualityData.documents||[];
     setHtml($('qualityDocumentsTable'),docs.map(function(item){return '<tr><td>'+escUI(categoryNames[item.category]||item.category)+'</td><td>'+esc(item.code)+'</td><td>'+esc(item.title)+'</td><td>'+esc(item.revision||'—')+'</td><td>'+statusChip(item.status)+'</td><td>'+fileAction(item)+'</td><td>'+docActions(item)+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
@@ -1134,8 +1148,8 @@ async function renderQuality() {
       setHtml(box,rows.length?rows.map(function(item){return '<div class="qc-record-row"><div><strong>'+esc(item.code)+' — '+esc(item.title)+'</strong><small>'+esc(item.revision||'بدون إصدار')+' · '+escUI(item.status||'—')+'</small></div>'+docActions(item)+'</div>';}).join(''):'<div class="empty-state">لا توجد سجلات بعد.</div>');
     }
     renderDocList('qualityProcedureList','procedure');renderDocList('qualityWorksheetList','worksheet');renderDocList('qualityAdminFormList','admin_form');
-    setHtml($('proficiencyTable'), (qualityData.proficiency||[]).map(function(item){return '<tr><td>'+esc(item.test_name)+'</td><td>'+esc(item.material||'—')+'</td><td>'+esc(item.provider||'—')+'</td><td>'+esc(item.participation_date||'—')+'</td><td>'+esc(item.result||'—')+'</td><td>'+esc(item.z_score||'—')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
-    setHtml($('qualityStaffTable'), (qualityData.staff||[]).map(function(item){return '<tr><td>'+esc(item.full_name)+'</td><td>'+esc(item.job_title||'—')+'</td><td>'+esc(item.specialty||'—')+'</td><td>'+esc(item.experience_years||'—')+'</td><td>'+esc(item.qualification_ref||'—')+'</td><td>'+(item.active?'نشط':'موقوف')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
+    setHtml($('proficiencyTable'), (qualityData.proficiency||[]).map(function(item){return '<tr><td>'+esc(item.test_name)+'</td><td>'+esc(item.material||'—')+'</td><td>'+esc(item.provider||'—')+'</td><td>'+esc(item.participation_date||'—')+'</td><td>'+esc(item.result||'—')+(item.report_ref?'<small>'+qualityRefActions(item.report_ref,'تقرير '+item.test_name)+'</small>':'')+'</td><td>'+esc(item.z_score||'—')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
+    setHtml($('qualityStaffTable'), (qualityData.staff||[]).map(function(item){const refs=[];if(item.qualification_ref)refs.push(qualityRefActions(item.qualification_ref,'المؤهل — '+item.full_name));if(item.cv_ref)refs.push(qualityRefActions(item.cv_ref,'السيرة الذاتية — '+item.full_name));return '<tr><td>'+esc(item.full_name)+'</td><td>'+esc(item.job_title||'—')+'</td><td>'+esc(item.specialty||'—')+'</td><td>'+esc(item.experience_years||'—')+'</td><td>'+(refs.join('<br>')||'—')+'</td><td>'+(item.active?'نشط':'موقوف')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
     const equipmentRows=dashboard&&dashboard.equipment?dashboard.equipment:[];
     const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
     if($('qualityEquipmentInlineTable'))setHtml($('qualityEquipmentInlineTable'),equipmentRows.map(function(item){return '<tr><td>'+esc(item.equipment_code||'—')+'</td><td>'+esc(item.name)+'</td><td>'+esc(item.serial_no||'—')+'</td><td>'+esc(item.section||'—')+'</td><td>'+esc(item.verification_status||'—')+'</td><td>'+esc(item.calibrated_to||item.next_calibration||'—')+'</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد أجهزة بعد.</td></tr>');
@@ -1155,7 +1169,7 @@ async function submitInlineQualityDocument(form){
   const data={owner:'شركة مختبر أساس'};new FormData(form).forEach(function(value,key){if(key!=='quality_file')data[key]=value;});
   const fixed=form.dataset.inlineQualityDocument;if(fixed&&fixed!=='document')data.category=fixed;
   const file=form.elements.quality_file&&form.elements.quality_file.files[0];
-  if(file){data.file_name=file.name;data.file_base64=await inlineFileBase64(file,25);}
+  if(file){data.file_name=file.name;data.file_base64=await inlineFileBase64(file,100);}
   await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تم الحفظ داخل الجودة والوثائق');
 }
 async function submitInlineQualityRecord(form,kind){
@@ -1163,7 +1177,7 @@ async function submitInlineQualityRecord(form,kind){
   const fileFields=kind==='proficiency'?['quality_file']:['qualification_file','cv_file'];
   const data={};
   for(const element of Array.from(form.elements)){if(!element.name||fileFields.indexOf(element.name)>=0)continue;data[element.name]=element.value;}
-  for(const name of fileFields){const input=form.elements[name],file=input&&input.files[0];if(file){data[name+'_name']=file.name;data[name+'_base64']=await inlineFileBase64(file,25);}}
+  for(const name of fileFields){const input=form.elements[name],file=input&&input.files[0];if(file){data[name+'_name']=file.name;data[name+'_base64']=await inlineFileBase64(file,100);}}
   await api(endpoint,{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تم حفظ السجل');
 }
 async function submitInlineEquipment(form){
@@ -1181,9 +1195,9 @@ async function submitInlineSmartImport(form){
 
 function openQualityForm(kind) {
   const names = {procedure:'إجراء جودة',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
-  if (names[kind]) return modal('<h2>إضافة ' + names[kind] + '</h2><form id="qualityDocumentForm"><input type="hidden" name="category" value="' + kind + '"><input type="hidden" name="owner" value="شركة مختبر أساس"><div class="modal-grid"><label>الكود<input name="code" required placeholder="QMS-P-001"></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision" placeholder="Rev. 01"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>رفع ملف Word أو PDF<input name="quality_file" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label><label>رابط بديل (اختياري)<input name="document_ref" type="url"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><p class="form-note">PDF أو Word حتى 25MB.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الوثيقة</button></div></form>');
-  if (kind === 'proficiency') return modal('<h2>إضافة مشاركة اختبار كفاءة</h2><form id="proficiencyForm"><div class="modal-grid"><label>اسم الاختبار<input name="test_name" required></label><label>المادة<input name="material"></label><label>المعيار<input name="standard"></label><label>مقدم الخدمة<input name="provider"></label><label>تاريخ المشاركة<input name="participation_date" type="date"></label><label>النتيجة<input name="result"></label><label>Z-score<input name="z_score"></label><label>رفع تقرير Word أو PDF<input name="quality_file" type="file" accept=".pdf,.doc,.docx"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ المشاركة</button></div></form>');
-  if (kind === 'staff') return modal('<h2>إضافة سجل موظف للجودة</h2><form id="qualityStaffForm"><div class="modal-grid"><label>الاسم الكامل<input name="full_name" required></label><label>المسمى الوظيفي<input name="job_title"></label><label>التخصص<input name="specialty"></label><label>سنوات الخبرة<input name="experience_years" type="number" min="0"></label><label>رفع المؤهل Word أو PDF<input name="qualification_file" type="file" accept=".pdf,.doc,.docx"></label><label>رفع السيرة الذاتية Word أو PDF<input name="cv_file" type="file" accept=".pdf,.doc,.docx"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ السجل</button></div></form>');
+  if (names[kind]) return modal('<h2>إضافة ' + names[kind] + '</h2><form id="qualityDocumentForm"><input type="hidden" name="category" value="' + kind + '"><input type="hidden" name="owner" value="شركة مختبر أساس"><div class="modal-grid"><label>الكود<input name="code" required placeholder="QMS-P-001"></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision" placeholder="Rev. 01"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>رفع ملف<input name="quality_file" type="file"></label><label>رابط بديل (اختياري)<input name="document_ref" type="url"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><p class="form-note">أي صيغة ملف حتى 100MB.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الوثيقة</button></div></form>');
+  if (kind === 'proficiency') return modal('<h2>إضافة مشاركة اختبار كفاءة</h2><form id="proficiencyForm"><div class="modal-grid"><label>اسم الاختبار<input name="test_name" required></label><label>المادة<input name="material"></label><label>المعيار<input name="standard"></label><label>مقدم الخدمة<input name="provider"></label><label>تاريخ المشاركة<input name="participation_date" type="date"></label><label>النتيجة<input name="result"></label><label>Z-score<input name="z_score"></label><label>رفع تقرير<input name="quality_file" type="file"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ المشاركة</button></div></form>');
+  if (kind === 'staff') return modal('<h2>إضافة سجل موظف للجودة</h2><form id="qualityStaffForm"><div class="modal-grid"><label>الاسم الكامل<input name="full_name" required></label><label>المسمى الوظيفي<input name="job_title"></label><label>التخصص<input name="specialty"></label><label>سنوات الخبرة<input name="experience_years" type="number" min="0"></label><label>رفع المؤهل<input name="qualification_file" type="file"></label><label>رفع السيرة الذاتية<input name="cv_file" type="file"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ السجل</button></div></form>');
 }
 
 const QUALITY_TEMPLATES = {
@@ -1351,7 +1365,7 @@ function validChannelUrl(value, channel) { try { const url=new URL(String(value|
 function applyChannelLink(channel,value) { const link=$(channel+'ChannelLink');const status=$(channel+'ChannelStatus');if(!link||!status)return;const href=validChannelUrl(value,channel);if(href){link.href=href;link.classList.remove('disabled');link.setAttribute('aria-disabled','false');setText(status,'متصل وجاهز للفتح');}else{link.removeAttribute('href');link.classList.add('disabled');link.setAttribute('aria-disabled','true');setText(status,'أضف رابطًا صحيحًا من إعدادات النظام');} }
 async function loadCommunicationLinks() { let settings={};try{settings=await api('/api/communication-links');}catch(error){try{if(currentUser&&['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)>=0)settings=await api('/api/settings');}catch(ignore){settings={};}}applyChannelLink('whatsapp',settings.whatsapp_group_url||OFFICIAL_WHATSAPP_URL);applyChannelLink('telegram',settings.telegram_url||OFFICIAL_TELEGRAM_URL); }
 async function submitSystemSettings(form) { const data={};Array.from(form.elements).forEach(function(field){if(!field.name)return;data[field.name]=field.type==='checkbox'?String(field.checked):field.value.trim();});await api('/api/settings/update',{method:'POST',body:JSON.stringify(data)});setText($('settingsMessage'),'تم حفظ الإعدادات ومزامنتها بنجاح');await loadCommunicationLinks();showToast('تم حفظ إعدادات النظام وتحديث روابط التواصل'); }
-async function submitQualityDocument(form) { const data = {}; new FormData(form).forEach(function(value,key) { if (key !== 'quality_file') data[key] = value; }); const file = form.elements.quality_file.files[0]; if (file) { if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 8192)); data.file_name = file.name; data.file_base64 = btoa(binary); } await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم حفظ وثيقة الجودة'); }
+async function submitQualityDocument(form) { const data = {}; new FormData(form).forEach(function(value,key) { if (key !== 'quality_file') data[key] = value; }); const file = form.elements.quality_file.files[0]; if (file) { if (file.size > 100 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 100MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 8192)); data.file_name = file.name; data.file_base64 = btoa(binary); } await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم حفظ وثيقة الجودة'); }
 function openQualityDocumentEdit(item) { modal('<h2>تعديل وثيقة الجودة</h2><form id="qualityDocumentEditForm"><input type="hidden" name="id" value="'+item.id+'"><input type="hidden" name="category" value="'+esc(item.category)+'"><div class="modal-grid"><label>الكود<input name="code" required value="'+esc(item.code)+'"></label><label>العنوان<input name="title" required value="'+esc(item.title)+'"></label><label>الإصدار<input name="revision" value="'+esc(item.revision||'')+'"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ التعديل</button></div></form>'); }
 async function submitQualityDocumentEdit(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/quality/documents/update',{method:'POST',body:JSON.stringify(data)});closeModal();await refresh();showToast('تم تعديل وثيقة الجودة'); }
 async function deleteQualityDocument(id) { if(!window.confirm('هل تريد حذف وثيقة الجودة نهائياً؟'))return;await api('/api/quality/documents/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف وثيقة الجودة'); }
@@ -1363,7 +1377,7 @@ async function resetOperationalData(){
   const result=await api('/api/system/reset-operational',{method:'POST',body:JSON.stringify({confirmation:'RESET-ASAS-OPERATIONAL'})});
   await refresh(); showToast('تم تصفير بيانات التشغيل. النسخة الاحتياطية: '+result.backup);
 }
-async function uploadQualityFile(file) { if (!file) return ''; if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset=0; offset<bytes.length; offset+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192)); const result = await api('/api/quality/files',{method:'POST',body:JSON.stringify({file_name:file.name,file_base64:btoa(binary)})}); return result.ref; }
+async function uploadQualityFile(file) { if (!file) return ''; if (file.size > 100 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 100MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset=0; offset<bytes.length; offset+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192)); const result = await api('/api/quality/files',{method:'POST',body:JSON.stringify({file_name:file.name,file_base64:btoa(binary)})}); return result.ref; }
 async function submitQualityRecord(form,path,files) { const data={}; new FormData(form).forEach(function(value,key){if(files.indexOf(key)<0)data[key]=value;}); for(const item of files){const ref=await uploadQualityFile(form.elements[item].files[0]); if(ref)data[item === 'quality_file' ? 'report_ref' : item === 'qualification_file' ? 'qualification_ref' : 'cv_ref']=ref;} await api(path,{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم الحفظ'); }
 
 const BULK_FIELDS = {clients:['الاسم','الهاتف','البريد'],projects:['اسم المشروع','العميل','الموقع','الأولوية','البداية','الاستحقاق','التقدم','الوصف'],work_orders:['أمر العمل','معرف المشروع','الأولوية','الموعد','الاستحقاق','الوصف'],samples:['المادة','معرف المشروع','المصدر','تاريخ الاستلام','ملاحظات']};
@@ -1371,10 +1385,48 @@ const ENTITY_LABELS = {client:'عميل',project:'مشروع',work_order:'أمر
 function csvRows(text) { const rows=[], row=[]; let cell='', quoted=false; for(let i=0;i<text.length;i++){const c=text[i]; if(c==='"'){if(quoted && text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;} else if(c===','&&!quoted){row.push(cell.trim());cell='';} else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(Boolean))rows.push(row.splice(0));cell='';} else cell+=c;} row.push(cell.trim());if(row.some(Boolean))rows.push(row); return rows; }
 function downloadBulkTemplate(type) { const line=BULK_FIELDS[type].map(x=>uiLanguage==='en'?translateUI(x):x).join(',')+'\n'; const blob=new Blob(['\ufeff'+line],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='asas-'+type+'-template.csv';a.click();URL.revokeObjectURL(a.href); }
 function entityRows(entity) { const mapping={client:'clients',project:'projects',work_order:'work_orders',sample:'samples',test:'tests',report:'reports',equipment:'equipment',user:'users'}; return (dashboard[mapping[entity]]||[]).map(function(item){ return {id:item.id,label:item.name||item.code||item.order_no||item.sample_no||item.test_no||item.report_no||item.full_name||item.username||('سجل '+item.id)}; }); }
-function openAttachmentPanel(entity) { const rows=entityRows(entity); modal('<h2>مرفقات '+escUI(ENTITY_LABELS[entity])+'</h2><p>ارفع Word أو Excel أو PDF حتى 25MB، واربطه بالسجل المطلوب.</p><form id="recordAttachmentForm"><div class="modal-grid"><label>السجل<select name="entity_id" required>'+optionList(rows,'',function(x){return x.label;},function(x){return x.id;})+'</select></label><label>الملف<input name="file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" required></label></div><div id="recordAttachmentList" class="form-note"></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">رفع وحفظ</button></div></form>'); const form=$('recordAttachmentForm'); form.dataset.entityType=entity; const load=async function(){const id=form.elements.entity_id.value;if(!id)return;setText($('recordAttachmentList'), 'جارٍ تحميل المرفقات…');try{const items=await api('/api/attachments?entity_type='+encodeURIComponent(entity)+'&entity_id='+encodeURIComponent(id));setHtml($('recordAttachmentList'), items.length?items.map(function(x){return '<a target="_blank" rel="noopener" href="'+esc(API_BASE_URL+'/api/attachments/files/'+x.id)+'">'+esc(x.original_name)+'</a>';}).join('<br>'):'لا توجد مرفقات لهذا السجل.');}catch(e){setText($('recordAttachmentList'), 'تعذر تحميل المرفقات');}}; form.elements.entity_id.addEventListener('change',load); load(); }
+function openAttachmentPanel(entity) {
+  const rows=entityRows(entity);
+  modal('<h2>مرفقات '+escUI(ENTITY_LABELS[entity])+'</h2><p>ارفع أي ملف حتى 100MB واربطه بالسجل المطلوب. كل ملف محفوظ يفتح داخل البرنامج ويمكن تنزيله، ويظهر الحذف للمخولين فقط.</p><form id="recordAttachmentForm"><div class="modal-grid"><label>السجل<select name="entity_id" required>'+optionList(rows,'',function(x){return x.label;},function(x){return x.id;})+'</select></label><label>الملف<input name="file" type="file" required></label></div><div id="recordAttachmentList" class="attachment-record-list"></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">رفع وحفظ</button></div></form>');
+  const form=$('recordAttachmentForm'); form.dataset.entityType=entity;
+  const load=async function(){
+    const id=form.elements.entity_id.value;if(!id)return;
+    setText($('recordAttachmentList'),'جارٍ تحميل المرفقات…');
+    try{
+      const items=await api('/api/attachments?entity_type='+encodeURIComponent(entity)+'&entity_id='+encodeURIComponent(id));
+      window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};
+      items.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});
+      setHtml($('recordAttachmentList'),items.length?items.map(function(item){
+        return '<div class="attachment-record-row"><strong>'+esc(item.original_name)+'</strong><div class="item-actions"><button class="text-btn" type="button" data-smart-open="'+item.id+'">فتح</button><button class="text-btn" type="button" data-smart-download="'+item.id+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" type="button" data-smart-delete="'+item.id+'">حذف</button>':'')+'</div></div>';
+      }).join(''):'لا توجد مرفقات لهذا السجل.');
+    }catch(e){setText($('recordAttachmentList'),'تعذر تحميل المرفقات');}
+  };
+  form.__loadAttachments=load;
+  form.elements.entity_id.addEventListener('change',load);load();
+}
+
 function openBulkPanel(type) { const entity={clients:'client',projects:'project',work_orders:'work_order',samples:'sample'}[type]; modal('<h2>استيراد '+escUI(ENTITY_LABELS[entity])+' من Excel</h2><p>ارفع ملف Excel مباشرة؛ يتعرف النظام تلقائيًا على ورقة البيانات وصف العناوين وترتيب الأعمدة بالعربية أو الإنجليزية. ويبقى CSV مدعومًا.</p><div class="modal-actions"><button class="btn secondary" type="button" data-download-bulk="'+esc(type)+'">تنزيل قالب</button><button class="btn secondary" type="button" data-open-attachments="'+esc(entity)+'">رفع مرفق</button></div><form id="bulkImportForm"><label>ملف Excel أو CSV<input name="file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" required></label><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تعرف واستورد مباشرة</button></div></form>'); $('bulkImportForm').dataset.entityType=type; }
 async function submitBulkImport(form) { const file=form.elements.file.files[0]; if(!file)throw new Error('اختر ملف Excel أو CSV');if(/\.xlsx$/i.test(file.name)){const result=await api('/api/import/xlsx',{method:'POST',body:JSON.stringify({entity_type:form.dataset.entityType,file_name:file.name,file_base64:await fileToBase64(file)})});closeModal();await refresh();showToast('تم التعرف على ورقة «'+result.sheet+'» واستيراد '+result.imported+' صف'+(result.skipped.length?'، وتجاوز '+result.skipped.length+' صف غير صالح':''));return;} const rows=csvRows(await file.text()); if(rows.length<2)throw new Error('الملف لا يحتوي صفوفاً للاستيراد'); const heads=rows.shift(); const values=rows.map(function(row){const out={};heads.forEach(function(h,i){const canonical=(BULK_FIELDS[form.dataset.entityType]||[]).find(x=>x===h||translateUI(x)===h)||h; let value=row[i]||''; if(['الأولوية','المادة'].includes(canonical)){value=['منخفضة','متوسطة','عالية','حرجة','تربة','خرسانة','أسفلت'].find(x=>translateUI(x).toLowerCase()===value.toLowerCase())||value;} out[canonical]=value;});return out;}); const result=await api('/api/bulk/import',{method:'POST',body:JSON.stringify({entity_type:form.dataset.entityType,rows:values})}); closeModal();await refresh();showToast('تم استيراد '+result.imported+' صف'+(result.skipped.length?'، وتجاوز '+result.skipped.length+' صف غير صالح':'')); }
-async function submitRecordAttachment(form) { const file=form.elements.file.files[0];if(!file)throw new Error('اختر ملفاً');if(file.size>25*1024*1024)throw new Error('حجم الملف يتجاوز 25MB');const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/attachments',{method:'POST',body:JSON.stringify({entity_type:form.dataset.entityType,entity_id:form.elements.entity_id.value,file_name:file.name,file_base64:btoa(binary)})});closeModal();showToast('تم رفع المرفق وحفظه');}
+async function submitRecordAttachment(form) { const file=form.elements.file.files[0];if(!file)throw new Error('اختر ملفاً');if(file.size>100*1024*1024)throw new Error('حجم الملف يتجاوز 100MB');const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/attachments',{method:'POST',body:JSON.stringify({entity_type:form.dataset.entityType,entity_id:form.elements.entity_id.value,file_name:file.name,file_base64:btoa(binary)})});closeModal();showToast('تم رفع المرفق وحفظه');}
+
+function canDeleteUploadedFiles(){
+  return Boolean(currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager','document_controller'].indexOf(currentUser.role)>=0);
+}
+
+async function deleteUploadedFile(item){
+  if(!item||!item.id)throw new Error('تعذر تحديد الملف');
+  if(!canDeleteUploadedFiles())throw new Error('ليس لديك صلاحية حذف الملفات');
+  if(!window.confirm('حذف الملف «'+(item.original_name||'')+'» نهائيًا؟'))return false;
+  await api('/api/attachments/delete',{method:'POST',body:JSON.stringify({id:item.id})});
+  if(window.__ASAS_SMART_FILES)delete window.__ASAS_SMART_FILES[item.id];
+  documentLibraryRows=documentLibraryRows.filter(function(row){return Number(row.id)!==Number(item.id);});
+  if(activePageId==='quality')renderDocumentCenterFiles();
+  const smartForm=$('smartImportForm');if(smartForm&&smartForm.elements.section)await loadSmartImports(smartForm.elements.section.value);
+  const recordForm=$('recordAttachmentForm');if(recordForm&&typeof recordForm.__loadAttachments==='function')await recordForm.__loadAttachments();
+  await loadCatalog();renderCatalog();
+  showToast('تم حذف الملف مباشرة');
+  return true;
+}
 
 function documentFileTypeIcon(name) {
   const ext = String(name || '').split('.').pop().toLowerCase();
@@ -1394,11 +1446,14 @@ function renderDocumentCenterFiles() {
   });
   window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};
   documentLibraryRows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});
-
+  function actionButtons(item,buttonClass){
+    const cls=buttonClass||'btn';
+    return '<button class="'+cls+' primary" type="button" data-smart-open="'+item.id+'">فتح</button><button class="'+cls+' secondary" type="button" data-smart-download="'+item.id+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="'+cls+' danger-link" type="button" data-smart-delete="'+item.id+'">حذف</button>':'');
+  }
   function cards(rows,emptyText) {
     if(!rows.length)return '<div class="empty-state document-empty"><strong>'+esc(emptyText||'لا توجد ملفات فعلية مطابقة.')+'</strong></div>';
     return rows.map(function(item) {
-      return '<article class="document-file-card compact"><div class="document-file-icon">'+documentFileTypeIcon(item.original_name)+'</div><div class="document-file-info"><span class="pill">'+escUI(item.material_group||'أخرى')+'</span><h4>'+esc(item.original_name)+'</h4><p>'+esc(item.file_category||'ملف')+' · '+esc(item.source_label||'المكتبة الفنية')+'</p><small>'+esc(saudiDisplay(item.created_at))+'</small></div><div class="document-file-actions"><button class="btn primary" type="button" data-smart-open="'+item.id+'">فتح</button><button class="btn secondary" type="button" data-smart-download="'+item.id+'">تنزيل</button></div></article>';
+      return '<article class="document-file-card compact"><div class="document-file-icon">'+documentFileTypeIcon(item.original_name)+'</div><div class="document-file-info"><span class="pill">'+escUI(item.material_group||'أخرى')+'</span><h4>'+esc(item.original_name)+'</h4><p>'+esc(item.file_category||'ملف')+' · '+esc(item.source_label||'المكتبة الفنية')+'</p><small>'+esc(saudiDisplay(item.created_at))+'</small></div><div class="document-file-actions">'+actionButtons(item,'btn')+'</div></article>';
     }).join('');
   }
   const main=$('documentLibraryFiles');if(main)setHtml(main,cards(filtered,'لا توجد ملفات فعلية مطابقة.'));
@@ -1407,7 +1462,7 @@ function renderDocumentCenterFiles() {
   const log=$('qualityImportLog');
   if(log){
     const recent=documentLibraryRows.slice().sort(function(a,b){return String(b.created_at||'').localeCompare(String(a.created_at||''));}).slice(0,50);
-    setHtml(log,recent.length?recent.map(function(item){return '<div class="qc-log-row"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.source_label||'')+' · '+esc(item.file_category||'ملف')+'</small></div><span>'+esc(item.material_group||'أخرى')+'</span><time>'+esc(saudiDisplay(item.created_at))+'</time><div><button class="text-btn" data-smart-open="'+item.id+'" type="button">فتح</button><button class="text-btn" data-smart-download="'+item.id+'" type="button">تنزيل</button></div></div>';}).join(''):'<div class="empty-state">لا توجد عمليات استيراد بعد.</div>');
+    setHtml(log,recent.length?recent.map(function(item){return '<div class="qc-log-row"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.source_label||'')+' · '+esc(item.file_category||'ملف')+'</small></div><span>'+esc(item.material_group||'أخرى')+'</span><time>'+esc(saudiDisplay(item.created_at))+'</time><div class="item-actions"><button class="text-btn" data-smart-open="'+item.id+'" type="button">فتح</button><button class="text-btn" data-smart-download="'+item.id+'" type="button">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" data-smart-delete="'+item.id+'" type="button">حذف</button>':'')+'</div></div>';}).join(''):'<div class="empty-state">لا توجد عمليات استيراد بعد.</div>');
   }
 }
 
@@ -1468,17 +1523,20 @@ function attachmentViewerKind(name){
   const lower=String(name||'').toLowerCase();
   if(/\.pdf$/.test(lower))return 'pdf';
   if(/\.(jpg|jpeg|png|webp|gif|bmp)$/.test(lower))return 'image';
-  if(/\.(txt|csv|json|xml|log)$/.test(lower))return 'text';
+  if(/\.(txt|csv|json|xml|log|md|html|htm|css|js|py|sql|rtf)$/.test(lower))return 'text';
   if(/\.(doc|docx)$/.test(lower))return 'word';
-  if(/\.(xls|xlsx)$/.test(lower))return 'excel';
+  if(/\.(xls|xlsx|xlsm)$/.test(lower))return 'excel';
   if(/\.(dwg|dxf)$/.test(lower))return 'cad';
-  if(/\.zip$/.test(lower))return 'zip';
+  if(/\.(zip|rar|7z)$/.test(lower))return 'archive';
+  if(/\.(mp3|wav|m4a|ogg)$/.test(lower))return 'audio';
+  if(/\.(mp4|webm|mov|m4v)$/.test(lower))return 'video';
+  if(/\.(ppt|pptx)$/.test(lower))return 'powerpoint';
   return 'other';
 }
 
 function attachmentFormatLabel(kind,name){
   const ext=(String(name||'').split('.').pop()||'FILE').toUpperCase();
-  const labels={pdf:'PDF',image:'Image',text:'Text',word:'Microsoft Word',excel:'Microsoft Excel',cad:'AutoCAD',zip:'ZIP',other:ext};
+  const labels={pdf:'PDF',image:'Image',text:'Text',word:'Microsoft Word',excel:'Microsoft Excel',cad:'AutoCAD',archive:'Archive',audio:'Audio',video:'Video',powerpoint:'Microsoft PowerPoint',other:ext};
   return labels[kind]||ext;
 }
 
@@ -1531,19 +1589,21 @@ async function openAttachmentInViewer(item){
     content=await spreadsheetPreviewHtml(fetched.blob,item.original_name||'Excel');
   }else if(kind==='word'){
     content=await wordPreviewHtml(fetched.blob,item.original_name||'Word');
-  }else if(kind==='zip'){
+  }else if(kind==='archive'&&/\.zip$/i.test(item.original_name||'')){
     content=await zipPreviewHtml(fetched.blob,item.original_name||'ZIP');
   }else if(kind==='cad'&&/\.dxf$/i.test(item.original_name||'')){
     const text=await fetched.blob.text();
     content='<pre class="attachment-text-stage cad-text-preview">'+esc(text.slice(0,1200000))+'</pre>';
+  }else if(kind==='audio'){
+    content='<div class="media-file-preview"><audio controls preload="metadata" src="'+esc(fetched.url)+'"></audio></div>';
+  }else if(kind==='video'){
+    content='<div class="media-file-preview"><video controls preload="metadata" src="'+esc(fetched.url)+'"></video></div>';
   }else{
-    content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(item.original_name||'ملف')+'</h3><p>الملف محفوظ في النظام بصيغته الأصلية دون تحويل. هذه الصيغة تحتاج برنامجها الأصلي للعرض الكامل، ويمكن تنزيلها مباشرة دون فقدان النسخة المحفوظة.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
+    content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(item.original_name||'ملف')+'</h3><p>تم فتح الملف داخل البرنامج. الملف محفوظ في النظام بصيغته الأصلية دون تحويل. هذه الصيغة لا يملك المتصفح عارضًا كاملاً لمحتواها، لكن الملف يظل متاحًا هنا مع التنزيل المباشر.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
   }
-  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Internal File Viewer</span><h2>'+esc(item.original_name||'ملف')+'</h2><p>نسخة أصلية محفوظة · '+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-viewer-newtab>فتح الأصل في نافذة</button><button class="btn primary" type="button" data-viewer-download>تنزيل الأصل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
+  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Internal File Viewer</span><h2>'+esc(item.original_name||'ملف')+'</h2><p>نسخة أصلية محفوظة · '+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn primary" type="button" data-viewer-download>تنزيل الأصل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
   const downloadButton=document.querySelector('[data-viewer-download]');
   if(downloadButton)downloadButton.addEventListener('click',function(){downloadAttachmentBlob(item,fetched.blob,fetched.url);});
-  const newTabButton=document.querySelector('[data-viewer-newtab]');
-  if(newTabButton)newTabButton.addEventListener('click',function(){window.open(fetched.url,'_blank','noopener');});
 }
 
 async function authenticatedAttachmentDownload(item,openAfter){
@@ -1553,34 +1613,66 @@ async function authenticatedAttachmentDownload(item,openAfter){
   setTimeout(function(){URL.revokeObjectURL(fetched.url);},30000);
 }
 
-async function openAuthorizedQualityFile(ref,name){
-  const headers={};
-  if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+async function fetchAuthorizedQualityFile(ref){
+  const headers={};if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
   let response;
-  try{
-    response=await fetch(API_BASE_URL+ref,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
-  }catch(error){
-    throw new Error('تعذر الاتصال بالخادم لفتح وثيقة الجودة');
-  }
-  if(!response.ok){
-    let message='تعذر فتح وثيقة الجودة';
-    try{const data=await response.json();message=data.error||message;}catch(_error){}
-    throw new Error(message);
-  }
-  const blob=await response.blob();
-  if(!blob.size)throw new Error('ملف وثيقة الجودة فارغ أو غير متاح');
-  const url=URL.createObjectURL(blob);
-  const contentType=String(blob.type||'');
-  if(contentType.indexOf('pdf')>=0||contentType.indexOf('image/')===0){
-    window.open(url,'_blank','noopener');
-    setTimeout(function(){URL.revokeObjectURL(url);},60000);
-  }else{
-    downloadAttachmentBlob({original_name:name||'quality-file'},blob,url);
-    setTimeout(function(){URL.revokeObjectURL(url);},30000);
-  }
+  try{response=await fetch(API_BASE_URL+ref,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});}
+  catch(error){throw new Error('تعذر الاتصال بالخادم لفتح وثيقة الجودة');}
+  if(!response.ok){let message='تعذر فتح وثيقة الجودة';try{const data=await response.json();message=data.error||message;}catch(_error){}throw new Error(message);}
+  const blob=await response.blob();if(!blob.size)throw new Error('ملف وثيقة الجودة فارغ أو غير متاح');
+  return {blob:blob,url:URL.createObjectURL(blob)};
 }
 
-async function loadSmartImports(section){const box=$('smartImportResults');if(!box)return;setText(box,'جارٍ تحميل الملفات المرتبة…');try{const rows=await api('/api/smart-imports?section='+encodeURIComponent(section));if(!rows.length){setText(box,'لا توجد ملفات مرفوعة في هذا القسم بعد.');return;}window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};rows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});const groups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'];setHtml(box,groups.map(function(group){const items=rows.filter(function(item){return (item.material_group||'أخرى')===group;});if(!items.length)return '';return '<section class="smart-material-group"><h3>'+esc(group)+' <span class="pill">'+items.length+'</span></h3>'+items.map(function(item){return '<div class="list-item"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.file_category||'ملف')+' · '+esc(item.classification_status||'مصنف')+'</small></div><div class="item-actions"><button class="text-btn" type="button" data-smart-open="'+item.id+'">فتح الملف</button><button class="text-btn" type="button" data-smart-download="'+item.id+'">تنزيل</button></div></div>';}).join('')+'</section>';}).join(''));}catch(error){setText(box,error.message);}}
+async function openAuthorizedQualityFile(ref,name,downloadOnly){
+  const fetched=await fetchAuthorizedQualityFile(ref);
+  const storedName=decodeURIComponent(String(ref).split('/').pop()||'quality-file');
+  const displayName=(name&&String(name).indexOf('.')>0)?name:storedName;
+  if(downloadOnly){
+    downloadAttachmentBlob({original_name:displayName},fetched.blob,fetched.url);
+    setTimeout(function(){URL.revokeObjectURL(fetched.url);},30000);return;
+  }
+  if(activeAttachmentObjectUrl)URL.revokeObjectURL(activeAttachmentObjectUrl);activeAttachmentObjectUrl=fetched.url;
+  const kind=attachmentViewerKind(displayName),format=attachmentFormatLabel(kind,displayName);
+  const size=(fetched.blob.size/1024/1024).toFixed(fetched.blob.size>=1024*1024?2:3)+' MB';
+  let content='';
+  if(kind==='pdf')content='<iframe class="attachment-viewer-frame" src="'+esc(fetched.url)+'#toolbar=1&navpanes=1"></iframe>';
+  else if(kind==='image')content='<div class="attachment-image-stage"><img src="'+esc(fetched.url)+'" alt="'+esc(displayName)+'"></div>';
+  else if(kind==='text')content='<pre class="attachment-text-stage">'+esc((await fetched.blob.text()).slice(0,1000000))+'</pre>';
+  else if(kind==='excel')content=await spreadsheetPreviewHtml(fetched.blob,displayName);
+  else if(kind==='word')content=await wordPreviewHtml(fetched.blob,displayName);
+  else if(kind==='archive'&&/\.zip$/i.test(displayName))content=await zipPreviewHtml(fetched.blob,displayName);
+  else if(kind==='audio')content='<div class="media-file-preview"><audio controls preload="metadata" src="'+esc(fetched.url)+'"></audio></div>';
+  else if(kind==='video')content='<div class="media-file-preview"><video controls preload="metadata" src="'+esc(fetched.url)+'"></video></div>';
+  else content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(displayName)+'</h3><p>تم فتح الملف داخل البرنامج. الملف محفوظ بصيغته الأصلية دون تحويل ويمكن تنزيله عند الحاجة.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
+  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Quality File Viewer</span><h2>'+esc(displayName)+'</h2><p>'+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn primary" type="button" data-quality-viewer-download>تنزيل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
+  const button=document.querySelector('[data-quality-viewer-download]');if(button)button.addEventListener('click',function(){downloadAttachmentBlob({original_name:displayName},fetched.blob,fetched.url);});
+}
+
+async function deleteAuthorizedQualityFile(ref,name){
+  if(!canDeleteUploadedFiles())throw new Error('ليس لديك صلاحية حذف ملفات الجودة');
+  if(!window.confirm('حذف الملف «'+(name||'')+'» نهائيًا؟'))return;
+  await api('/api/quality/files/delete',{method:'POST',body:JSON.stringify({ref:ref})});
+  await refresh();showToast('تم حذف الملف مباشرة');
+}
+
+async function loadSmartImports(section){
+  const box=$('smartImportResults');if(!box)return;
+  setText(box,'جارٍ تحميل الملفات المرتبة…');
+  try{
+    const rows=await api('/api/smart-imports?section='+encodeURIComponent(section));
+    if(!rows.length){setText(box,'لا توجد ملفات مرفوعة في هذا القسم بعد.');return;}
+    window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};
+    rows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});
+    const groups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'];
+    setHtml(box,groups.map(function(group){
+      const items=rows.filter(function(item){return (item.material_group||'أخرى')===group;});if(!items.length)return '';
+      return '<section class="smart-material-group"><h3>'+esc(group)+' <span class="pill">'+items.length+'</span></h3>'+items.map(function(item){
+        return '<div class="list-item"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.file_category||'ملف')+' · '+esc(item.classification_status||'مصنف')+'</small></div><div class="item-actions"><button class="text-btn" type="button" data-smart-open="'+item.id+'">فتح</button><button class="text-btn" type="button" data-smart-download="'+item.id+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" type="button" data-smart-delete="'+item.id+'">حذف</button>':'')+'</div></div>';
+      }).join('')+'</section>';
+    }).join(''));
+  }catch(error){setText(box,error.message);}
+}
+
 function smartSelectedFiles(form) {
   return Array.isArray(form.__selectedFiles) ? form.__selectedFiles : [];
 }
@@ -1616,21 +1708,7 @@ async function safeSmartFilePicker(form) {
   const nativeInput = form.elements.files;
   if (window.showOpenFilePicker) {
     try {
-      const handles = await window.showOpenFilePicker({
-        multiple:true,
-        startIn:'downloads',
-        types:[{description:'ASAS supported files',accept:{
-          'application/pdf':['.pdf'],
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx'],
-          'application/msword':['.doc'],
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx'],
-          'application/vnd.ms-excel':['.xls'],
-          'text/csv':['.csv'],
-          'text/plain':['.txt'],
-          'image/*':['.jpg','.jpeg','.png','.webp','.heic'],
-          'application/zip':['.zip']
-        }}]
-      });
+      const handles = await window.showOpenFilePicker({multiple:true,startIn:'downloads'});
       const resolved = await Promise.all(handles.map(async function(handle){
         try { return {file:await handle.getFile(), error:null}; }
         catch(error) { return {file:null,error:error}; }
@@ -1649,12 +1727,12 @@ async function safeSmartFilePicker(form) {
 }
 
 function openSmartImportPanel(section){
-  modal('<h2>إرفاق ملف — '+esc(SMART_SECTION_LABELS[section]||section)+'</h2><p>يمكنك الاختيار بالطريقة الآمنة أو سحب الملفات وإفلاتها. الطريقة الآمنة تبدأ من مجلد التنزيلات لتجنب مسارات Windows القديمة أو غير المتاحة.</p><form id="smartImportForm"><input type="hidden" name="section" value="'+esc(section)+'"><label>نوع الملف<select id="smartFileType"><option value="all">جميع الملفات المدعومة</option><option value=".xls,.xlsx,.csv">Excel / CSV</option><option value=".pdf">PDF</option><option value=".doc,.docx">Word</option><option value=".jpg,.jpeg,.png,.webp,.heic">صور</option><option value=".txt">نصوص TXT</option><option value=".zip">ZIP</option><option value=".dwg,.dxf">AutoCAD DWG / DXF</option></select></label><input name="files" id="smartNativeFileInput" class="hidden" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.zip,.dwg,.dxf"><div class="smart-upload-actions"><button id="safeSmartPicker" class="btn primary" type="button">اختيار ملفات بأمان</button><button id="nativeSmartPicker" class="btn secondary" type="button">فتح مستكشف الملفات</button></div><div id="smartDropZone" class="smart-drop-zone" tabindex="0"><strong>اسحب الملفات هنا وأفلتها</strong><span>PDF · Word · Excel · CSV · صور · ZIP · DWG · DXF</span></div><div id="smartSelectedFiles" class="smart-selected-files"></div><p class="form-note">يمكن رفع أي عدد من الملفات. إذا فشل ملف واحد يستمر رفع بقية الملفات ويظهر تقرير الملفات المتجاوزة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">إرفاق وتحميل</button></div></form><div id="smartImportSummary" class="import-summary"></div><div id="smartImportResults" class="stack-list"></div>');
+  modal('<h2>إرفاق ملف — '+esc(SMART_SECTION_LABELS[section]||section)+'</h2><p>يمكنك الاختيار بالطريقة الآمنة أو سحب الملفات وإفلاتها. الطريقة الآمنة تبدأ من مجلد التنزيلات لتجنب مسارات Windows القديمة أو غير المتاحة.</p><form id="smartImportForm"><input type="hidden" name="section" value="'+esc(section)+'"><label>نوع الملف<select id="smartFileType"><option value="all">جميع الملفات المدعومة</option><option value=".xls,.xlsx,.csv">Excel / CSV</option><option value=".pdf">PDF</option><option value=".doc,.docx">Word</option><option value=".jpg,.jpeg,.png,.webp,.heic">صور</option><option value=".txt">نصوص TXT</option><option value=".zip">ZIP</option><option value=".dwg,.dxf">AutoCAD DWG / DXF</option></select></label><input name="files" id="smartNativeFileInput" class="hidden" type="file" multiple><div class="smart-upload-actions"><button id="safeSmartPicker" class="btn primary" type="button">اختيار ملفات بأمان</button><button id="nativeSmartPicker" class="btn secondary" type="button">فتح مستكشف الملفات</button></div><div id="smartDropZone" class="smart-drop-zone" tabindex="0"><strong>اسحب الملفات هنا وأفلتها</strong><span>أي صيغة ملف · حتى 100MB للملف الواحد</span></div><div id="smartSelectedFiles" class="smart-selected-files"></div><p class="form-note">يمكن رفع أي عدد من الملفات. إذا فشل ملف واحد يستمر رفع بقية الملفات ويظهر تقرير الملفات المتجاوزة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">إرفاق وتحميل</button></div></form><div id="smartImportSummary" class="import-summary"></div><div id="smartImportResults" class="stack-list"></div>');
   const form=$('smartImportForm'), type=$('smartFileType'), input=$('smartNativeFileInput'), drop=$('smartDropZone');
   form.__selectedFiles=[];
   form.__uploadTokens={};
   renderSmartSelectedFiles(form);
-  if(type&&input)type.addEventListener('change',function(){input.accept=this.value==='all'?'.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.zip,.dwg,.dxf':this.value;});
+  if(type&&input)type.addEventListener('change',function(){input.accept=this.value==='all'?'':this.value;});
   input.addEventListener('change',function(){setSmartSelectedFiles(form,this.files,true);this.value='';});
   $('safeSmartPicker').addEventListener('click',function(){safeSmartFilePicker(form);});
   $('nativeSmartPicker').addEventListener('click',function(){input.click();});
@@ -2252,11 +2330,16 @@ function bindEvents() {
     const documentGroup=event.target.closest('[data-document-group]');if(documentGroup){event.preventDefault();documentGroupFilter=documentGroup.dataset.documentGroup;renderDocumentCenterFiles();const panel=$('documentLibraryFiles');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});return;}
     const fieldPickerAdd=event.target.closest('[data-field-picker-add]');if(fieldPickerAdd){event.preventDefault();addFieldTestFromPicker(fieldPickerAdd.dataset.fieldPickerAdd);return;}
     const catalogFile=event.target.closest('[data-catalog-file]');if(catalogFile){event.preventDefault();const item={id:Number(catalogFile.dataset.catalogFile),original_name:catalogFile.dataset.catalogFileName||'test-resource.pdf'};try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
+    const catalogDownload=event.target.closest('[data-catalog-download]');if(catalogDownload){event.preventDefault();const item={id:Number(catalogDownload.dataset.catalogDownload),original_name:catalogDownload.dataset.catalogFileName||'test-resource'};try{await authenticatedAttachmentDownload(item,false);}catch(error){showToast(error.message,true);}return;}
+    const catalogDelete=event.target.closest('[data-catalog-delete]');if(catalogDelete){event.preventDefault();const item={id:Number(catalogDelete.dataset.catalogDelete),original_name:catalogDelete.dataset.catalogFileName||'test-resource'};try{await deleteUploadedFile(item);}catch(error){showToast(error.message,true);}return;}
     const qualityFile=event.target.closest('[data-quality-file-ref]');if(qualityFile){event.preventDefault();try{await openAuthorizedQualityFile(qualityFile.dataset.qualityFileRef,qualityFile.dataset.qualityFileName||'quality-file');}catch(error){showToast(error.message,true);}return;}
+    const qualityDownload=event.target.closest('[data-quality-file-download]');if(qualityDownload){event.preventDefault();try{await openAuthorizedQualityFile(qualityDownload.dataset.qualityFileDownload,qualityDownload.dataset.qualityFileName||'quality-file',true);}catch(error){showToast(error.message,true);}return;}
+    const qualityDelete=event.target.closest('[data-quality-file-delete]');if(qualityDelete){event.preventDefault();try{await deleteAuthorizedQualityFile(qualityDelete.dataset.qualityFileDelete,qualityDelete.dataset.qualityFileName||'quality-file');}catch(error){showToast(error.message,true);}return;}
     const removeSelected=event.target.closest('[data-smart-remove-selected]');if(removeSelected){event.preventDefault();const form=$('smartImportForm');if(form){form.__selectedFiles=smartSelectedFiles(form).filter(function(_file,index){return index!==Number(removeSelected.dataset.smartRemoveSelected);});renderSmartSelectedFiles(form);}return;}
     const retryFailed=event.target.closest('[data-smart-retry-failed]');if(retryFailed){event.preventDefault();const form=$('smartImportForm');if(form)try{await submitSmartImport(form);}catch(error){showToast(error.message,true);}return;}
     const smartOpen=event.target.closest('[data-smart-open]');if(smartOpen){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartOpen.dataset.smartOpen)];if(item)try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
     const smartDownload=event.target.closest('[data-smart-download]');if(smartDownload){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartDownload.dataset.smartDownload)];if(item)try{await authenticatedAttachmentDownload(item,false);}catch(error){showToast(error.message,true);}return;}
+    const smartDelete=event.target.closest('[data-smart-delete]');if(smartDelete){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartDelete.dataset.smartDelete)];if(item)try{await deleteUploadedFile(item);}catch(error){showToast(error.message,true);}return;}
     const button = event.target.closest('button');
     if (!button) return;
     if (button.hasAttribute('data-modal-close')) return closeModal();

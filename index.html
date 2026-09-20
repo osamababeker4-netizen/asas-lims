@@ -10,13 +10,13 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-2-20-smart-standards-field-guide">
+  <link rel="stylesheet" href="style.css?v=10-2-21-field-guide-file-actions">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
       <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-      <span class="login-edition">ASAS LIMS · V10.2.20 Smart Standards</span>
+      <span class="login-edition">ASAS LIMS · V10.2.21 File Actions</span>
       <h1>تسجيل دخول النظام</h1>
       <form id="loginForm" class="form-stack">
         <label>رقم الجوال<input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="+9665XXXXXXXX"></label>
@@ -43,7 +43,7 @@
         <img src="logo.png" alt="شعار شركة مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.2.20 · Smart Standards</small>
+        <small class="release-chip">V10.2.21 · File Actions</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
@@ -182,7 +182,7 @@
       <section id="field" class="page">
         <div class="page-heading"><div><h2>البرنامج الميداني</h2><p>تسجيل الزيارات الميدانية وربطها بالمشروع والعينة.</p></div></div>
         <section class="panel field-guide-library">
-          <div class="panel-heading"><div><h3>اختبارات البرنامج الميداني</h3><p class="muted">ابدأ من أحد الأقسام الأربعة، ثم ابحث باسم الاختبار أو كوده أو المواصفة وأضفه مباشرة إلى الزيارة.</p></div><div class="heading-actions"><span class="pill">4 أقسام رئيسية</span><button id="openFieldManual" class="text-btn field-manual-button" type="button">دليل الاختبارات الميداني</button></div></div>
+          <div class="panel-heading"><div><h3>اختبارات البرنامج الميداني</h3><p class="muted">ابدأ من أحد الأقسام الأربعة، ثم ابحث باسم الاختبار أو كوده أو المواصفة وأضفه مباشرة إلى الزيارة.</p></div><div class="heading-actions"><button id="openFieldManual" class="btn secondary field-manual-button" type="button">دليل الاختبارات الميدانيه</button></div></div>
           <div class="field-catalog-toolbar"><label class="field-search-box"><span>بحث الاختبارات</span><input id="fieldTestSearch" type="search" placeholder="مثال: C39 أو CBR أو D1557 أو UPV"><button id="fieldTestSearchBtn" class="btn primary" type="button">بحث</button></label><button id="openCustomFieldTest" class="btn secondary" type="button">+ إضافة اختبار جديد</button></div>
           <div id="fieldGuideFilters" class="field-guide-filters" aria-label="تصنيف الاختبارات"></div>
           <div id="fieldGuideGrid" class="field-guide-grid"></div>
@@ -232,7 +232,7 @@
 
       <section id="catalog" class="page">
         <div class="page-heading"><div><h2>دليل الاختبارات</h2><p>مواصفة ASTM وأوراق العمل وملفات Excel للنتائج مرتبطة بكل اختبار وتدار من قسم الجودة.</p></div></div>
-        <div class="panel table-panel"><div class="panel-heading"><label class="search-field">بحث<input id="catalogSearch" type="search" placeholder="ASTM أو اسم الاختبار"></label><div class="catalog-bulk-standards"><button id="catalogBulkStandardsButton" class="text-btn" type="button">رفع المواصفات دفعة واحدة</button><input id="catalogStandardsInput" class="hidden" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv"><span id="catalogStandardsStatus" class="muted" aria-live="polite"></span></div></div><table><thead><tr><th>الكود</th><th>الاختبار</th><th>التصنيف</th><th>المعيار</th><th>الإصدار</th><th>المرفقات</th></tr></thead><tbody id="catalogTable"></tbody></table></div>
+        <div class="panel table-panel"><div class="panel-heading"><label class="search-field">بحث<input id="catalogSearch" type="search" placeholder="ASTM أو اسم الاختبار"></label><div class="catalog-bulk-standards"><button id="catalogBulkStandardsButton" class="text-btn" type="button">رفع المواصفات دفعة واحدة</button><input id="catalogStandardsInput" class="hidden" type="file" multiple><span id="catalogStandardsStatus" class="muted" aria-live="polite"></span></div></div><table><thead><tr><th>الكود</th><th>الاختبار</th><th>التصنيف</th><th>المعيار</th><th>الإصدار</th><th>المرفقات</th></tr></thead><tbody id="catalogTable"></tbody></table></div>
       </section>
 
       <section id="reports" class="page">
@@ -261,7 +261,7 @@
             <summary><span class="quality-code">QMS-04</span><div><strong>وثائق الجودة</strong><small>الوثائق المضبوطة والإصدارات والملفات المعتمدة</small></div><span class="qc-open">فتح</span></summary>
             <div class="qc-window-body">
               <form class="qc-inline-form" data-inline-quality-document="document">
-                <div class="qc-form-grid"><label>التصنيف<select name="category"><option value="procedure">إجراء</option><option value="worksheet">ورقة عمل</option><option value="admin_form">نموذج إداري</option></select></label><label>الكود<input name="code" required></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>الملف<input name="quality_file" type="file" accept=".pdf,.doc,.docx"></label></div>
+                <div class="qc-form-grid"><label>التصنيف<select name="category"><option value="procedure">إجراء</option><option value="worksheet">ورقة عمل</option><option value="admin_form">نموذج إداري</option></select></label><label>الكود<input name="code" required></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>الملف<input name="quality_file" type="file"></label></div>
                 <button class="btn primary" type="submit">إضافة وحفظ</button><span class="qc-inline-status" aria-live="polite"></span>
               </form>
               <div class="engineering-table-wrap"><table><thead><tr><th>التصنيف</th><th>الكود</th><th>العنوان</th><th>الإصدار</th><th>الحالة</th><th>الملف</th><th>الإجراءات</th></tr></thead><tbody id="qualityDocumentsTable"></tbody></table></div>
@@ -271,7 +271,7 @@
           <details class="qc-window-card internal-window-card quality-table-card" id="qualityFilesEntry">
             <summary><span class="quality-code">QMS-DOC</span><div><strong>مركز الملفات</strong><small>رفع وفرز وفتح وتنزيل الملفات من نفس البطاقة</small></div><span class="qc-open">فتح</span></summary>
             <div class="qc-window-body">
-              <form class="qc-inline-form" data-inline-smart-import="technicalLibrary"><input type="hidden" name="section" value="technicalLibrary"><label>إرفاق ملفات<input name="files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.zip,.dwg,.dxf"></label><button class="btn primary" type="submit">رفع وفرز</button><span class="qc-inline-status" data-inline-import-status aria-live="polite"></span></form>
+              <form class="qc-inline-form" data-inline-smart-import="technicalLibrary"><input type="hidden" name="section" value="technicalLibrary"><label>إرفاق ملفات<input name="files" type="file" multiple></label><button class="btn primary" type="submit">رفع وفرز</button><span class="qc-inline-status" data-inline-import-status aria-live="polite"></span></form>
               <div class="document-browser-toolbar compact"><label class="document-search"><span>بحث</span><input id="documentLibrarySearch" type="search" placeholder="اسم الملف أو النوع أو التصنيف"></label><div id="documentGroupFilters" class="document-group-filters"><button class="active" data-document-group="الكل" type="button">الكل</button><button data-document-group="تربة" type="button">التربة</button><button data-document-group="خرسانة" type="button">الخرسانة</button><button data-document-group="أسفلت" type="button">الأسفلت</button><button data-document-group="الحقل وNDT" type="button">الحقل وNDT</button><button data-document-group="أخرى" type="button">أخرى</button></div></div>
               <div id="documentLibraryFiles" class="document-file-grid"><div class="empty-state">جارٍ تحميل الملفات…</div></div>
             </div>
@@ -280,7 +280,7 @@
           <details class="qc-window-card internal-window-card quality-table-card" id="proficiencyWindow">
             <summary><span class="quality-code">QMS-05</span><div><strong>اختبارات الكفاءة</strong><small>المشاركات والنتائج وZ-score والاستيراد من Excel</small></div><span class="qc-open">فتح</span></summary>
             <div class="qc-window-body">
-              <form class="qc-inline-form" data-inline-quality-record="proficiency"><div class="qc-form-grid"><label>اسم الاختبار<input name="test_name" required></label><label>المادة<input name="material"></label><label>المعيار<input name="standard"></label><label>المزود<input name="provider"></label><label>تاريخ المشاركة<input name="participation_date" type="date"></label><label>النتيجة<input name="result"></label><label>Z-score<input name="z_score"></label><label>تقرير<input name="quality_file" type="file" accept=".pdf,.doc,.docx"></label></div><button class="btn primary" type="submit">إضافة مشاركة</button></form>
+              <form class="qc-inline-form" data-inline-quality-record="proficiency"><div class="qc-form-grid"><label>اسم الاختبار<input name="test_name" required></label><label>المادة<input name="material"></label><label>المعيار<input name="standard"></label><label>المزود<input name="provider"></label><label>تاريخ المشاركة<input name="participation_date" type="date"></label><label>النتيجة<input name="result"></label><label>Z-score<input name="z_score"></label><label>تقرير<input name="quality_file" type="file"></label></div><button class="btn primary" type="submit">إضافة مشاركة</button></form>
               <div class="qc-import-line"><button class="text-btn" data-quality-template="proficiency" type="button">تنزيل قالب Excel</button><input id="proficiencyImport" class="quality-file" type="file" accept=".xlsx,.csv"><button class="btn secondary" data-quality-import="proficiency" type="button">استيراد Excel</button></div>
               <div class="engineering-table-wrap"><table><thead><tr><th>الاختبار</th><th>المادة</th><th>المزود</th><th>التاريخ</th><th>النتيجة</th><th>Z-score</th></tr></thead><tbody id="proficiencyTable"></tbody></table></div>
             </div>
@@ -289,7 +289,7 @@
           <details class="qc-window-card internal-window-card quality-table-card" id="qualityStaffWindow">
             <summary><span class="quality-code">QMS-06</span><div><strong>ملفات الموظفين</strong><small>الكفاءة والمؤهلات والخبرة والسجلات المرتبطة</small></div><span class="qc-open">فتح</span></summary>
             <div class="qc-window-body">
-              <form class="qc-inline-form" data-inline-quality-record="staff"><div class="qc-form-grid"><label>الاسم الكامل<input name="full_name" required></label><label>المسمى الوظيفي<input name="job_title"></label><label>التخصص<input name="specialty"></label><label>سنوات الخبرة<input name="experience_years" type="number" min="0"></label><label>المؤهل<input name="qualification_file" type="file" accept=".pdf,.doc,.docx"></label><label>السيرة الذاتية<input name="cv_file" type="file" accept=".pdf,.doc,.docx"></label></div><button class="btn primary" type="submit">إضافة موظف</button></form>
+              <form class="qc-inline-form" data-inline-quality-record="staff"><div class="qc-form-grid"><label>الاسم الكامل<input name="full_name" required></label><label>المسمى الوظيفي<input name="job_title"></label><label>التخصص<input name="specialty"></label><label>سنوات الخبرة<input name="experience_years" type="number" min="0"></label><label>المؤهل<input name="qualification_file" type="file"></label><label>السيرة الذاتية<input name="cv_file" type="file"></label></div><button class="btn primary" type="submit">إضافة موظف</button></form>
               <div class="qc-import-line"><button class="text-btn" data-quality-template="staff" type="button">تنزيل قالب Excel</button><input id="staffImport" class="quality-file" type="file" accept=".xlsx,.csv"><button class="btn secondary" data-quality-import="staff" type="button">استيراد Excel</button></div>
               <div class="engineering-table-wrap"><table><thead><tr><th>الاسم</th><th>المسمى</th><th>التخصص</th><th>الخبرة</th><th>المؤهل</th><th>الحالة</th></tr></thead><tbody id="qualityStaffTable"></tbody></table></div>
             </div>
@@ -297,17 +297,17 @@
 
           <details class="qc-window-card internal-window-card quality-table-card" id="procedureWindow">
             <summary><span class="quality-code">QMS-01</span><div><strong>الإجراءات</strong><small>إجراءات التشغيل والجودة ومراجعاتها وإصداراتها</small></div><span class="qc-open">فتح</span></summary>
-            <div class="qc-window-body"><form class="qc-inline-form" data-inline-quality-document="procedure"><div class="qc-form-grid"><label>الكود<input name="code" required></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>ملف PDF/Word<input name="quality_file" type="file" accept=".pdf,.doc,.docx"></label></div><button class="btn primary" type="submit">إضافة إجراء</button></form><div id="qualityProcedureList" class="qc-record-list"></div></div>
+            <div class="qc-window-body"><form class="qc-inline-form" data-inline-quality-document="procedure"><div class="qc-form-grid"><label>الكود<input name="code" required></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>ملف PDF/Word<input name="quality_file" type="file"></label></div><button class="btn primary" type="submit">إضافة إجراء</button></form><div id="qualityProcedureList" class="qc-record-list"></div></div>
           </details>
 
           <details class="qc-window-card internal-window-card quality-table-card" id="worksheetWindow">
             <summary><span class="quality-code">QMS-02</span><div><strong>أوراق العمل</strong><small>Work Sheet مرتبطة بالاختبارات والتحقق</small></div><span class="qc-open">فتح</span></summary>
-            <div class="qc-window-body"><form class="qc-inline-form" data-inline-quality-document="worksheet"><div class="qc-form-grid"><label>الكود<input name="code" required></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>ملف PDF/Word<input name="quality_file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx"></label></div><button class="btn primary" type="submit">إضافة ورقة عمل</button></form><div id="qualityWorksheetList" class="qc-record-list"></div></div>
+            <div class="qc-window-body"><form class="qc-inline-form" data-inline-quality-document="worksheet"><div class="qc-form-grid"><label>الكود<input name="code" required></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>ملف PDF/Word<input name="quality_file" type="file"></label></div><button class="btn primary" type="submit">إضافة ورقة عمل</button></form><div id="qualityWorksheetList" class="qc-record-list"></div></div>
           </details>
 
           <details class="qc-window-card internal-window-card quality-table-card" id="adminFormsWindow">
             <summary><span class="quality-code">QMS-03</span><div><strong>النماذج الإدارية</strong><small>طلبات ونماذج العمل والتدريب والسجلات الداخلية</small></div><span class="qc-open">فتح</span></summary>
-            <div class="qc-window-body"><form class="qc-inline-form" data-inline-quality-document="admin_form"><div class="qc-form-grid"><label>الكود<input name="code" required></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>ملف PDF/Word<input name="quality_file" type="file" accept=".pdf,.doc,.docx"></label></div><button class="btn primary" type="submit">إضافة نموذج</button></form><div id="qualityAdminFormList" class="qc-record-list"></div></div>
+            <div class="qc-window-body"><form class="qc-inline-form" data-inline-quality-document="admin_form"><div class="qc-form-grid"><label>الكود<input name="code" required></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>ملف PDF/Word<input name="quality_file" type="file"></label></div><button class="btn primary" type="submit">إضافة نموذج</button></form><div id="qualityAdminFormList" class="qc-record-list"></div></div>
           </details>
 
           <details class="qc-window-card internal-window-card" id="swotWindow">
@@ -351,7 +351,7 @@
 
           <details class="qc-window-card internal-window-card" id="technicalLibraryWindow">
             <summary><span class="quality-code">TL</span><div><strong>المكتبة الفنية</strong><small>ملفات الأسفلت والتربة والخرسانة والحقل وNDT</small></div><span class="qc-open">فتح</span></summary>
-            <div class="qc-window-body"><form class="qc-inline-form" data-inline-smart-import="technicalLibrary"><input type="hidden" name="section" value="technicalLibrary"><label>رفع ملفات المكتبة الفنية<input name="files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.zip,.dwg,.dxf"></label><button class="btn primary" type="submit">رفع وفرز</button><span class="qc-inline-status" data-inline-import-status></span></form><div id="technicalLibraryFiles" class="document-file-grid compact"></div></div>
+            <div class="qc-window-body"><form class="qc-inline-form" data-inline-smart-import="technicalLibrary"><input type="hidden" name="section" value="technicalLibrary"><label>رفع ملفات المكتبة الفنية<input name="files" type="file" multiple></label><button class="btn primary" type="submit">رفع وفرز</button><span class="qc-inline-status" data-inline-import-status></span></form><div id="technicalLibraryFiles" class="document-file-grid compact"></div></div>
           </details>
 
           <details class="qc-window-card internal-window-card" id="companyVaultCard">
@@ -485,18 +485,18 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="runtime-config.js?v=10-2-20-smart-standards-field-guide"></script>
-  <script src="i18n.js?v=10-2-20-smart-standards-field-guide"></script>
-  <script src="app-password.js?v=10-2-20-smart-standards-field-guide"></script>
+  <script src="runtime-config.js?v=10-2-21-field-guide-file-actions"></script>
+  <script src="i18n.js?v=10-2-21-field-guide-file-actions"></script>
+  <script src="app-password.js?v=10-2-21-field-guide-file-actions"></script>
   <script src="quality-management.js?v=10-3-0-quality-management"></script>
-  <script src="branch-map.js?v=10-2-20-smart-standards-field-guide"></script>
+  <script src="branch-map.js?v=10-2-21-field-guide-file-actions"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-20-smart-standards-field-guide'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-21-field-guide-file-actions'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-2-20-smart-standards-field-guide', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-2-21-field-guide-file-actions', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>
