@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.2.17-final-acceptance'
+APP_VERSION = '10.2.18-operational-fixes'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -38,7 +38,10 @@ OTP_RESEND_SECONDS = 60
 EVENT_SUBSCRIBERS = set()
 EVENT_SUBSCRIBERS_LOCK = threading.Lock()
 SESSION_TTL_SECONDS = int(os.environ.get('LIMS_SESSION_TTL_SECONDS', str(12 * 60 * 60)))
-MAX_JSON_BODY_BYTES = int(os.environ.get('LIMS_MAX_JSON_BODY_BYTES', str(40 * 1024 * 1024)))
+MAX_JSON_BODY_BYTES = int(os.environ.get('LIMS_MAX_JSON_BODY_BYTES', str(150 * 1024 * 1024)))
+MAX_SMART_FILE_BYTES = int(os.environ.get('LIMS_MAX_SMART_FILE_BYTES', str(100 * 1024 * 1024)))
+MAX_ZIP_FILES = int(os.environ.get('LIMS_MAX_ZIP_FILES', '2000'))
+MAX_ZIP_EXPANDED_BYTES = int(os.environ.get('LIMS_MAX_ZIP_EXPANDED_BYTES', str(512 * 1024 * 1024)))
 LOGIN_WINDOW_SECONDS = int(os.environ.get('LIMS_LOGIN_WINDOW_SECONDS', '900'))
 LOGIN_MAX_ATTEMPTS = int(os.environ.get('LIMS_LOGIN_MAX_ATTEMPTS', '5'))
 LOGIN_ATTEMPTS = {}
@@ -265,8 +268,8 @@ def store_smart_file(connection, user, section, original_name, content):
     extension = os.path.splitext(original_name)[1].lower()
     if not original_name or extension not in SMART_FILE_TYPES:
         raise ValueError('نوع الملف غير مدعوم: ' + (extension or 'بدون امتداد'))
-    if len(content) > 25 * 1024 * 1024:
-        raise ValueError('حجم الملف يتجاوز 25MB: ' + original_name)
+    if len(content) > MAX_SMART_FILE_BYTES:
+        raise ValueError('حجم الملف يتجاوز الحد التشغيلي {}MB: {}'.format(MAX_SMART_FILE_BYTES // 1024 // 1024, original_name))
     entity_type, entity_id, status = detect_smart_target(connection, section, original_name)
     material_group = detect_material_group(original_name, content)
     os.makedirs(RECORD_UPLOADS, exist_ok=True)
@@ -392,7 +395,8 @@ def refresh_user_sessions(user_id, **changes):
 
 
 def init():
-    os.makedirs(os.path.dirname(os.path.abspath(DB)), exist_ok=True)
+    for required_dir in (os.path.dirname(os.path.abspath(DB)), BACKUP_DIR, QUALITY_UPLOADS, RECORD_UPLOADS):
+        os.makedirs(required_dir, exist_ok=True)
     connection = db()
     with open(os.path.join(BASE, 'schema.sql'), encoding='utf-8') as schema:
         connection.executescript(schema.read())
@@ -1125,6 +1129,7 @@ class H(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'")
+        self.send_cors_headers()
         for key, value in (extra_headers or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -2626,8 +2631,10 @@ class H(BaseHTTPRequestHandler):
                     encoded = str(data.get('file_base64') or '')
                     content = base64.b64decode(encoded, validate=True)
                     file_name = os.path.basename(str(data.get('file_name') or ''))
-                    if not content or len(content) > 25 * 1024 * 1024:
-                        raise ValueError('الملف فارغ أو يتجاوز 25MB')
+                    if not content:
+                        raise ValueError('الملف فارغ')
+                    if len(content) > MAX_SMART_FILE_BYTES:
+                        raise ValueError('حجم الملف يتجاوز الحد التشغيلي {}MB'.format(MAX_SMART_FILE_BYTES // 1024 // 1024))
                     imported, skipped = [], []
                     if os.path.splitext(file_name)[1].lower() == '.zip':
                         try:
@@ -2636,8 +2643,9 @@ class H(BaseHTTPRequestHandler):
                             raise ValueError('ملف ZIP غير صالح')
                         with archive:
                             members = [item for item in archive.infolist() if not item.is_dir() and not item.filename.startswith('__MACOSX/')]
-                            if len(members) > 100 or sum(item.file_size for item in members) > 100 * 1024 * 1024:
-                                raise ValueError('الحزمة كبيرة؛ الحد 100 ملف و100MB بعد الفك')
+                            expanded_size = sum(item.file_size for item in members)
+                            if len(members) > MAX_ZIP_FILES or expanded_size > MAX_ZIP_EXPANDED_BYTES:
+                                raise ValueError('الحزمة كبيرة جدًا بعد الفك؛ الحد التشغيلي {} ملف و{}MB'.format(MAX_ZIP_FILES, MAX_ZIP_EXPANDED_BYTES // 1024 // 1024))
                             for item in members:
                                 member_name = os.path.basename(item.filename)
                                 if not member_name or os.path.splitext(member_name)[1].lower() not in SMART_FILE_TYPES or member_name.lower().endswith('.zip'):
