@@ -842,6 +842,181 @@ function renderDashboard() {
   setHtml($('dashboardProjects'), dashboard.projects.slice(0,6).map(function(project) {
     return '<button class="compact-project text-btn" type="button" data-project-open="' + project.id + '"><h4>' + esc(project.code) + ' — ' + esc(project.name) + '</h4><p>' + statusChip(project.status) + ' · ' + esc(project.samples_count) + ' عينة · ' + esc(project.reports_count) + ' تقرير</p></button>';
   }).join('') || '<div class="empty">ابدأ بإضافة مشروع.</div>');
+  renderDecisionIntelligence();
+}
+
+
+function decisionPercent(done,total){
+  const d=Number(done)||0,t=Number(total)||0;
+  return t>0?Math.max(0,Math.min(100,Math.round((d/t)*100))):0;
+}
+
+function decisionNormalize(value){
+  return String(value||'').trim().toLowerCase().replace(/[\s\-_]+/g,' ');
+}
+
+function decisionIntelligenceModel(){
+  const d=dashboard||{},projects=d.projects||[],orders=d.work_orders||[],samples=d.samples||[],tests=d.tests||[],reports=d.reports||[],equipment=d.equipment||[],clients=d.clients||[];
+  const currentDay=today();
+  const completeOrders=orders.filter(function(item){return item.status==='مكتمل';});
+  const completeTests=tests.filter(function(item){return item.status==='مكتمل'||item.status==='معتمد'||Boolean(item.completed_at)||Boolean(item.approved_at);});
+  const approvedReports=reports.filter(function(item){return item.status==='معتمد'||Boolean(item.approved_by);});
+  const projectProgress=projects.length?Math.round(projects.reduce(function(sum,item){return sum+Math.max(0,Math.min(100,Number(item.progress)||0));},0)/projects.length):0;
+
+  const overdueOrders=orders.filter(function(item){return item.due_date&&item.due_date<currentDay&&item.status!=='مكتمل';});
+  const blockedProjects=projects.filter(function(item){return item.status==='موقوف';});
+  const awaitingReview=(d.alerts&&d.alerts.awaiting_review)||[];
+  const criticalProjects=projects.filter(function(item){return item.priority==='حرجة'&&item.status!=='مكتمل';});
+  const expiredCalibration=equipment.filter(function(item){const date=item.calibrated_to||item.next_calibration||'';return date&&date<currentDay;});
+  const missingCalibration=equipment.filter(function(item){return !(item.calibrated_to||item.next_calibration||item.last_calibration);});
+
+  const issues=[];
+  const addIssue=function(key,label,count,severity,detail){if(count>0)issues.push({key:key,label:label,count:count,severity:severity||'warning',detail:detail||''});};
+  addIssue('project_due','مشاريع نشطة بلا تاريخ استحقاق',projects.filter(function(item){return item.status!=='مكتمل'&&!item.due_date;}).length,'warning','أضف موعدًا حتى تعمل المتابعة والتنبيهات بدقة.');
+  addIssue('order_assignee','أوامر عمل بلا مسؤول',orders.filter(function(item){return item.status!=='مكتمل'&&!item.assigned_to&&!item.assignee_name;}).length,'danger','إسناد المسؤول يمنع ضياع المهام.');
+  addIssue('order_due','أوامر عمل بلا موعد',orders.filter(function(item){return item.status!=='مكتمل'&&!item.due_date;}).length,'warning','أضف موعدًا للاستحقاق والمتابعة.');
+  addIssue('sample_project','عينات غير مرتبطة بمشروع',samples.filter(function(item){return !item.project_id;}).length,'warning','اربط العينة بمشروعها للحفاظ على سلسلة التتبع.');
+  addIssue('test_technician','اختبارات غير مسندة لفني',tests.filter(function(item){return !item.technician_id&&!item.technician_name&&item.status!=='مكتمل'&&item.status!=='معتمد';}).length,'danger','إسناد الاختبار يوضح المسؤولية وحالة التنفيذ.');
+  addIssue('report_date','تقارير بلا تاريخ إصدار',reports.filter(function(item){return !item.issued_at;}).length,'warning','التاريخ مطلوب للتتبع والتقارير الإدارية.');
+  addIssue('equipment_calibration','أجهزة بلا تاريخ معايرة',missingCalibration.length,'danger','أكمل بيانات المعايرة قبل الاعتماد التشغيلي.');
+  addIssue('equipment_expired','أجهزة تجاوزت تاريخ المعايرة',expiredCalibration.length,'danger','أوقف الاستخدام غير المصرح وجدول المعايرة.');
+
+  const clientGroups={};
+  clients.forEach(function(item){const key=decisionNormalize(item.name);if(key)(clientGroups[key]||(clientGroups[key]=[])).push(item);});
+  const duplicateClients=Object.keys(clientGroups).filter(function(key){return clientGroups[key].length>1;}).reduce(function(sum,key){return sum+clientGroups[key].length-1;},0);
+  addIssue('duplicate_clients','أسماء عملاء مكررة',duplicateClients,'warning','راجع التكرار قبل الدمج حتى لا تفقد الروابط.');
+
+  const inconsistentProjects=projects.filter(function(item){return PROJECT_STATUSES.indexOf(item.status)<0;}).length;
+  const inconsistentOrders=orders.filter(function(item){return WORK_ORDER_STATUSES.indexOf(item.status)<0;}).length;
+  addIssue('status_consistency','حالات غير متوافقة مع القوائم المعتمدة',inconsistentProjects+inconsistentOrders,'danger','وحّد القيم قبل التحليل.');
+
+  const projectHealth=projects.map(function(project){
+    let score=0,reasons=[];
+    if(project.status==='موقوف'){score+=5;reasons.push('متوقف');}
+    if(project.due_date&&project.due_date<currentDay&&project.status!=='مكتمل'){score+=4;reasons.push('متأخر');}
+    if(project.priority==='حرجة'){score+=3;reasons.push('أولوية حرجة');}
+    else if(project.priority==='عالية'){score+=2;reasons.push('أولوية عالية');}
+    if(!project.due_date&&project.status!=='مكتمل'){score+=1;reasons.push('بلا استحقاق');}
+    if((Number(project.progress)||0)<25&&['نشط','قيد المراجعة'].indexOf(project.status)>=0){score+=2;reasons.push('تقدم منخفض');}
+    if(project.status==='قيد المراجعة'){score+=1;reasons.push('بانتظار مراجعة');}
+    return {
+      id:project.id,code:project.code,name:project.name,progress:Number(project.progress)||0,status:project.status,
+      score:score,reasons:reasons,tone:score>=6?'danger':score>=3?'warning':'success',
+      label:score>=6?'حرج':score>=3?'يحتاج متابعة':'مستقر'
+    };
+  }).sort(function(a,b){return b.score-a.score||a.progress-b.progress;});
+
+  const recommendations=[];
+  const addRec=function(priority,title,detail,page){recommendations.push({priority:priority,title:title,detail:detail,page:page||''});};
+  if(overdueOrders.length)addRec('عاجل','معالجة أوامر العمل المتأخرة',overdueOrders.length+' أمر عمل تجاوز موعده ويحتاج تحديث حالة أو إجراء تصحيحي.','workOrders');
+  if(expiredCalibration.length)addRec('عاجل','معالجة الأجهزة المتجاوزة للمعايرة',expiredCalibration.length+' جهاز تجاوز تاريخ المعايرة المسجل.','quality');
+  if(awaitingReview.length)addRec('عالي','إنهاء المراجعات المعلقة',awaitingReview.length+' عنصر ينتظر المراجعة أو الاعتماد.','quality');
+  const unassigned=orders.filter(function(item){return item.status!=='مكتمل'&&!item.assigned_to&&!item.assignee_name;}).length;
+  if(unassigned)addRec('عالي','إسناد المسؤوليات',unassigned+' أمر عمل مفتوح بدون مسؤول محدد.','workOrders');
+  if(issues.length)addRec('متوسط','تنظيف البيانات قبل التحليل',issues.reduce(function(sum,item){return sum+item.count;},0)+' ملاحظة جودة بيانات تؤثر على دقة المؤشرات.','dashboard');
+  if((d.counts&&d.counts.sync_queue)||0)addRec('متوسط','تنفيذ المزامنة',String(d.counts.sync_queue)+' عملية في طابور المزامنة.','sync');
+  if(!recommendations.length)addRec('مستقر','لا توجد إجراءات حرجة حالياً','استمر في متابعة المؤشرات والمراجعات الدورية.','dashboard');
+
+  const statusCounts={};
+  projects.forEach(function(item){statusCounts[item.status]=(statusCounts[item.status]||0)+1;});
+  const summary=[
+    'يوجد '+projects.length+' مشروعًا بمتوسط تقدم '+projectProgress+'%، منها '+criticalProjects.length+' مشروع بأولوية حرجة و'+blockedProjects.length+' مشروع متوقف.',
+    'تم إغلاق '+completeOrders.length+' من أصل '+orders.length+' أمر عمل، ويوجد '+overdueOrders.length+' أمر متأخر.',
+    'تم إنجاز/اعتماد '+completeTests.length+' من أصل '+tests.length+' اختبار، واعتماد '+approvedReports.length+' من أصل '+reports.length+' تقرير.',
+    'تم رصد '+issues.reduce(function(sum,item){return sum+item.count;},0)+' ملاحظة جودة بيانات و'+expiredCalibration.length+' جهاز متجاوز للمعايرة.'
+  ];
+
+  return {
+    generated_at:saudiNow(),project_progress:projectProgress,
+    work_order_rate:decisionPercent(completeOrders.length,orders.length),
+    test_rate:decisionPercent(completeTests.length,tests.length),
+    report_rate:decisionPercent(approvedReports.length,reports.length),
+    data_issue_count:issues.reduce(function(sum,item){return sum+item.count;},0),
+    critical_count:overdueOrders.length+blockedProjects.length+awaitingReview.length+expiredCalibration.length,
+    summary:summary,issues:issues,project_health:projectHealth,recommendations:recommendations,status_counts:statusCounts,
+    raw:{projects:projects.length,orders:orders.length,samples:samples.length,tests:tests.length,reports:reports.length,equipment:equipment.length,
+      overdue_orders:overdueOrders.length,blocked_projects:blockedProjects.length,awaiting_review:awaitingReview.length,expired_calibration:expiredCalibration.length}
+  };
+}
+
+function decisionToneLabel(tone){
+  return tone==='danger'?'حرج':tone==='warning'?'تنبيه':'سليم';
+}
+
+function renderDecisionIntelligence(){
+  if(!$('decisionIntelligenceCenter')||!dashboard)return;
+  const model=decisionIntelligenceModel();
+  window.__ASAS_DECISION_INTELLIGENCE=model;
+  setText($('decisionProjectProgress'),model.project_progress+'%');
+  setText($('decisionWorkOrderRate'),model.work_order_rate+'%');
+  setText($('decisionTestRate'),model.test_rate+'%');
+  setText($('decisionReportRate'),model.report_rate+'%');
+  setText($('decisionDataIssueCount'),model.data_issue_count);
+  setText($('decisionCriticalCount'),model.critical_count);
+
+  setHtml($('decisionExecutiveSummary'),model.summary.map(function(line){return '<p>'+esc(line)+'</p>';}).join(''));
+  setHtml($('decisionDataQuality'),model.issues.length?model.issues.map(function(item){
+    return '<article class="decision-list-row '+item.severity+'"><span class="decision-count">'+esc(item.count)+'</span><div><strong>'+esc(item.label)+'</strong><small>'+esc(item.detail)+'</small></div><b>'+esc(decisionToneLabel(item.severity))+'</b></article>';
+  }).join(''):'<div class="decision-empty success">لا توجد ملاحظات جودة بيانات ضمن الفحوص الحالية.</div>');
+
+  const healthRows=model.project_health.slice(0,6);
+  setHtml($('decisionProjectHealth'),healthRows.length?healthRows.map(function(item){
+    return '<button class="decision-list-row project '+item.tone+'" type="button" data-project-open="'+item.id+'"><span class="decision-health">'+esc(item.label)+'</span><div><strong>'+esc(item.code)+' — '+esc(item.name)+'</strong><small>'+esc(item.status)+' · '+esc(item.progress)+'%'+(item.reasons.length?' · '+esc(item.reasons.join('، ')):'')+'</small></div><span class="decision-mini-progress"><i style="width:'+Math.max(0,Math.min(100,item.progress))+'%"></i></span></button>';
+  }).join(''):'<div class="decision-empty">لا توجد مشاريع مسجلة بعد.</div>');
+
+  setHtml($('decisionRecommendations'),model.recommendations.map(function(item,index){
+    return '<button class="decision-list-row recommendation" type="button" data-decision-go="'+esc(item.page||'dashboard')+'"><span class="decision-step">'+(index+1)+'</span><div><strong>'+esc(item.title)+'</strong><small>'+esc(item.detail)+'</small></div><b>'+esc(item.priority)+'</b></button>';
+  }).join(''));
+}
+
+function decisionReportMarkup(model){
+  const issues=model.issues.length?model.issues.map(function(item){return '<tr><td>'+esc(item.label)+'</td><td>'+esc(item.count)+'</td><td>'+esc(decisionToneLabel(item.severity))+'</td><td>'+esc(item.detail)+'</td></tr>';}).join(''):'<tr><td colspan="4">لا توجد ملاحظات ضمن الفحوص الحالية.</td></tr>';
+  const recommendations=model.recommendations.map(function(item,index){return '<tr><td>'+(index+1)+'</td><td>'+esc(item.priority)+'</td><td>'+esc(item.title)+'</td><td>'+esc(item.detail)+'</td></tr>';}).join('');
+  return '<section class="decision-report"><header><img src="logo.png" alt="مختبر أساس"><div><span>ASAS LIMS · Decision Intelligence</span><h2>التقرير الإداري التشغيلي</h2><p>تم الإنشاء: '+esc(model.generated_at)+'</p></div></header>'+
+    '<h3>الملخص التنفيذي</h3><div class="decision-report-summary">'+model.summary.map(function(line){return '<p>'+esc(line)+'</p>';}).join('')+'</div>'+
+    '<h3>مؤشرات الأداء</h3><div class="decision-report-kpis"><span>تقدم المشاريع <b>'+model.project_progress+'%</b></span><span>إغلاق أوامر العمل <b>'+model.work_order_rate+'%</b></span><span>إنجاز الاختبارات <b>'+model.test_rate+'%</b></span><span>اعتماد التقارير <b>'+model.report_rate+'%</b></span></div>'+
+    '<h3>جودة البيانات</h3><div class="engineering-table-wrap"><table><thead><tr><th>الملاحظة</th><th>العدد</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>'+issues+'</tbody></table></div>'+
+    '<h3>الإجراءات المقترحة</h3><div class="engineering-table-wrap"><table><thead><tr><th>#</th><th>الأولوية</th><th>الإجراء</th><th>التفاصيل</th></tr></thead><tbody>'+recommendations+'</tbody></table></div>'+
+    '<p class="decision-report-note">هذا التقرير يعتمد على بيانات النظام المسجلة وقت الإنشاء ولا يفترض معلومات غير موجودة. يجب مراجعة المسؤول قبل اتخاذ القرار النهائي.</p></section>';
+}
+
+function openDecisionIntelligenceReport(){
+  const model=decisionIntelligenceModel();
+  modal('<div class="decision-report-modal"><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button><button class="btn secondary" type="button" data-decision-report-export>تصدير Excel</button><button class="btn primary" type="button" data-decision-report-print>طباعة / حفظ PDF</button></div>'+decisionReportMarkup(model)+'</div>');
+}
+
+function printDecisionIntelligenceReport(){
+  document.body.classList.add('decision-print-mode');
+  window.print();
+  setTimeout(function(){document.body.classList.remove('decision-print-mode');},300);
+}
+
+function exportDecisionIntelligence(){
+  const model=decisionIntelligenceModel();
+  if(!window.XLSX||!XLSX.utils)throw new Error('مكتبة Excel غير جاهزة في المتصفح');
+  const workbook=XLSX.utils.book_new();
+  const summaryRows=[
+    ['البند','القيمة'],
+    ['تاريخ الإنشاء',model.generated_at],
+    ['متوسط تقدم المشاريع',model.project_progress+'%'],
+    ['نسبة إغلاق أوامر العمل',model.work_order_rate+'%'],
+    ['نسبة إنجاز الاختبارات',model.test_rate+'%'],
+    ['نسبة اعتماد التقارير',model.report_rate+'%'],
+    ['مشاكل جودة البيانات',model.data_issue_count],
+    ['الإجراءات الحرجة',model.critical_count],
+    ['عدد المشاريع',model.raw.projects],
+    ['عدد أوامر العمل',model.raw.orders],
+    ['عدد العينات',model.raw.samples],
+    ['عدد الاختبارات',model.raw.tests],
+    ['عدد التقارير',model.raw.reports],
+    ['عدد الأجهزة',model.raw.equipment]
+  ];
+  XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet(summaryRows),'Executive Summary');
+  XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(model.issues.map(function(item){return {'الملاحظة':item.label,'العدد':item.count,'الحالة':decisionToneLabel(item.severity),'الإجراء المقترح':item.detail};})),'Data Quality');
+  XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(model.project_health.map(function(item){return {'كود المشروع':item.code,'المشروع':item.name,'الحالة':item.status,'التقدم %':item.progress,'التقييم':item.label,'الأسباب':item.reasons.join('، ')};})),'Project Health');
+  XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(model.recommendations.map(function(item,index){return {'#':index+1,'الأولوية':item.priority,'الإجراء':item.title,'التفاصيل':item.detail};})),'Next Actions');
+  XLSX.writeFile(workbook,'ASAS_Decision_Intelligence_'+today()+'.xlsx');
+  showToast('تم تصدير تحليل الإدارة إلى Excel');
 }
 
 function filteredProjects() {
@@ -2316,6 +2491,9 @@ function bindEvents() {
   document.querySelectorAll('[data-open-project]').forEach(function(button) { button.addEventListener('click',function() { openProjectForm(); }); });
   document.querySelectorAll('[data-page-go]').forEach(function(button) { button.addEventListener('click',function() { navigate(button.dataset.pageGo); }); });
   document.querySelectorAll('.view-btn').forEach(function(button) { button.addEventListener('click',function() { setProjectView(button.dataset.projectView); }); });
+  if($('refreshDecisionIntelligence'))$('refreshDecisionIntelligence').addEventListener('click',function(){refresh().then(function(){showToast('تم تحديث التحليل من البيانات الحالية');}).catch(function(error){showToast(error.message,true);});});
+  if($('exportDecisionIntelligence'))$('exportDecisionIntelligence').addEventListener('click',function(){try{exportDecisionIntelligence();}catch(error){showToast(error.message,true);}});
+  if($('openDecisionReport'))$('openDecisionReport').addEventListener('click',openDecisionIntelligenceReport);
   $('projectSearch').addEventListener('input',renderProjects);
   $('projectPriorityFilter').addEventListener('change',renderProjects);
   $('catalogSearch').addEventListener('input',renderCatalog);
@@ -2356,6 +2534,9 @@ function bindEvents() {
     if (event.target.matches('[data-field-test]')) { const test = fieldTests[Number(event.target.dataset.fieldTest)]; test[event.target.dataset.fieldKey] = event.target.value; if (event.target.dataset.fieldKey === 'catalog_id') syncFieldTestCatalog(test); if (event.target.dataset.fieldKey === 'result') renderFieldTests(); }
   });
   document.addEventListener('click',async function(event) {
+    const decisionGo=event.target.closest('[data-decision-go]');if(decisionGo){event.preventDefault();navigate(decisionGo.dataset.decisionGo||'dashboard');return;}
+    const decisionExport=event.target.closest('[data-decision-report-export]');if(decisionExport){event.preventDefault();try{exportDecisionIntelligence();}catch(error){showToast(error.message,true);}return;}
+    const decisionPrint=event.target.closest('[data-decision-report-print]');if(decisionPrint){event.preventDefault();printDecisionIntelligenceReport();return;}
     const documentGroup=event.target.closest('[data-document-group]');if(documentGroup){event.preventDefault();documentGroupFilter=documentGroup.dataset.documentGroup;renderDocumentCenterFiles();const panel=$('documentLibraryFiles');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});return;}
     const fieldPickerAdd=event.target.closest('[data-field-picker-add]');if(fieldPickerAdd){event.preventDefault();addFieldTestFromPicker(fieldPickerAdd.dataset.fieldPickerAdd);return;}
     const catalogFile=event.target.closest('[data-catalog-file]');if(catalogFile){event.preventDefault();const item={id:Number(catalogFile.dataset.catalogFile),original_name:catalogFile.dataset.catalogFileName||'test-resource.pdf'};try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
