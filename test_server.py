@@ -229,6 +229,50 @@ class SchemaMigrationTests(unittest.TestCase):
                 missing.append(button_id or sorted(data_keys) or tag)
         self.assertEqual(missing, [], 'أزرار بلا معالج فعلي: ' + repr(missing))
 
+    def test_full_ui_navigation_and_frontend_backend_contract_integrity(self):
+        root = Path(__file__).parent
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        scripts = '\n'.join((root / name).read_text(encoding='utf-8') for name in (
+            'app-password.js', 'quality-management.js', 'branch-map.js', 'i18n.js', 'asas_tests_module.js'))
+        server = (root / 'server.py').read_text(encoding='utf-8')
+
+        ids = re.findall(r'\bid="([^"]+)"', html)
+        duplicates = sorted({item for item in ids if ids.count(item) > 1})
+        self.assertEqual(duplicates, [], 'معرفات HTML مكررة: ' + repr(duplicates))
+
+        page_ids = set(re.findall(r'<section\b[^>]*\bid="([^"]+)"[^>]*\bclass="[^"]*\bpage\b[^"]*"', html, flags=re.I))
+        nav_targets = set(re.findall(r'\bdata-page="([^"]+)"', html))
+        go_targets = set(re.findall(r'\bdata-page-go="([^"]+)"', html))
+        missing_pages = sorted((nav_targets | go_targets) - page_ids)
+        self.assertEqual(missing_pages, [], 'روابط تنقل تشير إلى صفحات غير موجودة: ' + repr(missing_pages))
+
+        local_assets = []
+        local_assets += re.findall(r'<script\b[^>]*\bsrc="([^"]+)"', html, flags=re.I)
+        local_assets += re.findall(r'<link\b[^>]*\bhref="([^"]+)"', html, flags=re.I)
+        local_assets += re.findall(r'<img\b[^>]*\bsrc="([^"]+)"', html, flags=re.I)
+        missing_assets = []
+        for asset in local_assets:
+            if asset.startswith(('http://', 'https://', 'data:', '#')):
+                continue
+            clean = asset.split('?', 1)[0].split('#', 1)[0]
+            if clean and not (root / clean).exists():
+                missing_assets.append(clean)
+        self.assertEqual(sorted(set(missing_assets)), [], 'ملفات واجهة مفقودة: ' + repr(sorted(set(missing_assets))))
+
+        self.assertNotIn('href="#"', html)
+        self.assertNotIn('javascript:void(0)', html.lower())
+
+        qm_values = set(re.findall(r'\bdata-qm-open="([^"]+)"', html))
+        self.assertTrue(qm_values.issubset({'swot', 'risk', 'kpi', 'action'}), 'قيمة QMS غير مدعومة: ' + repr(qm_values))
+
+        api_literals = set()
+        for match in re.findall(r"api\(\s*['\"](/api/[^'\"]+)['\"]", scripts):
+            base = match.split('?', 1)[0]
+            if '${' not in base:
+                api_literals.add(base)
+        unresolved_api = sorted(path for path in api_literals if path not in server)
+        self.assertEqual(unresolved_api, [], 'استدعاءات واجهة بلا مسار خلفي ظاهر: ' + repr(unresolved_api))
+
     def test_authorized_user_can_extend_catalog_but_field_user_cannot(self):
         self.server.init()
         connection = self.server.db()
