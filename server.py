@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.1.0-expanded-field'
+APP_VERSION = '10.2.17-final-acceptance'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -1312,6 +1312,74 @@ class H(BaseHTTPRequestHandler):
                     'queued_sync_items': queued,
                     'active_sessions': len(SESSIONS),
                     'session_ttl_seconds': SESSION_TTL_SECONDS
+                })
+
+            if path == '/api/system/acceptance':
+                if not self.require_permission(user, 'settings'):
+                    return
+                integrity = connection.execute('PRAGMA quick_check').fetchone()[0]
+                database_write = 'ok'
+                write_error = ''
+                probe_key = '__asas_acceptance_probe__'
+                try:
+                    connection.execute('SAVEPOINT asas_acceptance_probe')
+                    connection.execute('insert or replace into settings(key,value) values(?,?)', (probe_key, str(time.time())))
+                    connection.execute('ROLLBACK TO asas_acceptance_probe')
+                    connection.execute('RELEASE asas_acceptance_probe')
+                except sqlite3.Error as error:
+                    database_write = 'failed'
+                    write_error = str(error)
+                    try:
+                        connection.execute('ROLLBACK TO asas_acceptance_probe')
+                        connection.execute('RELEASE asas_acceptance_probe')
+                    except sqlite3.Error:
+                        pass
+                active_users = [dict(row) for row in connection.execute(
+                    'select id,username,full_name,role,active from users where active=1 order by id'
+                ).fetchall()]
+                invalid_users = [
+                    {'id': row['id'], 'username': row['username'], 'role': row['role']}
+                    for row in active_users if row['role'] not in ROLE_PERMS
+                ]
+                role_permissions = {}
+                for role in sorted({row['role'] for row in active_users}):
+                    perms = ROLE_PERMS.get(role, set())
+                    role_permissions[role] = ['*'] if '*' in perms else sorted(perms)
+                storage_paths = {
+                    'database_dir': os.path.dirname(os.path.abspath(DB)),
+                    'backup_dir': BACKUP_DIR,
+                    'quality_uploads': QUALITY_UPLOADS,
+                    'record_uploads': RECORD_UPLOADS
+                }
+                storage = {}
+                for key, path_value in storage_paths.items():
+                    storage[key] = {
+                        'exists': os.path.isdir(path_value),
+                        'writable': os.path.isdir(path_value) and os.access(path_value, os.W_OK)
+                    }
+                all_storage_ready = all(item['exists'] and item['writable'] for item in storage.values())
+                permissions_valid = not invalid_users
+                overall = (
+                    integrity == 'ok' and database_write == 'ok' and
+                    permissions_valid and all_storage_ready
+                )
+                return self.send_json({
+                    'status': 'pass' if overall else 'fail',
+                    'version': APP_VERSION,
+                    'database_integrity': integrity,
+                    'database_write': database_write,
+                    'database_write_error': write_error,
+                    'storage': storage,
+                    'permissions_valid': permissions_valid,
+                    'invalid_users': invalid_users,
+                    'active_users': len(active_users),
+                    'role_permissions': role_permissions,
+                    'current_user': {
+                        'id': user.get('id'),
+                        'username': user.get('username'),
+                        'role': user.get('role'),
+                        'permissions': ['*'] if '*' in ROLE_PERMS.get(user.get('role'), set()) else sorted(ROLE_PERMS.get(user.get('role'), set()))
+                    }
                 })
 
             if path == '/api/users':

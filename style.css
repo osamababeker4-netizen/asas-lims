@@ -686,3 +686,18 @@ input:focus,select:focus,textarea:focus{
   filter:none!important;
   image-rendering:auto!important;
 }
+
+
+/* V10.2.17 final device/server acceptance */
+.device-acceptance-card{border-top:4px solid var(--asas-gold)!important}
+.acceptance-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 14px}
+.acceptance-results{display:grid;gap:8px}
+.acceptance-row{display:grid;grid-template-columns:minmax(190px,.8fr) minmax(0,1.2fr);gap:12px;align-items:center;padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.acceptance-row strong{color:var(--asas-navy-2)}
+.acceptance-row span{color:var(--muted);word-break:break-word}
+.acceptance-row.pass{border-right:5px solid var(--asas-turquoise);background:#f0fbfb}
+.acceptance-row.fail{border-right:5px solid var(--red);background:#fff4f3}
+.acceptance-summary{padding:13px;border-radius:12px;text-align:center}
+.acceptance-summary.pass{background:#e8f8f3;color:#116f61}
+.acceptance-summary.fail{background:#fff0ef;color:#9b3733}
+@media(max-width:620px){.acceptance-row{grid-template-columns:1fr;gap:4px}.acceptance-actions .btn{width:100%}}

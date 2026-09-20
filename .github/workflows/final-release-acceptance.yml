@@ -39,3 +39,6 @@ jobs:
 
       - name: Final upload acceptance
         run: python3 acceptance_final.py
+
+      - name: Production API database and CORS smoke
+        run: python3 production_smoke.py

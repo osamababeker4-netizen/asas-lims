@@ -1050,6 +1050,33 @@ class SchemaMigrationTests(unittest.TestCase):
             httpd.server_close()
             worker.join(timeout=5)
 
+    def test_final_device_acceptance_contract_is_wired(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        server = (Path(__file__).parent / 'server.py').read_text(encoding='utf-8')
+        self.assertIn('id="runDeviceAcceptance"', html)
+        self.assertIn('id="deviceAcceptanceResults"', html)
+        self.assertIn('navigator.mediaDevices.getUserMedia', app)
+        self.assertIn('navigator.geolocation.getCurrentPosition', app)
+        self.assertIn("api('/api/system/acceptance')", app)
+        self.assertIn("path == '/api/system/acceptance'", server)
+        self.assertIn("PRAGMA quick_check", server)
+        self.assertIn("database_write", server)
+        self.assertIn("permissions_valid", server)
+
+    def test_all_defined_roles_have_deterministic_permissions(self):
+        expected_roles = {
+            'admin','general_manager','technical_manager','laboratory_manager','quality_manager',
+            'quality_officer','calibration_officer','document_controller','manager','quality','technician','field'
+        }
+        self.assertEqual(set(self.server.ROLE_PERMS), expected_roles)
+        self.assertEqual(self.server.ROLE_PERMS['admin'], {'*'})
+        self.assertEqual(self.server.ROLE_PERMS['quality_manager'], {'*'})
+        for role, permissions in self.server.ROLE_PERMS.items():
+            self.assertTrue(permissions, role)
+            self.assertTrue(all(isinstance(item, str) and item for item in permissions))
+
+
 
 if __name__ == '__main__':
     unittest.main()

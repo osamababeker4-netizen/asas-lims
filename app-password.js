@@ -1777,6 +1777,114 @@ async function searchLicense() {
   finally { button.disabled=false; setText(button,'بحث برقم الرخصة'); }
 }
 
+function acceptanceResult(name, ok, detail) {
+  return {name:name, ok:Boolean(ok), detail:String(detail || '')};
+}
+
+function renderDeviceAcceptance(results, overall) {
+  const host=$('deviceAcceptanceResults');
+  if(!host)return;
+  setHtml(host, results.map(function(item){
+    return '<div class="acceptance-row '+(item.ok?'pass':'fail')+'"><strong>'+(item.ok?'✓ ':'✕ ')+esc(item.name)+'</strong><span>'+esc(item.detail)+'</span></div>';
+  }).join('') + '<div class="acceptance-summary '+(overall?'pass':'fail')+'"><strong>'+(overall?'تم اجتياز فحص هذا الجهاز والخادم':'لم يكتمل الاعتماد')+'</strong></div>');
+}
+
+function requestDiagnosticLocation() {
+  return new Promise(function(resolve) {
+    if (!navigator.geolocation) return resolve(acceptanceResult('GPS',false,'واجهة تحديد الموقع غير متاحة'));
+    navigator.geolocation.getCurrentPosition(function(position){
+      const accuracy=Math.round(Number(position.coords.accuracy||0));
+      resolve(acceptanceResult('GPS',Number.isFinite(position.coords.latitude)&&Number.isFinite(position.coords.longitude),'تم الحصول على موقع فعلي · الدقة ±'+accuracy+' م'));
+    },function(error){
+      resolve(acceptanceResult('GPS',false,error.message||'تم رفض صلاحية الموقع'));
+    },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+  });
+}
+
+async function requestDiagnosticCamera() {
+  if (!window.isSecureContext) return acceptanceResult('الكاميرا',false,'الاتصال ليس Secure Context');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    const input=$('fieldCameraInput');
+    return acceptanceResult('الكاميرا',Boolean(input&&input.capture),'التقاط الملفات متاح لكن بث الكاميرا غير مدعوم');
+  }
+  let stream;
+  try {
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    const tracks=stream.getVideoTracks();
+    const ok=tracks.length>0 && tracks[0].readyState==='live';
+    const label=tracks[0]&&tracks[0].label?tracks[0].label:'كاميرا الجهاز';
+    return acceptanceResult('الكاميرا',ok,ok?'تم فتح '+label+' فعليًا':'لم يبدأ بث الكاميرا');
+  } catch(error) {
+    return acceptanceResult('الكاميرا',false,error.message||'تم رفض صلاحية الكاميرا');
+  } finally {
+    if(stream)stream.getTracks().forEach(function(track){track.stop();});
+  }
+}
+
+async function runDeviceAcceptance() {
+  const button=$('runDeviceAcceptance');
+  if(!button)return;
+  button.disabled=true;
+  setText(button,'جارٍ فحص الجهاز والخادم...');
+  const results=[];
+  try {
+    results.push(acceptanceResult('HTTPS / Secure Context',window.isSecureContext,window.isSecureContext?'اتصال آمن':'يجب تشغيل النظام عبر HTTPS'));
+
+    const camera=await requestDiagnosticCamera();
+    results.push(camera);
+
+    const gps=await requestDiagnosticLocation();
+    results.push(gps);
+
+    let health;
+    try {
+      const response=await fetch(API_BASE_URL+'/api/health',{method:'GET',cache:'no-store',credentials:'omit'});
+      health=await response.json();
+      results.push(acceptanceResult('الخادم المركزي',response.ok&&health.status==='ok','HTTP '+response.status+' · '+String(health.version||'')));
+      results.push(acceptanceResult('قاعدة البيانات',response.ok&&health.database==='ready',String(health.database||'غير معروف')));
+    } catch(error) {
+      results.push(acceptanceResult('الخادم المركزي',false,error.message));
+      results.push(acceptanceResult('قاعدة البيانات',false,'تعذر الوصول إلى فحص الخادم'));
+    }
+
+    try {
+      const acceptance=await api('/api/system/acceptance');
+      results.push(acceptanceResult('سلامة قاعدة البيانات',acceptance.database_integrity==='ok',String(acceptance.database_integrity)));
+      results.push(acceptanceResult('الكتابة في قاعدة البيانات',acceptance.database_write==='ok',acceptance.database_write==='ok'?'نجح اختبار كتابة آمن مع Rollback':(acceptance.database_write_error||'فشل')));
+      const storageReady=Object.keys(acceptance.storage||{}).every(function(key){const item=acceptance.storage[key];return item.exists&&item.writable;});
+      results.push(acceptanceResult('التخزين والنسخ الاحتياطي',storageReady,storageReady?'كل المسارات موجودة وقابلة للكتابة':'يوجد مسار تخزين غير جاهز'));
+      results.push(acceptanceResult('صلاحيات المستخدمين',acceptance.permissions_valid===true,(acceptance.active_users||0)+' مستخدم نشط · '+(acceptance.permissions_valid?'كل الأدوار معروفة':'يوجد دور غير صالح')));
+      results.push(acceptanceResult('صلاحية المستخدم الحالي',Boolean(acceptance.current_user&&acceptance.current_user.role),acceptance.current_user?acceptance.current_user.username+' · '+acceptance.current_user.role:'غير معروف'));
+    } catch(error) {
+      results.push(acceptanceResult('فحص الخادم المتقدم',false,error.message));
+    }
+
+    try {
+      const probe='asas-acceptance-'+Date.now();
+      localStorage.setItem(probe,'ok');
+      const ok=localStorage.getItem(probe)==='ok';
+      localStorage.removeItem(probe);
+      results.push(acceptanceResult('تخزين المتصفح',ok,ok?'القراءة والكتابة تعمل':'فشل التخزين المحلي'));
+    } catch(error) {
+      results.push(acceptanceResult('تخزين المتصفح',false,error.message));
+    }
+
+    const overall=results.length>0 && results.every(function(item){return item.ok;});
+    renderDeviceAcceptance(results,overall);
+    const stamp=new Date().toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'});
+    setText($('deviceAcceptanceStamp'),overall?'معتمد على هذا الجهاز · '+stamp:'الفحص يحتاج معالجة · '+stamp);
+    if(overall) {
+      localStorage.setItem('asas_device_acceptance',JSON.stringify({passed:true,at:new Date().toISOString(),version:health&&health.version||''}));
+      showToast('نجح الاعتماد النهائي لهذا الجهاز والخادم');
+    } else {
+      showToast('ظهر بند واحد أو أكثر يحتاج معالجة قبل الاعتماد النهائي',true);
+    }
+  } finally {
+    button.disabled=false;
+    setText(button,'تشغيل فحص الاعتماد النهائي');
+  }
+}
+
 function getLocation() {
   if (!navigator.geolocation) return showToast('تحديد الموقع غير متاح في هذا المتصفح',true);
   navigator.geolocation.getCurrentPosition(function(position) {
@@ -1894,6 +2002,7 @@ function bindEvents() {
   $('openTest').addEventListener('click',openTestForm);
   $('openUser').addEventListener('click',function() { openUserForm(); });
   $('searchLicenseBtn').addEventListener('click',searchLicense);
+  if ($('runDeviceAcceptance')) $('runDeviceAcceptance').addEventListener('click',function(){runDeviceAcceptance().catch(function(error){showToast(error.message||'تعذر تشغيل فحص الاعتماد',true);});});
   if (navigator.geolocation) getLocation();
   $('openFieldCamera').addEventListener('click',function() { $('fieldCameraInput').click(); });
   $('openFieldGallery').addEventListener('click',function() { $('fieldGalleryInput').click(); });
