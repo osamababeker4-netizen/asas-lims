@@ -696,3 +696,42 @@ CREATE TABLE IF NOT EXISTS quality_kpis(id INTEGER PRIMARY KEY AUTOINCREMENT,nam
 CREATE TABLE IF NOT EXISTS quality_actions(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,source_type TEXT NOT NULL DEFAULT 'improvement',source_id INTEGER,description TEXT,owner_id INTEGER,due_date TEXT,result_text TEXT,effectiveness TEXT,status TEXT NOT NULL DEFAULT 'open',created_by INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,completed_at TEXT,FOREIGN KEY(owner_id) REFERENCES users(id),FOREIGN KEY(created_by) REFERENCES users(id));
 CREATE INDEX IF NOT EXISTS idx_quality_risks_status ON quality_risks(status,due_date);
 CREATE INDEX IF NOT EXISTS idx_quality_actions_status ON quality_actions(status,due_date);
+
+-- V10.4 management review and continual-improvement workflow.
+CREATE TABLE IF NOT EXISTS quality_cycles(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  objective TEXT,
+  owner_id INTEGER,
+  start_date TEXT,
+  due_date TEXT,
+  baseline REAL NOT NULL DEFAULT 0,
+  target REAL NOT NULL DEFAULT 0,
+  result REAL NOT NULL DEFAULT 0,
+  current_stage INTEGER NOT NULL DEFAULT 1 CHECK(current_stage BETWEEN 1 AND 9),
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','completed','cancelled')),
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT,
+  FOREIGN KEY(owner_id) REFERENCES users(id),
+  FOREIGN KEY(created_by) REFERENCES users(id)
+);
+CREATE TABLE IF NOT EXISTS quality_cycle_steps(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cycle_id INTEGER NOT NULL,
+  stage INTEGER NOT NULL CHECK(stage BETWEEN 1 AND 9),
+  title TEXT NOT NULL,
+  notes TEXT,
+  decision TEXT,
+  owner_id INTEGER,
+  due_date TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','active','completed')),
+  completed_by INTEGER,
+  completed_at TEXT,
+  UNIQUE(cycle_id,stage),
+  FOREIGN KEY(cycle_id) REFERENCES quality_cycles(id) ON DELETE CASCADE,
+  FOREIGN KEY(owner_id) REFERENCES users(id),
+  FOREIGN KEY(completed_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_quality_cycles_status ON quality_cycles(status,due_date);
+CREATE INDEX IF NOT EXISTS idx_quality_cycle_steps ON quality_cycle_steps(cycle_id,stage,status);
