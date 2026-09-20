@@ -8,15 +8,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="logo.jpg">
+  <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-2-7-home-banner">
+  <link rel="stylesheet" href="style.css?v=10-2-10-official-brand-assets">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
-      <img src="logo.jpg" class="login-logo" alt="شعار شركة مختبر أساس">
-      <span class="login-edition">ASAS LIMS · V10.2.7 Professional</span>
+      <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
+      <span class="login-edition">ASAS LIMS · V10.2.10 Professional</span>
       <h1>تسجيل دخول النظام</h1>
       <form id="loginForm" class="form-stack">
         <label>رقم الجوال<input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="+9665XXXXXXXX"></label>
@@ -40,10 +40,10 @@
   <div id="app" class="app-shell hidden">
     <aside id="sidebar" class="sidebar">
       <div class="brand">
-        <img src="logo.jpg" alt="شعار شركة مختبر أساس">
+        <img src="logo.png" alt="شعار شركة مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.2.7 · Operational</small>
+        <small class="release-chip">V10.2.10 · Operational</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
@@ -71,7 +71,7 @@
     <main class="main-content">
       <header class="official-header" aria-label="هوية مختبر أساس">
         <a class="official-brand" href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">
-          <img src="logo.jpg" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية">
+          <img src="logo.png" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية">
           <span><strong>مختبر أساس</strong><small>بيانات هندسية دقيقة لكل مرحلة من مشروعك</small></span>
         </a>
         <nav class="official-links" aria-label="روابط أساس الرسمية">
@@ -91,7 +91,7 @@
         </div>
         <div class="profile-menu-wrap">
           <button id="profileMenuToggle" class="profile-summary fixed-profile" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="إعدادات المستخدم">
-            <img id="currentUserAvatar" class="user-avatar" src="logo.jpg" alt="صورة المستخدم">
+            <img id="currentUserAvatar" class="user-avatar" src="logo.png" alt="صورة المستخدم">
             <span><strong id="currentUsername">اسم المستخدم</strong><small id="currentUser">الصفة</small></span>
           </button>
           <div id="profileMenu" class="profile-mini-menu hidden" role="menu">
@@ -107,9 +107,10 @@
 
       <section id="dashboard" class="page active">
         <article class="dashboard-brand-hero dashboard-logo-only">
-          <div class="dashboard-brand-lockup">
-            <img src="asas-home-banner.jpg" class="dashboard-brand-logo dashboard-home-banner" alt="بانر شركة مختبر أساس">
-          </div>
+          <picture class="dashboard-brand-lockup">
+            <source media="(max-width:620px)" srcset="asas-home-banner-mobile.png">
+            <img src="asas-home-banner.png" class="dashboard-brand-logo dashboard-home-banner" alt="بانر شركة مختبر أساس">
+          </picture>
         </article>
         <div class="page-heading">
           <div><h2>نظرة تشغيلية</h2><p>الأولويات، الأعمال المتأخرة، وحالة سلسلة العينة حتى التقرير.</p></div>
@@ -400,7 +401,7 @@
 
       <footer class="official-footer">
         <div class="footer-brand">
-          <img src="logo.jpg" alt="شعار مختبر أساس">
+          <img src="logo.png" alt="شعار مختبر أساس">
           <p>مختبر أساس للاستشارات الفنية والمختبرات الهندسية — إدارة تشغيلية آمنة للمشاريع والاختبارات والتقارير.</p>
         </div>
         <div><h3>روابط سريعة</h3><button class="footer-link" type="button" data-page-go="dashboard">لوحة القيادة</button><button class="footer-link" type="button" data-page-go="projects">المشاريع</button><button class="footer-link" type="button" data-page-go="catalog">دليل الاختبارات</button></div>
@@ -415,17 +416,17 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=10-2-7-home-banner"></script>
-  <script src="i18n.js?v=10-2-7-home-banner"></script>
-  <script src="app-password.js?v=10-2-7-home-banner"></script>
-  <script src="branch-map.js?v=10-2-7-home-banner"></script>
+  <script src="runtime-config.js?v=10-2-10-official-brand-assets"></script>
+  <script src="i18n.js?v=10-2-10-official-brand-assets"></script>
+  <script src="app-password.js?v=10-2-10-official-brand-assets"></script>
+  <script src="branch-map.js?v=10-2-10-official-brand-assets"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-7-home-banner'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-10-official-brand-assets'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-2-7-home-banner', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-2-10-official-brand-assets', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>

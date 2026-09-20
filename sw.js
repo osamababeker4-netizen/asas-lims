@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-2-7-home-banner';
-const APP_SHELL = ['./','./index.html','./style.css?v=10-2-7-home-banner','./app-password.js?v=10-2-7-home-banner','./branch-map.js?v=10-2-7-home-banner','./i18n.js?v=10-2-7-home-banner','./runtime-config.js?v=10-2-7-home-banner','./field-test-guide.html','./manifest.webmanifest','./logo.jpg','./asas-home-banner.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
+const CACHE_NAME = 'asas-lims-pwa-v10-2-10-official-brand-assets';
+const APP_SHELL = ['./','./index.html','./style.css?v=10-2-10-official-brand-assets','./app-password.js?v=10-2-10-official-brand-assets','./branch-map.js?v=10-2-10-official-brand-assets','./i18n.js?v=10-2-10-official-brand-assets','./runtime-config.js?v=10-2-10-official-brand-assets','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
@@ -15,7 +15,7 @@ self.addEventListener('fetch', function(event) {
   if (event.request.method !== 'GET' || url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
   const relative = url.pathname.slice(scope.pathname.length);
   // Never cache API responses, authentication, attachments or the 44 MB PDF.
-  if (!['','index.html','style.css','app-password.js','branch-map.js','i18n.js','runtime-config.js','field-test-guide.html','manifest.webmanifest','logo.jpg','whatsapp-logo.svg','telegram-logo.svg'].includes(relative)) return;
+  if (!['','index.html','style.css','app-password.js','branch-map.js','i18n.js','runtime-config.js','field-test-guide.html','manifest.webmanifest','logo.png','asas-home-banner.png','asas-home-banner-mobile.png','engineering-pages-bg.jpg','whatsapp-logo.svg','telegram-logo.svg'].includes(relative)) return;
   event.respondWith((async function() {
     const cache = await caches.open(CACHE_NAME);
     try {

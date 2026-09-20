@@ -287,8 +287,9 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
         self.assertNotIn('ASAS OPERATIONS CENTER', html)
         self.assertNotIn('من العينة إلى التقرير — في مسار واحد واضح', html)
-        self.assertIn('src="logo.jpg" class="login-logo"', html)
-        self.assertIn('src="asas-home-banner.jpg" class="dashboard-brand-logo dashboard-home-banner"', html)
+        self.assertIn('src="logo.png" class="login-logo"', html)
+        self.assertIn('src="asas-home-banner.png" class="dashboard-brand-logo dashboard-home-banner"', html)
+        self.assertIn('srcset="asas-home-banner-mobile.png"', html)
         self.assertIn('dashboard-logo-only', html)
         hero_start = html.index('<article class="dashboard-brand-hero dashboard-logo-only">')
         hero_end = html.index('</article>', hero_start)
@@ -331,13 +332,14 @@ class SchemaMigrationTests(unittest.TestCase):
         server_source = (Path(__file__).parent / 'server.py').read_text(encoding='utf-8')
         sw = (Path(__file__).parent / 'sw.js').read_text(encoding='utf-8')
         pages = (Path(__file__).parent / '.github/workflows/deploy-pages.yml').read_text(encoding='utf-8')
-        self.assertIn('src="logo.jpg" class="login-logo"', html)
-        self.assertIn('src="asas-home-banner.jpg" class="dashboard-brand-logo dashboard-home-banner"', html)
-        self.assertIn('src="logo.jpg" alt="شعار شركة مختبر أساس"', html)
-        self.assertIn('src="logo.jpg" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية"', html)
-        self.assertIn('id="currentUserAvatar" class="user-avatar" src="logo.jpg"', html)
-        self.assertEqual(html.count('src="asas-home-banner.jpg"'), 1)
-        self.assertGreaterEqual(html.count('src="logo.jpg"'), 4)
+        self.assertIn('src="logo.png" class="login-logo"', html)
+        self.assertIn('src="asas-home-banner.png" class="dashboard-brand-logo dashboard-home-banner"', html)
+        self.assertIn('srcset="asas-home-banner-mobile.png"', html)
+        self.assertIn('src="logo.png" alt="شعار شركة مختبر أساس"', html)
+        self.assertIn('src="logo.png" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية"', html)
+        self.assertIn('id="currentUserAvatar" class="user-avatar" src="logo.png"', html)
+        self.assertEqual(html.count('src="asas-home-banner.png"'), 1)
+        self.assertGreaterEqual(html.count('src="logo.png"'), 4)
         self.assertNotIn('src="asas-logo-primary.png"', html)
         self.assertIn('src="whatsapp-logo.svg"', html)
         self.assertIn('src="telegram-logo.svg"', html)
@@ -345,22 +347,28 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertNotIn('>TG</span>', html)
         self.assertIn("'/whatsapp-logo.svg': ('whatsapp-logo.svg', 'image/svg+xml; charset=utf-8')", server_source)
         self.assertIn("'/telegram-logo.svg': ('telegram-logo.svg', 'image/svg+xml; charset=utf-8')", server_source)
-        self.assertIn("'./logo.jpg'", sw)
-        self.assertIn("'./asas-home-banner.jpg'", sw)
+        self.assertIn("'./logo.png'", sw)
+        self.assertIn("'./asas-home-banner.png'", sw)
+        self.assertIn("'./asas-home-banner-mobile.png'", sw)
+        self.assertIn("'./engineering-pages-bg.jpg'", sw)
         self.assertIn("'./whatsapp-logo.svg'", sw)
         self.assertIn("'./telegram-logo.svg'", sw)
         self.assertNotIn("'./asas-logo-primary.png'", sw)
         self.assertIn('whatsapp-logo.svg', pages)
         self.assertIn('telegram-logo.svg', pages)
-        self.assertIn('asas-home-banner.jpg', pages)
+        self.assertIn('asas-home-banner.png', pages)
+        self.assertIn('asas-home-banner-mobile.png', pages)
+        self.assertIn('engineering-pages-bg.jpg', pages)
         self.server.init()
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
         worker = threading.Thread(target=httpd.serve_forever)
         worker.start()
         try:
             for path, signature in (
-                ('/logo.jpg', b'\xff\xd8\xff'),
-                ('/asas-home-banner.jpg', b'\xff\xd8\xff'),
+                ('/logo.png', b'\x89PNG'),
+                ('/asas-home-banner.png', b'\x89PNG'),
+                ('/asas-home-banner-mobile.png', b'\x89PNG'),
+                ('/engineering-pages-bg.jpg', b'\xff\xd8\xff'),
                 ('/whatsapp-logo.svg', b'<svg'),
                 ('/telegram-logo.svg', b'<svg'),
             ):

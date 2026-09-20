@@ -370,3 +370,114 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0
 @media(max-width:620px){
   .dashboard-brand-hero.dashboard-logo-only{height:145px!important;min-height:145px!important;padding:8px!important}
 }
+
+/* V10.2.8 responsive approved banner and unified official logo */
+.login-logo,
+.brand img,
+.official-brand img,
+.footer-brand img{
+  object-fit:contain!important;
+  object-position:center!important;
+}
+.dashboard-brand-hero.dashboard-logo-only{
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  aspect-ratio:1536/228!important;
+  padding:0!important;
+  background:#eef1f1!important;
+}
+.dashboard-logo-only .dashboard-brand-lockup{
+  width:100%!important;
+  height:100%!important;
+  display:block!important;
+}
+.dashboard-logo-only .dashboard-brand-logo.dashboard-home-banner{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  background:#eef1f1!important;
+}
+@media(max-width:620px){
+  .dashboard-brand-hero.dashboard-logo-only{
+    height:auto!important;
+    min-height:0!important;
+    aspect-ratio:1536/228!important;
+    border-radius:14px!important;
+  }
+  .login-logo{width:min(300px,92%)!important;height:auto!important;max-height:112px!important}
+  .brand img{height:auto!important;max-height:86px!important}
+  .official-brand img{width:min(150px,46vw)!important;height:auto!important;max-height:58px!important}
+}
+
+/* V10.2.9 subtle engineering backgrounds with protected readability */
+.main-content{
+  background-color:#f3f7f6!important;
+  background-image:
+    linear-gradient(rgba(247,250,249,.91),rgba(247,250,249,.94)),
+    url('engineering-pages-bg.jpg')!important;
+  background-position:center!important;
+  background-size:cover!important;
+  background-repeat:no-repeat!important;
+  background-attachment:fixed!important;
+}
+.main-content .panel,
+.main-content .metric-card,
+.main-content .compact-project,
+.main-content .table-panel,
+.main-content .official-footer,
+.main-content .page-heading,
+.main-content .view-toolbar{
+  backdrop-filter:blur(2px);
+}
+.main-content .panel,
+.main-content .metric-card,
+.main-content .compact-project,
+.main-content .table-panel{
+  background-color:rgba(255,255,255,.96)!important;
+}
+@media(max-width:900px){
+  .main-content{
+    background-attachment:scroll!important;
+    background-position:center top!important;
+  }
+}
+@media(prefers-reduced-transparency:reduce){
+  .main-content{
+    background-image:linear-gradient(rgba(247,250,249,.97),rgba(247,250,249,.98)),url('engineering-pages-bg.jpg')!important;
+  }
+  .main-content .panel,
+  .main-content .metric-card,
+  .main-content .compact-project,
+  .main-content .table-panel{backdrop-filter:none}
+}
+
+/* V10.2.10 official website logo and device-specific dashboard artwork */
+.dashboard-brand-hero.dashboard-logo-only{
+  aspect-ratio:6/1!important;
+}
+.dashboard-logo-only picture.dashboard-brand-lockup{
+  width:100%!important;
+  height:100%!important;
+  display:block!important;
+}
+.dashboard-logo-only picture.dashboard-brand-lockup .dashboard-home-banner{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  object-position:center!important;
+}
+.login-logo,.brand img,.official-brand img,.footer-brand img{
+  background:#fff!important;
+}
+@media(max-width:620px){
+  .dashboard-brand-hero.dashboard-logo-only{
+    aspect-ratio:6/5!important;
+    max-height:330px!important;
+  }
+  .dashboard-logo-only picture.dashboard-brand-lockup .dashboard-home-banner{
+    object-fit:contain!important;
+  }
+}
