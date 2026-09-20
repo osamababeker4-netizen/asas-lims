@@ -112,9 +112,11 @@
     }
   });
 
+  window.refreshQualityControl=async function(){
+    await Promise.all([loadManagement(),loadCycles()]);
+  };
   types.forEach(renderManagement);
   renderStageRail();
   renderCycleCreate();
-  loadManagement().catch(()=>{});
-  loadCycles().catch(()=>{});
+  if(window.currentUser)window.refreshQualityControl().catch(()=>{});
 })();
