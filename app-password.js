@@ -906,7 +906,7 @@ function renderTests() {
 function renderCatalog() {
   const query = $('catalogSearch') ? $('catalogSearch').value.toLowerCase() : '';
   setHtml($('catalogTable'), catalog.filter(function(item) { return [item.code,item.name_ar,item.name_en,item.standard,item.category].join(' ').toLowerCase().indexOf(query) >= 0; }).map(function(item) {
-    const fileLink = function(id,label){return id ? '<a class="text-btn download-link" target="_blank" rel="noopener" download href="'+esc(API_BASE_URL+'/api/attachments/files/'+id)+'">⬇ '+label+'</a>' : '';};
+    const fileLink = function(id,label){return id ? '<button class="text-btn download-link" type="button" data-catalog-file="'+id+'" data-catalog-file-name="'+esc(item.code+'-'+label+'.pdf')+'">⬇ '+label+'</button>' : '';};
     const resources = [fileLink(item.astm_attachment_id,'تنزيل المواصفة PDF'),fileLink(item.worksheet_attachment_id,'تنزيل Work Sheet'),fileLink(item.results_attachment_id,'تنزيل Excel النتائج')].filter(Boolean).join(' ');
     const canManage = currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','document_controller','quality'].indexOf(currentUser.role) >= 0;
     return '<tr><td>' + esc(item.code) + '</td><td>' + escUI(item.name_ar) + '<small>' + esc(item.name_en || '') + '</small></td><td>' + escUI(item.category) + '</td><td>' + esc(item.standard) + '</td><td>' + esc(item.version || '—') + '</td><td><div class="row-actions">'+(resources || '—')+(canManage ? '<button class="text-btn" data-catalog-resources="'+item.id+'">إدارة الملفات</button>' : '')+'</div></td></tr>';
@@ -1315,13 +1315,24 @@ function installSmartImportButtons(){document.querySelectorAll('.page').forEach(
 async function fetchAuthenticatedAttachment(item){
   const headers={};
   if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
-  const response=await fetch(API_BASE_URL+'/api/attachments/files/'+item.id,{credentials:'include',headers:headers});
+  let response=null,lastError=null;
+  for(let attempt=1;attempt<=2;attempt+=1){
+    try{
+      response=await fetch(API_BASE_URL+'/api/attachments/files/'+item.id,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
+      break;
+    }catch(error){
+      lastError=error;
+      if(attempt<2)await smartUploadDelay(500);
+    }
+  }
+  if(!response)throw new Error('تعذر الاتصال بالخادم لتحميل الملف. '+String(lastError&&lastError.message||''));
   if(!response.ok){
     let message='تعذر تحميل الملف';
     try{const data=await response.json();message=data.error||message;}catch(_error){}
     throw new Error(message);
   }
   const blob=await response.blob();
+  if(!blob.size)throw new Error('الملف موجود في السجل لكن محتواه غير متاح على الخادم');
   return {blob:blob,url:URL.createObjectURL(blob)};
 }
 
@@ -1435,11 +1446,18 @@ async function safeSmartFilePicker(form) {
           'application/zip':['.zip']
         }}]
       });
-      const files = await Promise.all(handles.map(function(handle){return handle.getFile();}));
-      setSmartSelectedFiles(form, files, true);
-      return;
+      const resolved = await Promise.all(handles.map(async function(handle){
+        try { return {file:await handle.getFile(), error:null}; }
+        catch(error) { return {file:null,error:error}; }
+      }));
+      const files=resolved.filter(function(item){return item.file&&item.file.size>=0;}).map(function(item){return item.file;});
+      const failed=resolved.filter(function(item){return item.error;});
+      if(files.length)setSmartSelectedFiles(form,files,true);
+      if(failed.length)showToast('تم تجاوز '+failed.length+' ملف تعذر على Windows الوصول إليه. اختره مجددًا من المستكشف.',true);
+      if(files.length||failed.length)return;
     } catch (error) {
       if (error && error.name === 'AbortError') return;
+      showToast('تعذر استخدام الاختيار الآمن؛ سيتم فتح مستكشف الملفات العادي.',true);
     }
   }
   nativeInput.click();
@@ -1463,7 +1481,8 @@ function openSmartImportPanel(section){
 }
 
 async function smartFileBase64(file){
-  if(file.size>25*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 25MB');
+  if(!file || file.size===0)throw new Error('الملف فارغ أو لم يعد متاحًا على الجهاز: '+(file&&file.name||'ملف'));
+  if(file.size>100*1024*1024)throw new Error('حجم '+file.name+' يتجاوز الحد التشغيلي 100MB');
   const bytes=new Uint8Array(await file.arrayBuffer());
   let binary='';
   for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
@@ -1483,7 +1502,7 @@ function smartUploadToken(form,file){
 function smartUploadCanRetry(error){
   const message=String(error&&error.message||error||'').toLowerCase();
   if(!navigator.onLine)return true;
-  if(/25mb|غير مدعوم|rar|صلاحية|غير صالح|فارغ|unsupported|forbidden|401|403|400/.test(message))return false;
+  if(/100mb|غير مدعوم|rar|صلاحية|غير صالح|فارغ|unsupported|forbidden|401|403|400/.test(message))return false;
   return /network|failed to fetch|fetch|timeout|timed out|502|503|504|اتصال|شبكة|الخادم|مؤقت/.test(message);
 }
 
