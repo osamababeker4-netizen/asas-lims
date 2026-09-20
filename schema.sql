@@ -688,3 +688,11 @@ INSERT OR IGNORE INTO settings(key,value) VALUES('enable_inventory_alerts','true
 INSERT OR IGNORE INTO settings(key,value) VALUES('enable_calibration_alerts','true');
 INSERT OR IGNORE INTO settings(key,value) VALUES('enable_customer_complaints','true');
 INSERT OR IGNORE INTO settings(key,value) VALUES('tax_rate','15');
+
+-- V10.3 integrated quality planning.
+CREATE TABLE IF NOT EXISTS quality_swot(id INTEGER PRIMARY KEY AUTOINCREMENT,quadrant TEXT NOT NULL CHECK(quadrant IN ('strength','weakness','opportunity','threat')),title TEXT NOT NULL,description TEXT,owner_id INTEGER,status TEXT NOT NULL DEFAULT 'active',created_by INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(owner_id) REFERENCES users(id),FOREIGN KEY(created_by) REFERENCES users(id));
+CREATE TABLE IF NOT EXISTS quality_risks(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,category TEXT,probability INTEGER NOT NULL DEFAULT 1 CHECK(probability BETWEEN 1 AND 5),impact INTEGER NOT NULL DEFAULT 1 CHECK(impact BETWEEN 1 AND 5),mitigation TEXT,owner_id INTEGER,due_date TEXT,status TEXT NOT NULL DEFAULT 'open',created_by INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(owner_id) REFERENCES users(id),FOREIGN KEY(created_by) REFERENCES users(id));
+CREATE TABLE IF NOT EXISTS quality_kpis(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,unit TEXT,target REAL NOT NULL DEFAULT 0,actual REAL NOT NULL DEFAULT 0,period TEXT,owner_id INTEGER,status TEXT NOT NULL DEFAULT 'active',created_by INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(owner_id) REFERENCES users(id),FOREIGN KEY(created_by) REFERENCES users(id));
+CREATE TABLE IF NOT EXISTS quality_actions(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,source_type TEXT NOT NULL DEFAULT 'improvement',source_id INTEGER,description TEXT,owner_id INTEGER,due_date TEXT,result_text TEXT,effectiveness TEXT,status TEXT NOT NULL DEFAULT 'open',created_by INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,completed_at TEXT,FOREIGN KEY(owner_id) REFERENCES users(id),FOREIGN KEY(created_by) REFERENCES users(id));
+CREATE INDEX IF NOT EXISTS idx_quality_risks_status ON quality_risks(status,due_date);
+CREATE INDEX IF NOT EXISTS idx_quality_actions_status ON quality_actions(status,due_date);

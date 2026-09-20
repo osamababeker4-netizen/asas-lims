@@ -1256,6 +1256,7 @@ class H(BaseHTTPRequestHandler):
             '/style.css': ('style.css', 'text/css; charset=utf-8'),
             '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
             '/app-password.js': ('app-password.js', 'application/javascript; charset=utf-8'),
+            '/quality-management.js': ('quality-management.js', 'application/javascript; charset=utf-8'),
             '/runtime-config.js': ('runtime-config.js', 'application/javascript; charset=utf-8'),
             '/sw.js': ('sw.js', 'application/javascript; charset=utf-8'),
             '/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
@@ -1409,6 +1410,17 @@ class H(BaseHTTPRequestHandler):
                     'documents': [dict(row) for row in connection.execute('select * from quality_documents order by category,code,id desc').fetchall()],
                     'proficiency': [dict(row) for row in connection.execute('select * from proficiency_tests order by participation_date desc,id desc').fetchall()],
                     'staff': [dict(row) for row in connection.execute('select * from quality_staff order by active desc,full_name').fetchall()]
+                })
+
+            if path == '/api/quality/management':
+                if not self.require_permission(user, 'quality'):
+                    return
+                rows = lambda sql: [dict(row) for row in connection.execute(sql).fetchall()]
+                return self.send_json({
+                    'swot': rows('select s.*,u.full_name owner_name from quality_swot s left join users u on u.id=s.owner_id order by s.id desc'),
+                    'risks': rows('select r.*,r.probability*r.impact score,u.full_name owner_name from quality_risks r left join users u on u.id=r.owner_id order by score desc,r.id desc'),
+                    'kpis': rows('select k.*,case when k.target=0 then 0 else round(k.actual*100.0/k.target,1) end achievement,u.full_name owner_name from quality_kpis k left join users u on u.id=k.owner_id order by k.id desc'),
+                    'actions': rows("select a.*,u.full_name owner_name from quality_actions a left join users u on u.id=a.owner_id order by case a.status when 'open' then 0 when 'in_progress' then 1 else 2 end,a.due_date,a.id desc")
                 })
 
             if path.startswith('/api/quality/files/'):
@@ -1643,6 +1655,86 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'إنشاء نسخة احتياطية', 'system', 0, filename)
                 connection.commit()
                 return self.send_json({'ok': True, 'file_name': filename, 'size_bytes': os.path.getsize(target)})
+
+            if path == '/api/system/reset-operational':
+                if user.get('role') not in {'admin', 'quality_manager'}:
+                    return self.send_json({'error': 'تصفير النظام متاح لمدير النظام ومدير الجودة فقط'}, 403)
+                if str(data.get('confirmation') or '') != 'RESET-ASAS-OPERATIONAL':
+                    return self.send_json({'error': 'رمز تأكيد التصفير غير صحيح'}, 400)
+                keep_names = ['أسامة', 'صدام', 'علي']
+                keep_rows = []
+                for name in keep_names:
+                    matches = connection.execute("select id,username,full_name,role from users where active=1 and (trim(full_name)=? or full_name like ? or trim(username)=?)", (name, '%'+name+'%', name)).fetchall()
+                    if len(matches) != 1:
+                        return self.send_json({'error': 'لم يتم التصفير: يجب أن يطابق الاسم «'+name+'» مستخدمًا نشطًا واحدًا فقط'}, 409)
+                    keep_rows.append(matches[0])
+                keep_ids = list(dict.fromkeys(row['id'] for row in keep_rows))
+                if len(keep_ids) != 3:
+                    return self.send_json({'error': 'لم يتم التصفير: حسابات الاستثناء غير متطابقة'}, 409)
+                os.makedirs(BACKUP_DIR, exist_ok=True)
+                stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+                backup_name = 'before-operational-reset-' + stamp + '.sqlite3'
+                backup_target = os.path.join(BACKUP_DIR, backup_name)
+                destination = sqlite3.connect(backup_target)
+                try:
+                    connection.backup(destination)
+                finally:
+                    destination.close()
+                operational_tables = ['quotation_items','quotations','contracts','customer_complaints','corrective_actions','nonconformities','chain_of_custody','sample_result_entries','order_requests','inventory_items','maintenance_records','calibration_records','environmental_monitoring','training_records','field_visits','report_files','reports','proctor_points','proctor_results','test_data','tests','samples','work_orders','projects','clients','equipment','quality_documents','proficiency_tests','quality_staff','quality_swot','quality_risks','quality_kpis','quality_actions','record_attachments','catalog_resources','whatsapp_drafts','upload_receipts','trash_items','audit_log','sync_queue','suppliers']
+                connection.execute('PRAGMA foreign_keys=OFF')
+                try:
+                    connection.execute('BEGIN IMMEDIATE')
+                    deleted = {}
+                    for table in operational_tables:
+                        if connection.execute("select 1 from sqlite_master where type='table' and name=?", (table,)).fetchone():
+                            deleted[table] = connection.execute('select count(*) from '+table).fetchone()[0]
+                            connection.execute('delete from '+table)
+                            connection.execute("delete from sqlite_sequence where name=?", (table,))
+                    placeholders = ','.join('?' for _ in keep_ids)
+                    deleted['users'] = connection.execute('select count(*) from users where id not in ('+placeholders+')', keep_ids).fetchone()[0]
+                    connection.execute('delete from users where id not in ('+placeholders+')', keep_ids)
+                    connection.commit()
+                except Exception:
+                    connection.rollback()
+                    raise
+                finally:
+                    connection.execute('PRAGMA foreign_keys=ON')
+                publish_event('system', 'operational_reset', 0)
+                return self.send_json({'ok': True, 'backup': backup_name, 'preserved_users': [dict(row) for row in keep_rows], 'deleted': deleted, 'queued': 0})
+
+            if path == '/api/quality/management':
+                if not self.require_permission(user, 'quality'):
+                    return
+                kind, title = str(data.get('type') or ''), str(data.get('title') or '').strip()
+                if kind not in {'swot','risk','kpi','action'} or not title:
+                    return self.send_json({'error': 'نوع السجل والعنوان مطلوبان'}, 400)
+                owner_id = parse_optional_int(data.get('owner_id'))
+                if owner_id and not connection.execute('select id from users where id=? and active=1',(owner_id,)).fetchone():
+                    return self.send_json({'error': 'المسؤول المحدد غير موجود'}, 400)
+                if kind == 'swot':
+                    quadrant = str(data.get('quadrant') or '')
+                    if quadrant not in {'strength','weakness','opportunity','threat'}: return self.send_json({'error':'تصنيف SWOT غير صحيح'},400)
+                    cursor=connection.execute('insert into quality_swot(quadrant,title,description,owner_id,created_by) values(?,?,?,?,?)',(quadrant,title,data.get('description'),owner_id,user['id']))
+                elif kind == 'risk':
+                    probability=max(1,min(5,int(data.get('probability') or 1))); impact=max(1,min(5,int(data.get('impact') or 1)))
+                    cursor=connection.execute('insert into quality_risks(title,category,probability,impact,mitigation,owner_id,due_date,created_by) values(?,?,?,?,?,?,?,?)',(title,data.get('category'),probability,impact,data.get('mitigation'),owner_id,data.get('due_date'),user['id']))
+                elif kind == 'kpi':
+                    cursor=connection.execute('insert into quality_kpis(name,unit,target,actual,period,owner_id,created_by) values(?,?,?,?,?,?,?)',(title,data.get('unit'),float(data.get('target') or 0),float(data.get('actual') or 0),data.get('period'),owner_id,user['id']))
+                else:
+                    cursor=connection.execute('insert into quality_actions(title,source_type,description,owner_id,due_date,created_by) values(?,?,?,?,?,?)',(title,data.get('source_type') or 'improvement',data.get('description'),owner_id,data.get('due_date'),user['id']))
+                entity_id=cursor.lastrowid
+                audit(connection,user['id'],'إضافة سجل جودة تشغيلي','quality_'+kind,entity_id,title)
+                connection.commit(); publish_event('quality_'+kind,'create',entity_id)
+                return self.send_json({'ok':True,'id':entity_id})
+
+            if path == '/api/quality/management/delete':
+                if not self.require_permission(user, 'quality'): return
+                kind=str(data.get('type') or ''); entity_id=parse_optional_int(data.get('id'))
+                table={'swot':'quality_swot','risk':'quality_risks','kpi':'quality_kpis','action':'quality_actions'}.get(kind)
+                if not table or not entity_id: return self.send_json({'error':'السجل غير صحيح'},400)
+                if not connection.execute('select id from '+table+' where id=?',(entity_id,)).fetchone(): return self.send_json({'error':'السجل غير موجود'},404)
+                connection.execute('delete from '+table+' where id=?',(entity_id,)); connection.commit(); publish_event('quality_'+kind,'delete',entity_id)
+                return self.send_json({'ok':True})
 
             if path == '/api/telegram/draft':
                 if not self.require_permission(user, 'dashboard'):

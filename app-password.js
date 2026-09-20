@@ -1243,6 +1243,13 @@ function openQualityDocumentEdit(item) { modal('<h2>تعديل وثيقة الج
 async function submitQualityDocumentEdit(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/quality/documents/update',{method:'POST',body:JSON.stringify(data)});closeModal();await refresh();showToast('تم تعديل وثيقة الجودة'); }
 async function deleteQualityDocument(id) { if(!window.confirm('هل تريد حذف وثيقة الجودة نهائياً؟'))return;await api('/api/quality/documents/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف وثيقة الجودة'); }
 async function resetSyncQueue(){if(!window.confirm('سيتم حذف جميع نتائج وطابور المزامنة السابق والبدء من الصفر. هل تريد المتابعة؟'))return;const result=await api('/api/sync/reset',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' نتيجة وبدأ طابور مزامنة جديد');}
+async function resetOperationalData(){
+  if(!window.confirm('سيتم إنشاء نسخة احتياطية ثم حذف جميع بيانات التشغيل نهائيًا، مع الإبقاء فقط على أسامة وصدام وعلي. هل تريد المتابعة؟'))return;
+  const phrase=window.prompt('للتأكيد النهائي اكتب: تصفير نظام أساس');
+  if(phrase!=='تصفير نظام أساس'){showToast('تم إلغاء التصفير؛ عبارة التأكيد غير مطابقة',true);return;}
+  const result=await api('/api/system/reset-operational',{method:'POST',body:JSON.stringify({confirmation:'RESET-ASAS-OPERATIONAL'})});
+  await refresh(); showToast('تم تصفير بيانات التشغيل. النسخة الاحتياطية: '+result.backup);
+}
 async function uploadQualityFile(file) { if (!file) return ''; if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset=0; offset<bytes.length; offset+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192)); const result = await api('/api/quality/files',{method:'POST',body:JSON.stringify({file_name:file.name,file_base64:btoa(binary)})}); return result.ref; }
 async function submitQualityRecord(form,path,files) { const data={}; new FormData(form).forEach(function(value,key){if(files.indexOf(key)<0)data[key]=value;}); for(const item of files){const ref=await uploadQualityFile(form.elements[item].files[0]); if(ref)data[item === 'quality_file' ? 'report_ref' : item === 'qualification_file' ? 'qualification_ref' : 'cv_ref']=ref;} await api(path,{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم الحفظ'); }
 
@@ -1906,6 +1913,7 @@ function bindEvents() {
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
   $('clearAudit').addEventListener('click',function(){clearAuditLog().catch(function(error){showToast(error.message,true);});});
   $('resetSyncQueue').addEventListener('click',function(){resetSyncQueue().catch(function(error){showToast(error.message,true);});});
+  $('resetOperationalData').addEventListener('click',function(){resetOperationalData().catch(function(error){showToast(error.message,true);});});
   document.addEventListener('change',function(event) {
     if (event.target.matches('.project-status')) changeProjectStatus(event.target.dataset.projectId,event.target.value);
     if (event.target.id === 'testCatalogSelect') updateTestDynamic();
