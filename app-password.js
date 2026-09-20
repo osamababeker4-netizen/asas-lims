@@ -587,7 +587,10 @@ function navigate(page) {
   closeProfileMenu();
   if (page === 'settings') loadSystemSettings();
   if (page === 'communications') loadCommunicationLinks();
-  if (page === 'quality') loadDocumentCenter();
+  if (page === 'quality') {
+    loadDocumentCenter();
+    if (typeof window.refreshQualityControl === 'function') window.refreshQualityControl().catch(function(error){showToast(error.message||'تعذر تحديث بيانات ضبط الجودة',true);});
+  }
   if (page === 'trash') loadTrash();
 }
 
@@ -749,7 +752,13 @@ async function refresh() {
     renderReports();
     renderEquipment();
     renderAudit();
-    if (currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(currentUser.role) >= 0) await renderQuality();
+    if (currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(currentUser.role) >= 0) {
+      await renderQuality();
+      if (activePageId === 'quality') {
+        await loadDocumentCenter();
+        if (typeof window.refreshQualityControl === 'function') await window.refreshQualityControl();
+      }
+    }
     if (currentUser && ['admin','general_manager','manager','quality_manager'].indexOf(currentUser.role) >= 0) await renderUsers();
   })();
   try { return await refreshInFlight; } finally { refreshInFlight = null; }
