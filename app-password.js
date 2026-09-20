@@ -1060,7 +1060,7 @@ async function renderQuality() {
   try {
     qualityData = await api('/api/quality');
     const categoryNames = {procedure:'إجراء',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
-    setHtml($('qualityDocumentsTable'), qualityData.documents.map(function(item) { const ref = item.document_ref ? (item.document_ref.indexOf('/api/') === 0 ? '<a class="text-btn" href="' + esc(API_BASE_URL + item.document_ref) + '" target="_blank" rel="noopener">فتح الملف</a>' : esc(item.document_ref)) : '—'; return '<tr><td>' + escUI(categoryNames[item.category] || item.category) + '</td><td>' + esc(item.code) + '</td><td>' + esc(item.title) + '</td><td>' + esc(item.revision || '—') + '</td><td>' + statusChip(item.status) + '</td><td>' + ref + '</td><td><div class="row-actions"><button class="text-btn" data-quality-document-edit="' + item.id + '" type="button">تعديل</button><button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="' + item.id + '" data-record-label="' + esc(item.code) + '" type="button">حذف</button></div></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
+    setHtml($('qualityDocumentsTable'), qualityData.documents.map(function(item) { const ref = item.document_ref ? (item.document_ref.indexOf('/api/') === 0 ? '<button class="text-btn" type="button" data-quality-file-ref="' + esc(item.document_ref) + '" data-quality-file-name="' + esc(item.code || item.title || 'quality-file') + '">فتح الملف</button>' : esc(item.document_ref)) : '—'; return '<tr><td>' + escUI(categoryNames[item.category] || item.category) + '</td><td>' + esc(item.code) + '</td><td>' + esc(item.title) + '</td><td>' + esc(item.revision || '—') + '</td><td>' + statusChip(item.status) + '</td><td>' + ref + '</td><td><div class="row-actions"><button class="text-btn" data-quality-document-edit="' + item.id + '" type="button">تعديل</button><button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="' + item.id + '" data-record-label="' + esc(item.code) + '" type="button">حذف</button></div></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
     setHtml($('proficiencyTable'), qualityData.proficiency.map(function(item) { return '<tr><td>' + esc(item.test_name) + '</td><td>' + esc(item.material || '—') + '</td><td>' + esc(item.provider || '—') + '</td><td>' + esc(item.participation_date || '—') + '</td><td>' + esc(item.result || '—') + '</td><td>' + esc(item.z_score || '—') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
     setHtml($('qualityStaffTable'), qualityData.staff.map(function(item) { return '<tr><td>' + esc(item.full_name) + '</td><td>' + esc(item.job_title || '—') + '</td><td>' + esc(item.specialty || '—') + '</td><td>' + esc(item.experience_years || '—') + '</td><td>' + esc(item.qualification_ref || '—') + '</td><td>' + (item.active ? 'نشط' : 'موقوف') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
   } catch (error) { ['qualityDocumentsTable','proficiencyTable','qualityStaffTable'].forEach(function(id) { if ($(id)) setHtml($(id), '<tr><td colspan="6" class="empty">تعذر تحميل بيانات الجودة.</td></tr>'); }); }
@@ -1393,6 +1393,33 @@ async function authenticatedAttachmentDownload(item,openAfter){
   const fetched=await fetchAuthenticatedAttachment(item);
   downloadAttachmentBlob(item,fetched.blob,fetched.url);
   setTimeout(function(){URL.revokeObjectURL(fetched.url);},30000);
+}
+
+async function openAuthorizedQualityFile(ref,name){
+  const headers={};
+  if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+  let response;
+  try{
+    response=await fetch(API_BASE_URL+ref,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
+  }catch(error){
+    throw new Error('تعذر الاتصال بالخادم لفتح وثيقة الجودة');
+  }
+  if(!response.ok){
+    let message='تعذر فتح وثيقة الجودة';
+    try{const data=await response.json();message=data.error||message;}catch(_error){}
+    throw new Error(message);
+  }
+  const blob=await response.blob();
+  if(!blob.size)throw new Error('ملف وثيقة الجودة فارغ أو غير متاح');
+  const url=URL.createObjectURL(blob);
+  const contentType=String(blob.type||'');
+  if(contentType.indexOf('pdf')>=0||contentType.indexOf('image/')===0){
+    window.open(url,'_blank','noopener');
+    setTimeout(function(){URL.revokeObjectURL(url);},60000);
+  }else{
+    downloadAttachmentBlob({original_name:name||'quality-file'},blob,url);
+    setTimeout(function(){URL.revokeObjectURL(url);},30000);
+  }
 }
 
 async function loadSmartImports(section){const box=$('smartImportResults');if(!box)return;setText(box,'جارٍ تحميل الملفات المرتبة…');try{const rows=await api('/api/smart-imports?section='+encodeURIComponent(section));if(!rows.length){setText(box,'لا توجد ملفات مرفوعة في هذا القسم بعد.');return;}window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};rows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});const groups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'];setHtml(box,groups.map(function(group){const items=rows.filter(function(item){return (item.material_group||'أخرى')===group;});if(!items.length)return '';return '<section class="smart-material-group"><h3>'+esc(group)+' <span class="pill">'+items.length+'</span></h3>'+items.map(function(item){return '<div class="list-item"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.file_category||'ملف')+' · '+esc(item.classification_status||'مصنف')+'</small></div><div class="item-actions"><button class="text-btn" type="button" data-smart-open="'+item.id+'">فتح الملف</button><button class="text-btn" type="button" data-smart-download="'+item.id+'">تنزيل</button></div></div>';}).join('')+'</section>';}).join(''));}catch(error){setText(box,error.message);}}
@@ -2051,6 +2078,7 @@ function bindEvents() {
     const documentGroup=event.target.closest('[data-document-group]');if(documentGroup){event.preventDefault();documentGroupFilter=documentGroup.dataset.documentGroup;renderDocumentCenterFiles();const panel=$('documentLibraryFiles');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});return;}
     const fieldPickerAdd=event.target.closest('[data-field-picker-add]');if(fieldPickerAdd){event.preventDefault();addFieldTestFromPicker(fieldPickerAdd.dataset.fieldPickerAdd);return;}
     const catalogFile=event.target.closest('[data-catalog-file]');if(catalogFile){event.preventDefault();const item={id:Number(catalogFile.dataset.catalogFile),original_name:catalogFile.dataset.catalogFileName||'test-resource.pdf'};try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
+    const qualityFile=event.target.closest('[data-quality-file-ref]');if(qualityFile){event.preventDefault();try{await openAuthorizedQualityFile(qualityFile.dataset.qualityFileRef,qualityFile.dataset.qualityFileName||'quality-file');}catch(error){showToast(error.message,true);}return;}
     const removeSelected=event.target.closest('[data-smart-remove-selected]');if(removeSelected){event.preventDefault();const form=$('smartImportForm');if(form){form.__selectedFiles=smartSelectedFiles(form).filter(function(_file,index){return index!==Number(removeSelected.dataset.smartRemoveSelected);});renderSmartSelectedFiles(form);}return;}
     const retryFailed=event.target.closest('[data-smart-retry-failed]');if(retryFailed){event.preventDefault();const form=$('smartImportForm');if(form)try{await submitSmartImport(form);}catch(error){showToast(error.message,true);}return;}
     const smartOpen=event.target.closest('[data-smart-open]');if(smartOpen){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartOpen.dataset.smartOpen)];if(item)try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
