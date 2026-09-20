@@ -95,7 +95,9 @@ class SchemaMigrationTests(unittest.TestCase):
         guide = (Path(__file__).parent / 'field-test-guide.html').read_text(encoding='utf-8')
         self.assertIn('id="fieldGuideFilters"', html)
         self.assertIn('4 أقسام رئيسية', html)
-        self.assertIn('field-test-guide.html', html)
+        self.assertIn('id="openFieldManual"', html)
+        self.assertIn('دليل الاختبارات الميداني', html)
+        self.assertIn('FIELD_MANUAL_URL', app)
         self.assertIn('field-group-card', app)
         for english in ('Concrete', 'Soil', 'Asphalt', 'Field & NDT'):
             self.assertIn("english:'" + english + "'", app)
