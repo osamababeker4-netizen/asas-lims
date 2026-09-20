@@ -730,3 +730,11 @@ input:focus,select:focus,textarea:focus{
 .official-brand img,.footer-brand img,.brand img,.login-logo{image-rendering:auto!important;filter:none!important;object-fit:contain!important;object-position:center!important}
 @media(max-width:900px){.internal-window-grid{grid-template-columns:1fr}}
 @media(max-width:620px){.internal-import-row{grid-template-columns:1fr}.internal-window-card>summary{grid-template-columns:auto 1fr}.internal-window-open{grid-column:1/-1;justify-self:stretch}}
+
+
+/* Render the existing 1000x209 official logo at its native aspect ratio; artwork is unchanged. */
+.official-brand img{width:240px!important;height:auto!important;aspect-ratio:1000/209!important;padding:2px!important}
+.footer-brand img{width:220px!important;height:auto!important;aspect-ratio:1000/209!important;padding:2px!important}
+.login-logo{width:min(320px,90%)!important;height:auto!important;aspect-ratio:1000/209!important}
+.brand img{width:100%!important;height:auto!important;aspect-ratio:1000/209!important;padding:2px!important}
+@media(max-width:620px){.official-brand img{width:min(210px,65vw)!important}.footer-brand img{width:min(210px,70vw)!important}}
