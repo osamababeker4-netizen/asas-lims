@@ -1388,7 +1388,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("fetch(API_BASE_URL+FIELD_MANUAL_REF", app)
         self.assertIn("if path == '/api/field/manual':", server)
         self.assertIn("'Content-Disposition': \"inline; filename*=UTF-8''\" + quote(filename)", server)
-        self.assertNotIn('src="'+esc(FIELD_MANUAL_URL)', app)
+        self.assertNotIn('FIELD_MANUAL_URL', app)
         self.assertIn('عرض الدليل التشغيلي المحلي داخل البرنامج', app)
 
         cache = Path(self.temp.name) / 'field-guide.pdf'
