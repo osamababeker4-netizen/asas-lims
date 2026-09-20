@@ -157,6 +157,53 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('.page table.engineering-table thead th', css)
         self.assertIn('.page table.engineering-table tbody td', css)
 
+    def test_management_cycle_is_real_sequential_workflow(self):
+        schema = (Path(__file__).parent / 'schema.sql').read_text(encoding='utf-8')
+        server = (Path(__file__).parent / 'server.py').read_text(encoding='utf-8')
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'quality-management.js').read_text(encoding='utf-8')
+        css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
+        self.assertIn('CREATE TABLE IF NOT EXISTS quality_cycles', schema)
+        self.assertIn('CREATE TABLE IF NOT EXISTS quality_cycle_steps', schema)
+        self.assertIn("path == '/api/quality/cycles'", server)
+        self.assertIn("action == 'create'", server)
+        self.assertIn("stage != cycle['current_stage']", server)
+        self.assertIn('id="managementStages"', html)
+        self.assertIn('id="qualityCycles"', html)
+        self.assertIn("complete_stage", app)
+        self.assertIn('.management-cycle-board', css)
+
+    def test_management_cycle_api_creates_nine_steps_and_blocks_skipping(self):
+        self.server.init()
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        connection.close()
+        token = self.server.create_session(admin)
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        def post(payload):
+            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+            client.request('POST', '/api/quality/cycles', json.dumps(payload).encode('utf-8'), {
+                'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+            response = client.getresponse(); body = json.loads(response.read().decode('utf-8')); client.close()
+            return response.status, body
+        try:
+            status, created = post({'action':'create','title':'مراجعة أداء المختبر','objective':'رفع الالتزام','baseline':55,'target':90})
+            self.assertEqual(status, 200)
+            connection = self.server.db()
+            steps = connection.execute('select stage,status from quality_cycle_steps where cycle_id=? order by stage',(created['id'],)).fetchall()
+            connection.close()
+            self.assertEqual(len(steps), 9)
+            self.assertEqual(steps[0]['status'], 'active')
+            status, _ = post({'action':'complete_stage','cycle_id':created['id'],'stage':2,'notes':'محاولة تخطي'})
+            self.assertEqual(status, 409)
+            status, completed = post({'action':'complete_stage','cycle_id':created['id'],'stage':1,'notes':'تمت مراجعة التقارير','decision':'اعتماد النتائج'})
+            self.assertEqual(status, 200)
+            self.assertEqual(completed['next_stage'], 2)
+        finally:
+            httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
+
     def test_authorized_user_can_extend_catalog_but_field_user_cannot(self):
         self.server.init()
         connection = self.server.db()
