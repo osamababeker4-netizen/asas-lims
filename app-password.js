@@ -906,7 +906,7 @@ function renderTests() {
 function renderCatalog() {
   const query = $('catalogSearch') ? $('catalogSearch').value.toLowerCase() : '';
   setHtml($('catalogTable'), catalog.filter(function(item) { return [item.code,item.name_ar,item.name_en,item.standard,item.category].join(' ').toLowerCase().indexOf(query) >= 0; }).map(function(item) {
-    const fileLink = function(id,label){return id ? '<a class="text-btn download-link" target="_blank" rel="noopener" download href="'+esc(API_BASE_URL+'/api/attachments/files/'+id)+'">⬇ '+label+'</a>' : '';};
+    const fileLink = function(id,label){return id ? '<button class="text-btn download-link" type="button" data-catalog-file="'+id+'" data-catalog-file-name="'+esc(item.code+'-'+label+'.pdf')+'">⬇ '+label+'</button>' : '';};
     const resources = [fileLink(item.astm_attachment_id,'تنزيل المواصفة PDF'),fileLink(item.worksheet_attachment_id,'تنزيل Work Sheet'),fileLink(item.results_attachment_id,'تنزيل Excel النتائج')].filter(Boolean).join(' ');
     const canManage = currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','document_controller','quality'].indexOf(currentUser.role) >= 0;
     return '<tr><td>' + esc(item.code) + '</td><td>' + escUI(item.name_ar) + '<small>' + esc(item.name_en || '') + '</small></td><td>' + escUI(item.category) + '</td><td>' + esc(item.standard) + '</td><td>' + esc(item.version || '—') + '</td><td><div class="row-actions">'+(resources || '—')+(canManage ? '<button class="text-btn" data-catalog-resources="'+item.id+'">إدارة الملفات</button>' : '')+'</div></td></tr>';
@@ -1060,7 +1060,7 @@ async function renderQuality() {
   try {
     qualityData = await api('/api/quality');
     const categoryNames = {procedure:'إجراء',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
-    setHtml($('qualityDocumentsTable'), qualityData.documents.map(function(item) { const ref = item.document_ref ? (item.document_ref.indexOf('/api/') === 0 ? '<a class="text-btn" href="' + esc(API_BASE_URL + item.document_ref) + '" target="_blank" rel="noopener">فتح الملف</a>' : esc(item.document_ref)) : '—'; return '<tr><td>' + escUI(categoryNames[item.category] || item.category) + '</td><td>' + esc(item.code) + '</td><td>' + esc(item.title) + '</td><td>' + esc(item.revision || '—') + '</td><td>' + statusChip(item.status) + '</td><td>' + ref + '</td><td><div class="row-actions"><button class="text-btn" data-quality-document-edit="' + item.id + '" type="button">تعديل</button><button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="' + item.id + '" data-record-label="' + esc(item.code) + '" type="button">حذف</button></div></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
+    setHtml($('qualityDocumentsTable'), qualityData.documents.map(function(item) { const ref = item.document_ref ? (item.document_ref.indexOf('/api/') === 0 ? '<button class="text-btn" type="button" data-quality-file-ref="' + esc(item.document_ref) + '" data-quality-file-name="' + esc(item.code || item.title || 'quality-file') + '">فتح الملف</button>' : esc(item.document_ref)) : '—'; return '<tr><td>' + escUI(categoryNames[item.category] || item.category) + '</td><td>' + esc(item.code) + '</td><td>' + esc(item.title) + '</td><td>' + esc(item.revision || '—') + '</td><td>' + statusChip(item.status) + '</td><td>' + ref + '</td><td><div class="row-actions"><button class="text-btn" data-quality-document-edit="' + item.id + '" type="button">تعديل</button><button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="' + item.id + '" data-record-label="' + esc(item.code) + '" type="button">حذف</button></div></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
     setHtml($('proficiencyTable'), qualityData.proficiency.map(function(item) { return '<tr><td>' + esc(item.test_name) + '</td><td>' + esc(item.material || '—') + '</td><td>' + esc(item.provider || '—') + '</td><td>' + esc(item.participation_date || '—') + '</td><td>' + esc(item.result || '—') + '</td><td>' + esc(item.z_score || '—') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
     setHtml($('qualityStaffTable'), qualityData.staff.map(function(item) { return '<tr><td>' + esc(item.full_name) + '</td><td>' + esc(item.job_title || '—') + '</td><td>' + esc(item.specialty || '—') + '</td><td>' + esc(item.experience_years || '—') + '</td><td>' + esc(item.qualification_ref || '—') + '</td><td>' + (item.active ? 'نشط' : 'موقوف') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
   } catch (error) { ['qualityDocumentsTable','proficiencyTable','qualityStaffTable'].forEach(function(id) { if ($(id)) setHtml($(id), '<tr><td colspan="6" class="empty">تعذر تحميل بيانات الجودة.</td></tr>'); }); }
@@ -1315,13 +1315,24 @@ function installSmartImportButtons(){document.querySelectorAll('.page').forEach(
 async function fetchAuthenticatedAttachment(item){
   const headers={};
   if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
-  const response=await fetch(API_BASE_URL+'/api/attachments/files/'+item.id,{credentials:'include',headers:headers});
+  let response=null,lastError=null;
+  for(let attempt=1;attempt<=2;attempt+=1){
+    try{
+      response=await fetch(API_BASE_URL+'/api/attachments/files/'+item.id,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
+      break;
+    }catch(error){
+      lastError=error;
+      if(attempt<2)await smartUploadDelay(500);
+    }
+  }
+  if(!response)throw new Error('تعذر الاتصال بالخادم لتحميل الملف. '+String(lastError&&lastError.message||''));
   if(!response.ok){
     let message='تعذر تحميل الملف';
     try{const data=await response.json();message=data.error||message;}catch(_error){}
     throw new Error(message);
   }
   const blob=await response.blob();
+  if(!blob.size)throw new Error('الملف موجود في السجل لكن محتواه غير متاح على الخادم');
   return {blob:blob,url:URL.createObjectURL(blob)};
 }
 
@@ -1384,6 +1395,33 @@ async function authenticatedAttachmentDownload(item,openAfter){
   setTimeout(function(){URL.revokeObjectURL(fetched.url);},30000);
 }
 
+async function openAuthorizedQualityFile(ref,name){
+  const headers={};
+  if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+  let response;
+  try{
+    response=await fetch(API_BASE_URL+ref,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
+  }catch(error){
+    throw new Error('تعذر الاتصال بالخادم لفتح وثيقة الجودة');
+  }
+  if(!response.ok){
+    let message='تعذر فتح وثيقة الجودة';
+    try{const data=await response.json();message=data.error||message;}catch(_error){}
+    throw new Error(message);
+  }
+  const blob=await response.blob();
+  if(!blob.size)throw new Error('ملف وثيقة الجودة فارغ أو غير متاح');
+  const url=URL.createObjectURL(blob);
+  const contentType=String(blob.type||'');
+  if(contentType.indexOf('pdf')>=0||contentType.indexOf('image/')===0){
+    window.open(url,'_blank','noopener');
+    setTimeout(function(){URL.revokeObjectURL(url);},60000);
+  }else{
+    downloadAttachmentBlob({original_name:name||'quality-file'},blob,url);
+    setTimeout(function(){URL.revokeObjectURL(url);},30000);
+  }
+}
+
 async function loadSmartImports(section){const box=$('smartImportResults');if(!box)return;setText(box,'جارٍ تحميل الملفات المرتبة…');try{const rows=await api('/api/smart-imports?section='+encodeURIComponent(section));if(!rows.length){setText(box,'لا توجد ملفات مرفوعة في هذا القسم بعد.');return;}window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};rows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});const groups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'];setHtml(box,groups.map(function(group){const items=rows.filter(function(item){return (item.material_group||'أخرى')===group;});if(!items.length)return '';return '<section class="smart-material-group"><h3>'+esc(group)+' <span class="pill">'+items.length+'</span></h3>'+items.map(function(item){return '<div class="list-item"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.file_category||'ملف')+' · '+esc(item.classification_status||'مصنف')+'</small></div><div class="item-actions"><button class="text-btn" type="button" data-smart-open="'+item.id+'">فتح الملف</button><button class="text-btn" type="button" data-smart-download="'+item.id+'">تنزيل</button></div></div>';}).join('')+'</section>';}).join(''));}catch(error){setText(box,error.message);}}
 function smartSelectedFiles(form) {
   return Array.isArray(form.__selectedFiles) ? form.__selectedFiles : [];
@@ -1435,11 +1473,18 @@ async function safeSmartFilePicker(form) {
           'application/zip':['.zip']
         }}]
       });
-      const files = await Promise.all(handles.map(function(handle){return handle.getFile();}));
-      setSmartSelectedFiles(form, files, true);
-      return;
+      const resolved = await Promise.all(handles.map(async function(handle){
+        try { return {file:await handle.getFile(), error:null}; }
+        catch(error) { return {file:null,error:error}; }
+      }));
+      const files=resolved.filter(function(item){return item.file&&item.file.size>=0;}).map(function(item){return item.file;});
+      const failed=resolved.filter(function(item){return item.error;});
+      if(files.length)setSmartSelectedFiles(form,files,true);
+      if(failed.length)showToast('تم تجاوز '+failed.length+' ملف تعذر على Windows الوصول إليه. اختره مجددًا من المستكشف.',true);
+      if(files.length||failed.length)return;
     } catch (error) {
       if (error && error.name === 'AbortError') return;
+      showToast('تعذر استخدام الاختيار الآمن؛ سيتم فتح مستكشف الملفات العادي.',true);
     }
   }
   nativeInput.click();
@@ -1463,7 +1508,8 @@ function openSmartImportPanel(section){
 }
 
 async function smartFileBase64(file){
-  if(file.size>25*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 25MB');
+  if(!file || file.size===0)throw new Error('الملف فارغ أو لم يعد متاحًا على الجهاز: '+(file&&file.name||'ملف'));
+  if(file.size>100*1024*1024)throw new Error('حجم '+file.name+' يتجاوز الحد التشغيلي 100MB');
   const bytes=new Uint8Array(await file.arrayBuffer());
   let binary='';
   for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
@@ -1483,7 +1529,7 @@ function smartUploadToken(form,file){
 function smartUploadCanRetry(error){
   const message=String(error&&error.message||error||'').toLowerCase();
   if(!navigator.onLine)return true;
-  if(/25mb|غير مدعوم|rar|صلاحية|غير صالح|فارغ|unsupported|forbidden|401|403|400/.test(message))return false;
+  if(/100mb|غير مدعوم|rar|صلاحية|غير صالح|فارغ|unsupported|forbidden|401|403|400/.test(message))return false;
   return /network|failed to fetch|fetch|timeout|timed out|502|503|504|اتصال|شبكة|الخادم|مؤقت/.test(message);
 }
 
@@ -1789,15 +1835,18 @@ function renderDeviceAcceptance(results, overall) {
   }).join('') + '<div class="acceptance-summary '+(overall?'pass':'fail')+'"><strong>'+(overall?'تم اجتياز فحص هذا الجهاز والخادم':'لم يكتمل الاعتماد')+'</strong></div>');
 }
 
-function requestDiagnosticLocation() {
+function requestDiagnosticLocation(targetAccuracy) {
   return new Promise(function(resolve) {
     if (!navigator.geolocation) return resolve(acceptanceResult('GPS',false,'واجهة تحديد الموقع غير متاحة'));
     navigator.geolocation.getCurrentPosition(function(position){
       const accuracy=Math.round(Number(position.coords.accuracy||0));
-      resolve(acceptanceResult('GPS',Number.isFinite(position.coords.latitude)&&Number.isFinite(position.coords.longitude),'تم الحصول على موقع فعلي · الدقة ±'+accuracy+' م'));
+      const coordinatesOk=Number.isFinite(position.coords.latitude)&&Number.isFinite(position.coords.longitude);
+      const target=Math.max(1,Number(targetAccuracy||100));
+      const accurate=coordinatesOk&&Number.isFinite(accuracy)&&accuracy<=target;
+      resolve(acceptanceResult('GPS',accurate,accurate?'تم الحصول على موقع فعلي · الدقة ±'+accuracy+' م':'تم تحديد الموقع لكن الدقة ±'+accuracy+' م؛ المطلوب ≤ '+target+' م'));
     },function(error){
       resolve(acceptanceResult('GPS',false,error.message||'تم رفض صلاحية الموقع'));
-    },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+    },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
   });
 }
 
@@ -1815,7 +1864,11 @@ async function requestDiagnosticCamera() {
     const label=tracks[0]&&tracks[0].label?tracks[0].label:'كاميرا الجهاز';
     return acceptanceResult('الكاميرا',ok,ok?'تم فتح '+label+' فعليًا':'لم يبدأ بث الكاميرا');
   } catch(error) {
-    return acceptanceResult('الكاميرا',false,error.message||'تم رفض صلاحية الكاميرا');
+    const name=String(error&&error.name||'');
+    const message=name==='NotFoundError'?'لا توجد كاميرا فعلية متاحة على هذا الجهاز. شغّل الفحص من هاتف أو جهاز مزود بكاميرا.':
+      name==='NotAllowedError'?'تم رفض صلاحية الكاميرا. اسمح للمتصفح باستخدام الكاميرا ثم أعد الفحص.':
+      (error.message||'تعذر فتح الكاميرا');
+    return acceptanceResult('الكاميرا',false,message);
   } finally {
     if(stream)stream.getTracks().forEach(function(track){track.stop();});
   }
@@ -1833,7 +1886,13 @@ async function runDeviceAcceptance() {
     const camera=await requestDiagnosticCamera();
     results.push(camera);
 
-    const gps=await requestDiagnosticLocation();
+    let gpsTargetAccuracy=100;
+    try{
+      const acceptanceSettings=await api('/api/settings');
+      const configured=Number(acceptanceSettings.gps_target_accuracy_m||0);
+      if(Number.isFinite(configured)&&configured>0)gpsTargetAccuracy=configured;
+    }catch(_error){}
+    const gps=await requestDiagnosticLocation(gpsTargetAccuracy);
     results.push(gps);
 
     let health;
@@ -2032,6 +2091,7 @@ function bindEvents() {
     const documentGroup=event.target.closest('[data-document-group]');if(documentGroup){event.preventDefault();documentGroupFilter=documentGroup.dataset.documentGroup;renderDocumentCenterFiles();const panel=$('documentLibraryFiles');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});return;}
     const fieldPickerAdd=event.target.closest('[data-field-picker-add]');if(fieldPickerAdd){event.preventDefault();addFieldTestFromPicker(fieldPickerAdd.dataset.fieldPickerAdd);return;}
     const catalogFile=event.target.closest('[data-catalog-file]');if(catalogFile){event.preventDefault();const item={id:Number(catalogFile.dataset.catalogFile),original_name:catalogFile.dataset.catalogFileName||'test-resource.pdf'};try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
+    const qualityFile=event.target.closest('[data-quality-file-ref]');if(qualityFile){event.preventDefault();try{await openAuthorizedQualityFile(qualityFile.dataset.qualityFileRef,qualityFile.dataset.qualityFileName||'quality-file');}catch(error){showToast(error.message,true);}return;}
     const removeSelected=event.target.closest('[data-smart-remove-selected]');if(removeSelected){event.preventDefault();const form=$('smartImportForm');if(form){form.__selectedFiles=smartSelectedFiles(form).filter(function(_file,index){return index!==Number(removeSelected.dataset.smartRemoveSelected);});renderSmartSelectedFiles(form);}return;}
     const retryFailed=event.target.closest('[data-smart-retry-failed]');if(retryFailed){event.preventDefault();const form=$('smartImportForm');if(form)try{await submitSmartImport(form);}catch(error){showToast(error.message,true);}return;}
     const smartOpen=event.target.closest('[data-smart-open]');if(smartOpen){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartOpen.dataset.smartOpen)];if(item)try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}

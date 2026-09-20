@@ -10,13 +10,13 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-2-17-final-acceptance">
+  <link rel="stylesheet" href="style.css?v=10-2-18-operational-fixes">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
       <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-      <span class="login-edition">ASAS LIMS · V10.2.17 Final</span>
+      <span class="login-edition">ASAS LIMS · V10.2.18 Operational</span>
       <h1>تسجيل دخول النظام</h1>
       <form id="loginForm" class="form-stack">
         <label>رقم الجوال<input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="+9665XXXXXXXX"></label>
@@ -43,7 +43,7 @@
         <img src="logo.png" alt="شعار شركة مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.2.17 · Final Candidate</small>
+        <small class="release-chip">V10.2.18 · Operational Fixes</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
@@ -258,20 +258,11 @@
           <article class="panel quality-card quality-management-card"><span class="quality-code">QMS-08</span><h3>إدارة المخاطر</h3><p>تقييم الاحتمالية والأثر وخطة المعالجة والاستحقاق.</p><button class="btn secondary" data-qm-open="risk" type="button">فتح سجل المخاطر</button></article>
           <article class="panel quality-card quality-management-card"><span class="quality-code">QMS-09</span><h3>مؤشرات KPI</h3><p>أهداف ونتائج دورية ونسبة إنجاز محسوبة آليًا.</p><button class="btn secondary" data-qm-open="kpi" type="button">فتح المؤشرات</button></article>
           <article class="panel quality-card quality-management-card"><span class="quality-code">QMS-10</span><h3>خطط التحسين والإجراءات</h3><p>متابعة الإجراء والمسؤول والموعد والنتيجة وقياس الفاعلية.</p><button class="btn secondary" data-qm-open="action" type="button">فتح خطط العمل</button></article>
-          <article class="panel quality-card quality-files-card" id="qualityFilesEntry"><span class="quality-code">QMS-DOC</span><h3>مركز الملفات</h3><p>المكتبة الفنية، القوالب، الوثائق المضبوطة وخزنة الملفات حسب الصلاحية.</p><button class="btn primary" data-page-go="documentCenter" type="button">فتح مركز الملفات</button></article>
+          <article class="panel quality-card quality-files-card" id="qualityFilesEntry"><span class="quality-code">QMS-DOC</span><h3>مركز الملفات</h3><p>الملف الرئيسي لكل وثائق الجودة والقوالب والسجلات الداخلية والملفات الفنية.</p><button class="btn primary" data-page-go="documentCenter" type="button">فتح الملف الرئيسي</button></article>
           <article class="panel quality-card" id="qualityEquipmentCard"><span class="quality-code">QMS-00</span><h3>الأجهزة والمعايرة</h3><p>سجل الأجهزة، شهادات المعايرة والاستيراد الجماعي من Excel.</p><button class="btn secondary" data-page-go="equipment" type="button">إدارة الأجهزة والمعايرة</button></article>
           <article class="panel quality-card"><span class="quality-code">QMS-01</span><h3>الإجراءات</h3><p>إجراءات التشغيل والجودة ومراجعاتها وإصداراتها.</p><button class="btn secondary" data-quality-add="procedure" type="button">+ إجراء</button></article>
           <article class="panel quality-card"><span class="quality-code">QMS-02</span><h3>أوراق العمل</h3><p>نماذج Work Sheet مرتبطة بالاختبارات والتحقق.</p><button class="btn secondary" data-quality-add="worksheet" type="button">+ ورقة عمل</button></article>
           <article class="panel quality-card"><span class="quality-code">QMS-03</span><h3>نماذج إدارية</h3><p>طلب إجازة، مباشرة عمل، تدريب وسائر النماذج الداخلية.</p><button class="btn secondary" data-quality-add="admin_form" type="button">+ نموذج إداري</button></article>
-        </div>
-        <div class="quality-grid quality-import-grid">
-          <article class="panel"><div class="panel-heading"><h3>مشاركات اختبارات الكفاءة</h3><button class="text-btn" data-quality-template="proficiency" type="button">تنزيل قالب Excel</button></div><p class="muted">ارفع Excel مباشرة؛ يتعرف النظام تلقائيًا على الورقة والعناوين وترتيب الأعمدة.</p><input id="proficiencyImport" class="quality-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><button class="btn primary" data-quality-import="proficiency" type="button">تعرف واستورد المشاركات</button></article>
-          <article class="panel"><div class="panel-heading"><h3>سجلات الموظفين</h3><button class="text-btn" data-quality-template="staff" type="button">تنزيل قالب Excel</button></div><p class="muted">ارفع Excel مباشرة؛ يتعرف النظام على البيانات تلقائيًا. لا ينشئ الاستيراد حسابات دخول.</p><input id="staffImport" class="quality-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><button class="btn primary" data-quality-import="staff" type="button">تعرف واستورد الموظفين</button></article>
-        </div>
-        <div class="quality-lists">
-          <article class="panel table-panel quality-card quality-table-card"><div class="quality-table-head"><span class="quality-code">QMS-04</span><div><h3>وثائق الجودة</h3><p>الوثائق المضبوطة والإصدارات والملفات المعتمدة.</p></div></div><div class="engineering-table-wrap"><table><thead><tr><th>التصنيف</th><th>الكود</th><th>العنوان</th><th>الإصدار</th><th>الحالة</th><th>الملف</th><th>الإجراءات</th></tr></thead><tbody id="qualityDocumentsTable"></tbody></table></div></article>
-          <article class="panel table-panel quality-card quality-table-card"><div class="quality-table-head"><span class="quality-code">QMS-05</span><div><h3>اختبارات الكفاءة</h3><p>متابعة المشاركات والنتائج ومؤشرات الأداء.</p></div><button class="btn secondary" data-quality-add="proficiency" type="button">+ مشاركة</button></div><div class="engineering-table-wrap"><table><thead><tr><th>الاختبار</th><th>المادة</th><th>المزود</th><th>التاريخ</th><th>النتيجة</th><th>Z-score</th></tr></thead><tbody id="proficiencyTable"></tbody></table></div></article>
-          <article class="panel table-panel quality-card quality-table-card"><div class="quality-table-head"><span class="quality-code">QMS-06</span><div><h3>ملفات الموظفين للجودة</h3><p>المؤهلات والخبرة والسجلات المرتبطة بالكفاءة.</p></div><button class="btn secondary" data-quality-add="staff" type="button">+ موظف</button></div><div class="engineering-table-wrap"><table><thead><tr><th>الاسم</th><th>المسمى</th><th>التخصص</th><th>الخبرة</th><th>المؤهل</th><th>الحالة</th></tr></thead><tbody id="qualityStaffTable"></tbody></table></div></article>
         </div>
       </section>
 
@@ -290,7 +281,7 @@
 
       <section id="documentCenter" class="page">
         <div class="page-heading document-center-heading">
-          <div><span class="section-kicker">Document Control</span><h2>مركز الملفات</h2><p>مكتبة موحّدة للقوالب الفنية وملفات الأجهزة ووثائق الشركة، مع فصل واضح للصلاحيات.</p></div>
+          <div><span class="section-kicker">Document Control</span><h2>مركز الملفات</h2><p>الملف الرئيسي الموحد لكل النوافذ الداخلية وإجراءات ووثائق الجودة والقوالب والملفات الفنية.</p></div>
           <div class="heading-actions"><button class="btn secondary" data-page-go="quality" type="button">العودة إلى الجودة والوثائق</button><button class="btn primary" data-smart-import="technicalLibrary" type="button">رفع وفرز القوالب</button></div>
         </div>
         <div class="document-browser-toolbar">
@@ -322,6 +313,33 @@
             <button class="btn secondary" data-smart-import="companyVault" type="button">فتح الخزنة ورفع الملفات</button>
           </article>
         </div>
+        <section id="qualityInternalHub" class="internal-file-hub">
+          <div class="internal-file-hub-head"><div><span class="section-kicker">QMS Internal Windows</span><h3>النوافذ الداخلية للملف الرئيسي</h3><p>جميع السجلات الداخلية في بطاقات مستطيلة موحدة؛ افتح البطاقة المطلوبة فقط.</p></div></div>
+          <div class="internal-window-grid">
+            <details class="internal-window-card quality-table-card" id="qualityDocumentsWindow">
+              <summary><span class="quality-code">QMS-04</span><div><strong>وثائق الجودة</strong><small>الوثائق المضبوطة والإصدارات والملفات المعتمدة</small></div><span class="internal-window-open">فتح</span></summary>
+              <div class="internal-window-body"><div class="engineering-table-wrap"><table><thead><tr><th>التصنيف</th><th>الكود</th><th>العنوان</th><th>الإصدار</th><th>الحالة</th><th>الملف</th><th>الإجراءات</th></tr></thead><tbody id="qualityDocumentsTable"></tbody></table></div></div>
+            </details>
+            <details class="internal-window-card quality-table-card" id="proficiencyWindow">
+              <summary><span class="quality-code">QMS-05</span><div><strong>مشاركات اختبارات الكفاءة</strong><small>رفع واستيراد ومتابعة المشاركات والنتائج</small></div><span class="internal-window-open">فتح</span></summary>
+              <div class="internal-window-body">
+                <div class="internal-inline-actions"><button class="text-btn" data-quality-template="proficiency" type="button">تنزيل قالب Excel</button><button class="btn secondary" data-quality-add="proficiency" type="button">+ مشاركة</button></div>
+                <p class="muted">ارفع Excel مباشرة؛ يتعرف النظام تلقائيًا على الورقة والعناوين وترتيب الأعمدة.</p>
+                <div class="internal-import-row"><input id="proficiencyImport" class="quality-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><button class="btn primary" data-quality-import="proficiency" type="button">تعرف واستورد المشاركات</button></div>
+                <div class="engineering-table-wrap"><table><thead><tr><th>الاختبار</th><th>المادة</th><th>المزود</th><th>التاريخ</th><th>النتيجة</th><th>Z-score</th></tr></thead><tbody id="proficiencyTable"></tbody></table></div>
+              </div>
+            </details>
+            <details class="internal-window-card quality-table-card" id="qualityStaffWindow">
+              <summary><span class="quality-code">QMS-06</span><div><strong>سجلات الموظفين</strong><small>الكفاءة والمؤهلات والخبرة والسجلات المرتبطة</small></div><span class="internal-window-open">فتح</span></summary>
+              <div class="internal-window-body">
+                <div class="internal-inline-actions"><button class="text-btn" data-quality-template="staff" type="button">تنزيل قالب Excel</button><button class="btn secondary" data-quality-add="staff" type="button">+ موظف</button></div>
+                <p class="muted">ارفع Excel مباشرة؛ يتعرف النظام على البيانات تلقائيًا ولا ينشئ حسابات دخول.</p>
+                <div class="internal-import-row"><input id="staffImport" class="quality-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><button class="btn primary" data-quality-import="staff" type="button">تعرف واستورد الموظفين</button></div>
+                <div class="engineering-table-wrap"><table><thead><tr><th>الاسم</th><th>المسمى</th><th>التخصص</th><th>الخبرة</th><th>المؤهل</th><th>الحالة</th></tr></thead><tbody id="qualityStaffTable"></tbody></table></div>
+              </div>
+            </details>
+          </div>
+        </section>
         <article class="panel document-files-panel">
           <div class="panel-heading"><div><span class="section-kicker">Live Library</span><h3>الملفات الفعلية</h3><p class="muted">يعرض هذا الجزء الملفات المرفوعة فعليًا فقط. افتح الملف للمعاينة أو نزّله حسب نوعه وصلاحيتك.</p></div><button class="btn secondary" data-smart-import="technicalLibrary" type="button">+ رفع ملفات</button></div>
           <div id="documentLibraryFiles" class="document-file-grid"><div class="empty-state">جارٍ تحميل الملفات…</div></div>
@@ -449,18 +467,18 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=10-2-17-final-acceptance"></script>
-  <script src="i18n.js?v=10-2-17-final-acceptance"></script>
-  <script src="app-password.js?v=10-2-17-final-acceptance"></script>
+  <script src="runtime-config.js?v=10-2-18-operational-fixes"></script>
+  <script src="i18n.js?v=10-2-18-operational-fixes"></script>
+  <script src="app-password.js?v=10-2-18-operational-fixes"></script>
   <script src="quality-management.js?v=10-3-0-quality-management"></script>
-  <script src="branch-map.js?v=10-2-17-final-acceptance"></script>
+  <script src="branch-map.js?v=10-2-18-operational-fixes"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-17-final-acceptance'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-18-operational-fixes'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-2-17-final-acceptance', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-2-18-operational-fixes', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>
