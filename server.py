@@ -357,6 +357,9 @@ def migrate_schema(connection):
             ('section', 'section TEXT'), ('file_category', 'file_category TEXT'),
             ('material_group', "material_group TEXT NOT NULL DEFAULT 'أخرى'"),
             ('classification_status', 'classification_status TEXT'), ('mime_type', 'mime_type TEXT')
+        ],
+        'quality_cycle_steps': [
+            ('details_json', "details_json TEXT NOT NULL DEFAULT '{}'")
         ]
     }
     for table, columns in additions.items():
@@ -1783,8 +1786,16 @@ class H(BaseHTTPRequestHandler):
                 if not notes:
                     return self.send_json({'error':'ملخص تنفيذ المرحلة مطلوب'},400)
                 decision = str(data.get('decision') or '').strip()
-                connection.execute('''update quality_cycle_steps set notes=?,decision=?,status='completed',completed_by=?,completed_at=CURRENT_TIMESTAMP
-                    where cycle_id=? and stage=?''',(notes,decision,user['id'],cycle_id,stage))
+                details = data.get('details') or {}
+                if not isinstance(details, dict):
+                    return self.send_json({'error':'تفاصيل المرحلة غير صحيحة'},400)
+                safe_details = {}
+                for key, value in details.items():
+                    if isinstance(key, str) and key[:64] == key:
+                        if isinstance(value, (str, int, float, bool)) or value is None:
+                            safe_details[key] = value
+                connection.execute('''update quality_cycle_steps set notes=?,decision=?,details_json=?,status='completed',completed_by=?,completed_at=CURRENT_TIMESTAMP
+                    where cycle_id=? and stage=?''',(notes,decision,json.dumps(safe_details,ensure_ascii=False),user['id'],cycle_id,stage))
                 if stage == 9:
                     connection.execute("update quality_cycles set status='completed',completed_at=CURRENT_TIMESTAMP,current_stage=9 where id=?",(cycle_id,))
                 else:

@@ -27,7 +27,12 @@ jobs:
         run: python3 -m py_compile server.py test_server.py acceptance_final.py
 
       - name: JavaScript syntax
-        run: node --check app-password.js
+        run: |
+          node --check app-password.js
+          node --check quality-management.js
+          node --check branch-map.js
+          node --check i18n.js
+          node --check asas_tests_module.js
 
       - name: Existing regression suite
         run: python3 -m unittest -v test_server.py

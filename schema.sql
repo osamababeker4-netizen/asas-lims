@@ -723,6 +723,7 @@ CREATE TABLE IF NOT EXISTS quality_cycle_steps(
   title TEXT NOT NULL,
   notes TEXT,
   decision TEXT,
+  details_json TEXT NOT NULL DEFAULT '{}',
   owner_id INTEGER,
   due_date TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','active','completed')),
