@@ -248,6 +248,11 @@
 
       <section id="quality" class="page">
         <div class="page-heading"><div><h2>الجودة والوثائق</h2></div></div>
+        <article class="panel management-cycle-board">
+          <div class="management-cycle-head"><div><span class="section-kicker">Management Review</span><h3>دورة الإدارة والتحسين المستمر</h3><p>تسلسل تشغيلي من مراجعة التقارير حتى قياس النتائج والتحسين المستمر، مرتبط بالمسؤول والمواعيد ومؤشرات الأداء.</p></div><button id="openQualityCycle" class="btn primary" type="button">+ دورة إدارة جديدة</button></div>
+          <div class="management-stages" id="managementStages"></div>
+          <div id="qualityCycles" class="quality-cycles"></div>
+        </article>
         <div class="quality-grid">
           <article class="panel quality-card quality-management-card"><span class="quality-code">QMS-07</span><h3>SWOT والتحليل الاستراتيجي</h3><p>تسجيل نقاط القوة والضعف والفرص والتهديدات وربطها بالمسؤول.</p><button class="btn secondary" data-qm-open="swot" type="button">فتح SWOT</button></article>
           <article class="panel quality-card quality-management-card"><span class="quality-code">QMS-08</span><h3>إدارة المخاطر</h3><p>تقييم الاحتمالية والأثر وخطة المعالجة والاستحقاق.</p><button class="btn secondary" data-qm-open="risk" type="button">فتح سجل المخاطر</button></article>
@@ -277,6 +282,10 @@
           <div class="qm-actions"><button id="qmSave" class="btn primary" value="default" type="button">حفظ السجل</button></div>
           <div id="qmRows" class="qm-rows"></div>
         </form>
+      </dialog>
+
+      <dialog id="qualityCycleDialog" class="qm-dialog">
+        <form method="dialog" class="qm-dialog-card"><div class="panel-heading"><div><span class="quality-code">QMS-11</span><h3 id="qualityCycleDialogTitle">دورة إدارة جديدة</h3></div><button class="text-btn" value="cancel" type="submit">إغلاق</button></div><input id="qualityCycleId" type="hidden"><input id="qualityCycleStage" type="hidden"><div id="qualityCycleFields" class="form-grid"></div><div class="qm-actions"><button id="saveQualityCycle" class="btn primary" value="default" type="button">حفظ وبدء الدورة</button></div></form>
       </dialog>
 
       <section id="documentCenter" class="page">
