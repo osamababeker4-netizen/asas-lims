@@ -1091,7 +1091,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.2.21-field-guide-file-actions'", server)
+        self.assertIn("APP_VERSION = '10.2.22-field-sidebar-layout'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1110,7 +1110,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-2-21-field-guide-file-actions', sw)
+        self.assertIn('v10-2-22-field-sidebar-layout', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1273,6 +1273,35 @@ class SchemaMigrationTests(unittest.TestCase):
         link = connection.execute('select astm_attachment_id from catalog_resources where test_catalog_id=?', (d1557,)).fetchone()
         self.assertIsNone(link['astm_attachment_id'])
         connection.close()
+
+
+    def test_field_catalog_is_sidebar_of_visit_form_and_responsive(self):
+        root = Path(__file__).parent
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        css = (root / 'style.css').read_text(encoding='utf-8')
+
+        field_start = html.index('<section id="field" class="page">')
+        field_end = html.index('<section id="clients" class="page">', field_start)
+        field_html = html[field_start:field_end]
+        layout_start = field_html.index('<div class="field-layout">')
+        visit_start = field_html.index('<article class="panel">', layout_start)
+        sidebar_start = field_html.index('<aside class="panel field-guide-library field-guide-sidebar">', layout_start)
+
+        self.assertLess(visit_start, sidebar_start)
+        self.assertNotIn('<section class="panel field-guide-library">', field_html[:layout_start])
+        self.assertIn('id="fieldTestSearch"', field_html[sidebar_start:])
+        self.assertIn('id="openCustomFieldTest"', field_html[sidebar_start:])
+        self.assertIn('id="fieldGuideGrid"', field_html[sidebar_start:])
+        self.assertIn('id="openFieldManual"', field_html[sidebar_start:])
+        self.assertIn('دليل الاختبارات الميدانيه', field_html[sidebar_start:])
+
+        self.assertIn('#field .field-layout{', css)
+        self.assertIn('grid-template-columns:minmax(0,1.35fr) minmax(330px,.65fr)', css)
+        self.assertIn('#field .field-guide-sidebar .field-guide-grid{', css)
+        self.assertIn('grid-template-columns:1fr', css)
+        self.assertIn('@media(max-width:900px)', css)
+        self.assertIn('#field .field-guide-sidebar{order:-1}', css)
+        self.assertIn('@media(max-width:620px)', css)
 
 
 if __name__ == '__main__':
