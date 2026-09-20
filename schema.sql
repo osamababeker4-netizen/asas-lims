@@ -736,3 +736,13 @@ CREATE TABLE IF NOT EXISTS quality_cycle_steps(
 );
 CREATE INDEX IF NOT EXISTS idx_quality_cycles_status ON quality_cycles(status,due_date);
 CREATE INDEX IF NOT EXISTS idx_quality_cycle_steps ON quality_cycle_steps(cycle_id,stage,status);
+
+CREATE TABLE IF NOT EXISTS operational_tasks(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,description TEXT,
+  source_type TEXT NOT NULL DEFAULT 'manual',source_id INTEGER,project_id INTEGER,
+  assigned_to INTEGER,priority TEXT NOT NULL DEFAULT 'متوسطة' CHECK(priority IN ('منخفضة','متوسطة','عالية','حرجة')),
+  status TEXT NOT NULL DEFAULT 'جديدة' CHECK(status IN ('جديدة','قيد التنفيذ','مكتملة','مؤجلة')),
+  due_date TEXT,created_by INTEGER NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,completed_at TEXT,
+  FOREIGN KEY(project_id) REFERENCES projects(id),FOREIGN KEY(assigned_to) REFERENCES users(id),FOREIGN KEY(created_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_operational_tasks_status ON operational_tasks(status,due_date,priority);

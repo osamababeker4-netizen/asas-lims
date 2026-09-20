@@ -843,7 +843,32 @@ function renderDashboard() {
     return '<button class="compact-project text-btn" type="button" data-project-open="' + project.id + '"><h4>' + esc(project.code) + ' — ' + esc(project.name) + '</h4><p>' + statusChip(project.status) + ' · ' + esc(project.samples_count) + ' عينة · ' + esc(project.reports_count) + ' تقرير</p></button>';
   }).join('') || '<div class="empty">ابدأ بإضافة مشروع.</div>');
   renderDecisionIntelligence();
+  renderOperationalWorkspace();
 }
+
+function renderOperationalWorkspace(){
+  if(!$('operationalTaskList')||!dashboard)return;
+  const tasks=dashboard.operational_tasks||[],day=today();
+  const overdue=tasks.filter(function(t){return t.due_date&&t.due_date<day&&t.status!=='مكتملة';});
+  setText($('taskOpenCount'),tasks.filter(function(t){return t.status==='جديدة';}).length);
+  setText($('taskActiveCount'),tasks.filter(function(t){return t.status==='قيد التنفيذ';}).length);
+  setText($('taskOverdueCount'),overdue.length);
+  setText($('taskDoneCount'),tasks.filter(function(t){return t.status==='مكتملة';}).length);
+  setHtml($('operationalTaskList'),tasks.slice(0,12).map(function(t){
+    const late=t.due_date&&t.due_date<day&&t.status!=='مكتملة';
+    return '<article class="operational-task '+(late?'is-overdue':'')+'"><div><strong>'+esc(t.title)+'</strong><small>'+esc(t.project_code||'عام')+' · '+esc(t.assignee_name||'غير مسند')+(t.due_date?' · '+esc(t.due_date):'')+'</small></div><span class="task-priority">'+escUI(t.priority)+'</span><select data-task-status="'+t.id+'"><option'+(t.status==='جديدة'?' selected':'')+'>جديدة</option><option'+(t.status==='قيد التنفيذ'?' selected':'')+'>قيد التنفيذ</option><option'+(t.status==='مكتملة'?' selected':'')+'>مكتملة</option><option'+(t.status==='مؤجلة'?' selected':'')+'>مؤجلة</option></select></article>';
+  }).join('')||'<div class="empty">لا توجد مهام تنفيذية. حوّل أول توصية إلى مهمة مسندة.</div>');
+}
+
+function openOperationalTaskForm(prefill){
+  prefill=prefill||{};
+  const users=(dashboard.users_active||[]).map(function(u){return '<option value="'+u.id+'">'+esc(u.full_name||u.username)+'</option>';}).join('');
+  const projects=(dashboard.projects||[]).map(function(p){return '<option value="'+p.id+'">'+esc(p.code+' — '+p.name)+'</option>';}).join('');
+  const priority=prefill.priority==='عاجل'?'حرجة':prefill.priority==='عالي'?'عالية':'متوسطة';
+  modal('<h2>مهمة تنفيذية جديدة</h2><p>تُحفظ المهمة في قاعدة البيانات وتظهر في لوحة المتابعة والتنبيهات.</p><form id="operationalTaskForm"><div class="modal-grid"><label>عنوان المهمة<input name="title" required value="'+esc(prefill.title||'')+'"></label><label>المسؤول<select name="assigned_to"><option value="">غير مسند</option>'+users+'</select></label><label>المشروع<select name="project_id"><option value="">مهمة عامة</option>'+projects+'</select></label><label>الأولوية<select name="priority"><option'+(priority==='منخفضة'?' selected':'')+'>منخفضة</option><option'+(priority==='متوسطة'?' selected':'')+'>متوسطة</option><option'+(priority==='عالية'?' selected':'')+'>عالية</option><option'+(priority==='حرجة'?' selected':'')+'>حرجة</option></select></label><label>تاريخ الاستحقاق<input name="due_date" type="date"></label><label>المصدر<input name="source_type" value="'+esc(prefill.source_type||'manual')+'" readonly></label></div><label>الوصف<textarea name="description">'+esc(prefill.detail||'')+'</textarea></label><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ وإسناد المهمة</button></div></form>');
+}
+async function saveOperationalTask(form){const payload=Object.fromEntries(new FormData(form).entries());await api('/api/operational-tasks',{method:'POST',body:JSON.stringify(payload)});closeModal();await refresh();showToast('تم إنشاء المهمة وإضافتها للمتابعة');}
+async function updateOperationalTaskStatus(id,status){await api('/api/operational-tasks',{method:'POST',body:JSON.stringify({action:'update',id:Number(id),status:status})});await refresh();showToast('تم تحديث حالة المهمة');}
 
 
 function decisionPercent(done,total){
@@ -965,7 +990,7 @@ function renderDecisionIntelligence(){
   }).join(''):'<div class="decision-empty">لا توجد مشاريع مسجلة بعد.</div>');
 
   setHtml($('decisionRecommendations'),model.recommendations.map(function(item,index){
-    return '<button class="decision-list-row recommendation" type="button" data-decision-go="'+esc(item.page||'dashboard')+'"><span class="decision-step">'+(index+1)+'</span><div><strong>'+esc(item.title)+'</strong><small>'+esc(item.detail)+'</small></div><b>'+esc(item.priority)+'</b></button>';
+    return '<article class="decision-list-row recommendation"><span class="decision-step">'+(index+1)+'</span><div><strong>'+esc(item.title)+'</strong><small>'+esc(item.detail)+'</small></div><b>'+esc(item.priority)+'</b><div class="recommendation-actions"><button class="text-btn" type="button" data-decision-go="'+esc(item.page||'dashboard')+'">فتح القسم</button><button class="text-btn" type="button" data-recommendation-task="'+index+'">تحويل إلى مهمة</button></div></article>';
   }).join(''));
 }
 
@@ -2494,6 +2519,7 @@ function bindEvents() {
   if($('refreshDecisionIntelligence'))$('refreshDecisionIntelligence').addEventListener('click',function(){refresh().then(function(){showToast('تم تحديث التحليل من البيانات الحالية');}).catch(function(error){showToast(error.message,true);});});
   if($('exportDecisionIntelligence'))$('exportDecisionIntelligence').addEventListener('click',function(){try{exportDecisionIntelligence();}catch(error){showToast(error.message,true);}});
   if($('openDecisionReport'))$('openDecisionReport').addEventListener('click',openDecisionIntelligenceReport);
+  if($('openOperationalTask'))$('openOperationalTask').addEventListener('click',openOperationalTaskForm);
   $('projectSearch').addEventListener('input',renderProjects);
   $('projectPriorityFilter').addEventListener('change',renderProjects);
   $('catalogSearch').addEventListener('input',renderCatalog);
@@ -2529,11 +2555,13 @@ function bindEvents() {
   $('resetSyncQueue').addEventListener('click',function(){resetSyncQueue().catch(function(error){showToast(error.message,true);});});
   $('resetOperationalData').addEventListener('click',function(){resetOperationalData().catch(function(error){showToast(error.message,true);});});
   document.addEventListener('change',function(event) {
+    if(event.target.matches('[data-task-status]'))updateOperationalTaskStatus(event.target.dataset.taskStatus,event.target.value).catch(function(error){showToast(error.message,true);});
     if (event.target.matches('.project-status')) changeProjectStatus(event.target.dataset.projectId,event.target.value);
     if (event.target.id === 'testCatalogSelect') updateTestDynamic();
     if (event.target.matches('[data-field-test]')) { const test = fieldTests[Number(event.target.dataset.fieldTest)]; test[event.target.dataset.fieldKey] = event.target.value; if (event.target.dataset.fieldKey === 'catalog_id') syncFieldTestCatalog(test); if (event.target.dataset.fieldKey === 'result') renderFieldTests(); }
   });
   document.addEventListener('click',async function(event) {
+    const recommendationTask=event.target.closest('[data-recommendation-task]');if(recommendationTask){event.preventDefault();const model=window.__ASAS_DECISION_INTELLIGENCE||decisionIntelligenceModel();const item=model.recommendations[Number(recommendationTask.dataset.recommendationTask)];if(item)openOperationalTaskForm({title:item.title,detail:item.detail,priority:item.priority,source_type:'decision_recommendation'});return;}
     const decisionGo=event.target.closest('[data-decision-go]');if(decisionGo){event.preventDefault();navigate(decisionGo.dataset.decisionGo||'dashboard');return;}
     const decisionExport=event.target.closest('[data-decision-report-export]');if(decisionExport){event.preventDefault();try{exportDecisionIntelligence();}catch(error){showToast(error.message,true);}return;}
     const decisionPrint=event.target.closest('[data-decision-report-print]');if(decisionPrint){event.preventDefault();printDecisionIntelligenceReport();return;}
@@ -2654,6 +2682,7 @@ function bindEvents() {
       if (form.id === 'changePasswordForm') await submitChangePassword(form);
       if (form.id === 'myProfileForm') await submitMyProfile(form);
       if (form.id === 'systemSettingsForm') await submitSystemSettings(form);
+      if (form.id === 'operationalTaskForm') await saveOperationalTask(form);
       if (form.id === 'baladyForm') saveBaladyData(form);
     } catch (error) {
       const message = error && error.message ? error.message : 'تعذر حفظ البيانات';
