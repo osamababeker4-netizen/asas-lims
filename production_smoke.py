@@ -38,5 +38,6 @@ preflight=urllib.request.Request(
 )
 status, headers, body = request(preflight)
 assert status == 204, status
-assert headers.get('Access-Control-Allow-Origin') == ORIGIN, headers
+cors_headers={str(k).lower():v for k,v in headers.items()}
+assert cors_headers.get('access-control-allow-origin') == ORIGIN, headers
 print(json.dumps({'production_api':'pass','database':'ready','cors':'pass','version':payload.get('version')}, ensure_ascii=False))
