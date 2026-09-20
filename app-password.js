@@ -1835,15 +1835,18 @@ function renderDeviceAcceptance(results, overall) {
   }).join('') + '<div class="acceptance-summary '+(overall?'pass':'fail')+'"><strong>'+(overall?'تم اجتياز فحص هذا الجهاز والخادم':'لم يكتمل الاعتماد')+'</strong></div>');
 }
 
-function requestDiagnosticLocation() {
+function requestDiagnosticLocation(targetAccuracy) {
   return new Promise(function(resolve) {
     if (!navigator.geolocation) return resolve(acceptanceResult('GPS',false,'واجهة تحديد الموقع غير متاحة'));
     navigator.geolocation.getCurrentPosition(function(position){
       const accuracy=Math.round(Number(position.coords.accuracy||0));
-      resolve(acceptanceResult('GPS',Number.isFinite(position.coords.latitude)&&Number.isFinite(position.coords.longitude),'تم الحصول على موقع فعلي · الدقة ±'+accuracy+' م'));
+      const coordinatesOk=Number.isFinite(position.coords.latitude)&&Number.isFinite(position.coords.longitude);
+      const target=Math.max(1,Number(targetAccuracy||100));
+      const accurate=coordinatesOk&&Number.isFinite(accuracy)&&accuracy<=target;
+      resolve(acceptanceResult('GPS',accurate,accurate?'تم الحصول على موقع فعلي · الدقة ±'+accuracy+' م':'تم تحديد الموقع لكن الدقة ±'+accuracy+' م؛ المطلوب ≤ '+target+' م'));
     },function(error){
       resolve(acceptanceResult('GPS',false,error.message||'تم رفض صلاحية الموقع'));
-    },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+    },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
   });
 }
 
@@ -1861,7 +1864,11 @@ async function requestDiagnosticCamera() {
     const label=tracks[0]&&tracks[0].label?tracks[0].label:'كاميرا الجهاز';
     return acceptanceResult('الكاميرا',ok,ok?'تم فتح '+label+' فعليًا':'لم يبدأ بث الكاميرا');
   } catch(error) {
-    return acceptanceResult('الكاميرا',false,error.message||'تم رفض صلاحية الكاميرا');
+    const name=String(error&&error.name||'');
+    const message=name==='NotFoundError'?'لا توجد كاميرا فعلية متاحة على هذا الجهاز. شغّل الفحص من هاتف أو جهاز مزود بكاميرا.':
+      name==='NotAllowedError'?'تم رفض صلاحية الكاميرا. اسمح للمتصفح باستخدام الكاميرا ثم أعد الفحص.':
+      (error.message||'تعذر فتح الكاميرا');
+    return acceptanceResult('الكاميرا',false,message);
   } finally {
     if(stream)stream.getTracks().forEach(function(track){track.stop();});
   }
@@ -1879,7 +1886,13 @@ async function runDeviceAcceptance() {
     const camera=await requestDiagnosticCamera();
     results.push(camera);
 
-    const gps=await requestDiagnosticLocation();
+    let gpsTargetAccuracy=100;
+    try{
+      const acceptanceSettings=await api('/api/settings');
+      const configured=Number(acceptanceSettings.gps_target_accuracy_m||0);
+      if(Number.isFinite(configured)&&configured>0)gpsTargetAccuracy=configured;
+    }catch(_error){}
+    const gps=await requestDiagnosticLocation(gpsTargetAccuracy);
     results.push(gps);
 
     let health;
