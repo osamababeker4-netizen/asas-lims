@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.2.19-quality-control-unified'
+APP_VERSION = '10.2.20-smart-standards-field-guide'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -236,28 +236,97 @@ def smart_section_allowed(user, section):
     return bool(item and has_perm(user, item[1]))
 
 
-def detect_smart_target(connection, section, file_name):
+def _compact_identifier(value):
+    return re.sub(r'[^a-z0-9]+', '', str(value or '').lower())
+
+
+def _standard_identifiers(value):
+    text = str(value or '').lower()
+    identifiers = set()
+    # ASTM D1557, C39, EN14630, T99, D2027 / D2028, etc.
+    for match in re.finditer(r'(?:(?:astm|aashto|bs|en|iso)\s*)?([a-z]{1,3})\s*[-_ ]*\s*(\d{1,6}[a-z]?)', text):
+        identifiers.add(_compact_identifier(match.group(1) + match.group(2)))
+    return {item for item in identifiers if item}
+
+
+def detect_catalog_target(connection, file_name, content):
+    extension = os.path.splitext(file_name)[1].lower()
+    searchable = smart_searchable_text(file_name, content, extension)
+    spaced = re.sub(r'[^a-z0-9]+', ' ', searchable.lower())
+    compact = _compact_identifier(searchable)
+    rows = connection.execute('select id,code,name_ar,name_en,standard from test_catalog where active=1').fetchall()
+    ranked = []
+    for row in rows:
+        code = _compact_identifier(row['code'])
+        score = 0
+        if code:
+            if len(code) <= 3:
+                if re.search(r'(?<![a-z0-9])' + re.escape(code) + r'(?![a-z0-9])', spaced):
+                    score += 120
+            elif code in compact:
+                score += 120
+        identifiers = _standard_identifiers(row['standard'])
+        for identifier in identifiers:
+            if len(identifier) <= 3:
+                matched = bool(re.search(r'(?<![a-z0-9])' + re.escape(identifier) + r'(?![a-z0-9])', spaced))
+            else:
+                matched = identifier in compact
+            if matched:
+                score += 35
+        # Filename/content name hints are secondary to standard identifiers.
+        for name_value in (row['name_ar'], row['name_en']):
+            value = normalized_excel_header(name_value)
+            tokens = [part for part in re.split(r'\s+', value) if len(part) >= 5]
+            score += min(20, sum(4 for part in tokens if part in searchable))
+        if score:
+            ranked.append((score, row['id']))
+    ranked.sort(reverse=True)
+    if not ranked:
+        return 0
+    if len(ranked) > 1 and ranked[0][0] == ranked[1][0]:
+        return 0
+    return ranked[0][1]
+
+
+def detect_catalog_resource_type(file_name, content):
+    extension = os.path.splitext(file_name)[1].lower()
+    searchable = smart_searchable_text(file_name, content, extension)
+    if any(token in searchable for token in ('worksheet','work sheet','work_sheet','ورقة عمل','ورقه عمل','نموذج عمل')):
+        return 'worksheet'
+    if any(token in searchable for token in ('result','results','calculation','calculations','calc','نتيجة','نتائج','حسابات')):
+        return 'results'
+    if extension in {'.xls', '.xlsx', '.csv'} and not any(token in searchable for token in ('astm','aashto','standard','specification','مواصفة','مواصفات')):
+        return 'results'
+    return 'astm'
+
+
+def detect_smart_target(connection, section, file_name, content=b''):
     entity_type = SMART_SECTIONS[section][0]
+    if section == 'catalog':
+        catalog_id = detect_catalog_target(connection, file_name, content)
+        return entity_type, catalog_id, ('مرتبط تلقائيًا بالاختبار' if catalog_id else 'تعذر تحديد الاختبار تلقائيًا')
     definitions = {
         'projects': ('projects', "code || ' ' || name"),
         'workOrders': ('work_orders', "order_no || ' ' || title"),
         'clients': ('clients', 'name'), 'samples': ('samples', 'sample_no'),
         'tests': ('tests', 'test_no'), 'reports': ('reports', 'report_no'),
         'equipment': ('equipment', "coalesce(equipment_code,'') || ' ' || coalesce(serial_no,'') || ' ' || name"),
-        'users': ('users', "username || ' ' || full_name"), 'catalog': ('test_catalog', "code || ' ' || name_ar")
+        'users': ('users', "username || ' ' || full_name")
     }
     if section not in definitions:
         return entity_type, 0, 'مصنف داخل القسم'
     table, expression = definitions[section]
-    haystack = normalized_excel_header(os.path.splitext(file_name)[0])
+    extension = os.path.splitext(file_name)[1].lower()
+    haystack = smart_searchable_text(file_name, content, extension)
+    haystack_tokens = set(re.split(r'\s+', haystack))
     best = None
     for row in connection.execute('select id,' + expression + ' as search_value from ' + table).fetchall():
         value = normalized_excel_header(row['search_value'])
-        tokens = [part for part in re.split(r'\s+', value) if len(part) >= 4]
-        haystack_tokens = set(re.split(r'\s+', haystack))
-        score = max(([len(part) for part in tokens if part in haystack_tokens] or [0]))
-        if value and value in haystack:
-            score = max(score, len(value) + 20)
+        tokens = [part for part in re.split(r'\s+', value) if len(part) >= 3]
+        score = sum(min(len(part), 12) for part in tokens if part in haystack_tokens)
+        compact_value = _compact_identifier(value)
+        if compact_value and len(compact_value) >= 4 and compact_value in _compact_identifier(haystack):
+            score = max(score, min(80, len(compact_value) + 25))
         if score >= 4 and (not best or score > best[0]):
             best = (score, row['id'])
     return entity_type, (best[1] if best else 0), ('مرتبط تلقائيًا' if best else 'يحتاج مراجعة')
@@ -270,7 +339,7 @@ def store_smart_file(connection, user, section, original_name, content):
         raise ValueError('نوع الملف غير مدعوم: ' + (extension or 'بدون امتداد'))
     if len(content) > MAX_SMART_FILE_BYTES:
         raise ValueError('حجم الملف يتجاوز الحد التشغيلي {}MB: {}'.format(MAX_SMART_FILE_BYTES // 1024 // 1024, original_name))
-    entity_type, entity_id, status = detect_smart_target(connection, section, original_name)
+    entity_type, entity_id, status = detect_smart_target(connection, section, original_name, content)
     material_group = detect_material_group(original_name, content)
     os.makedirs(RECORD_UPLOADS, exist_ok=True)
     stored_name = secrets.token_urlsafe(18) + extension
@@ -279,8 +348,18 @@ def store_smart_file(connection, user, section, original_name, content):
     connection.execute('''insert into record_attachments(entity_type,entity_id,original_name,stored_name,uploaded_by,section,file_category,material_group,classification_status,mime_type)
         values(?,?,?,?,?,?,?,?,?,?)''', (entity_type, entity_id, original_name, stored_name, user['id'], section,
         SMART_FILE_TYPES[extension], material_group, status, extension.lstrip('.')))
-    return {'id': connection.execute('select last_insert_rowid()').fetchone()[0], 'name': original_name,
-            'category': SMART_FILE_TYPES[extension], 'material_group': material_group, 'status': status, 'entity_id': entity_id}
+    attachment_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+    resource_type = None
+    if section == 'catalog' and entity_id:
+        resource_type = detect_catalog_resource_type(original_name, content)
+        column = {'astm':'astm_attachment_id','worksheet':'worksheet_attachment_id','results':'results_attachment_id'}[resource_type]
+        connection.execute('insert into catalog_resources(test_catalog_id,' + column + ') values(?,?) on conflict(test_catalog_id) do update set ' + column + '=excluded.' + column + ',updated_at=CURRENT_TIMESTAMP', (entity_id, attachment_id))
+        status_names = {'astm':'المواصفة','worksheet':'ورقة العمل','results':'ملف النتائج'}
+        status = 'تم الفرز والربط تلقائيًا: ' + status_names[resource_type]
+        connection.execute('update record_attachments set classification_status=? where id=?', (status, attachment_id))
+    return {'id': attachment_id, 'name': original_name,
+            'category': SMART_FILE_TYPES[extension], 'material_group': material_group, 'status': status,
+            'entity_id': entity_id, 'resource_type': resource_type}
 
 
 def record_allowed(user, entity_type):
@@ -304,14 +383,15 @@ def save_record_file(connection, user, data):
         allowed |= {'.jpg', '.jpeg', '.png', '.webp', '.heic'}
     if not encoded or extension not in allowed:
         raise ValueError('نوع الملف غير مدعوم لهذا السجل')
-    if len(encoded) > 35_000_000:
-        raise ValueError('حجم الملف يتجاوز 25MB')
+    max_encoded = int(MAX_SMART_FILE_BYTES * 1.40) + 4096
+    if len(encoded) > max_encoded:
+        raise ValueError('حجم الملف يتجاوز الحد التشغيلي {}MB'.format(MAX_SMART_FILE_BYTES // 1024 // 1024))
     try:
         content = base64.b64decode(encoded, validate=True)
     except ValueError:
         raise ValueError('ملف مرفوع غير صالح')
-    if len(content) > 25 * 1024 * 1024:
-        raise ValueError('حجم الملف يتجاوز 25MB')
+    if len(content) > MAX_SMART_FILE_BYTES:
+        raise ValueError('حجم الملف يتجاوز الحد التشغيلي {}MB'.format(MAX_SMART_FILE_BYTES // 1024 // 1024))
     os.makedirs(RECORD_UPLOADS, exist_ok=True)
     stored_name = secrets.token_urlsafe(18) + extension
     with open(os.path.join(RECORD_UPLOADS, stored_name), 'wb') as uploaded:
