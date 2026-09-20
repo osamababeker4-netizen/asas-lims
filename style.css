@@ -834,3 +834,24 @@ input:focus,select:focus,textarea:focus{
   #quality .qc-log-row{grid-template-columns:1fr}
   #quality .management-stages.compact{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+
+/* V10.2.20 smart standards + in-program file viewers */
+.catalog-bulk-standards{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.catalog-bulk-standards #catalogStandardsStatus{max-width:520px;font-size:.75rem;line-height:1.45}
+.field-manual-button{font-weight:900!important;color:#0877b5!important}
+.field-manual-viewer{display:grid;grid-template-rows:auto minmax(420px,72vh);gap:12px}
+.field-manual-frame{width:100%;height:100%;min-height:520px;border:1px solid #d8e4e9;border-radius:12px;background:#fff}
+.spreadsheet-preview,.word-preview,.zip-preview{height:min(68vh,720px);border:1px solid #d9e5ea;border-radius:12px;background:#fff;overflow:hidden}
+.spreadsheet-preview{display:grid;grid-template-rows:auto 1fr}
+.spreadsheet-preview-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;background:#f2f8f9;border-bottom:1px solid #dce7eb}
+.spreadsheet-preview-head strong{color:#12364e}.spreadsheet-preview-head span{font-size:.73rem;color:#6b8191}
+.spreadsheet-preview-scroll{overflow:auto}
+.spreadsheet-preview-table{border-collapse:collapse;min-width:100%;width:max-content;background:#fff}
+.spreadsheet-preview-table th,.spreadsheet-preview-table td{border:1px solid #dce5e9;padding:7px 9px;min-width:110px;max-width:320px;white-space:pre-wrap;word-break:break-word;font-size:.76rem;text-align:start}
+.spreadsheet-preview-table th{position:sticky;top:0;z-index:2;background:#eaf4f6;color:#12364e;font-weight:900}
+.word-preview{overflow:auto;padding:14px}
+.word-preview pre{margin:0;white-space:pre-wrap;word-break:break-word;font:inherit;line-height:1.8}
+.zip-preview{overflow:auto;padding:14px}
+.cad-text-preview{font-family:ui-monospace,SFMono-Regular,Consolas,monospace!important;font-size:.72rem!important}
+@media(max-width:700px){.catalog-bulk-standards{align-items:stretch;flex-direction:column}.field-manual-viewer{grid-template-rows:auto minmax(360px,65vh)}.field-manual-frame{min-height:420px}}

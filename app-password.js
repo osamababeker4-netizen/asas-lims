@@ -19,6 +19,8 @@ const QUALITY_ACCESS_ROLES = ['admin','general_manager','manager','quality_manag
 const COUNTRY_CODES = [{code:'+966',name:'السعودية 🇸🇦'},{code:'+971',name:'الإمارات 🇦🇪'},{code:'+973',name:'البحرين 🇧🇭'},{code:'+965',name:'الكويت 🇰🇼'},{code:'+974',name:'قطر 🇶🇦'},{code:'+968',name:'عُمان 🇴🇲'},{code:'+20',name:'مصر 🇪🇬'},{code:'+249',name:'السودان 🇸🇩'},{code:'+962',name:'الأردن 🇯🇴'},{code:'+967',name:'اليمن 🇾🇪'}];
 const OFFICIAL_WHATSAPP_URL = 'https://chat.whatsapp.com/LxqH7L6GorGEhMfUTYthgG?s=sh&p=a&mlu=4&ilr=4';
 const OFFICIAL_TELEGRAM_URL = 'https://t.me/+xPEyC5xPw8w5MjE0';
+const FIELD_MANUAL_URL = 'https://momah.gov.sa/sites/default/files/2024-12/aldlyl%20alshaml%20lla%27%60mal%20almdnyt%20llbnyt%20althtyt.pdf';
+const FIELD_MANUAL_TITLE = 'الدليل الشامل للأعمال المدنية للبنية التحتية — 2024 / 1446 — الإصدار الأول';
 // الكتالوج الرسمي الموحد: يظهر في الموقع المركزي، ويطابق التطبيق الميداني.
 const OFFICIAL_TEST_CATALOG = Object.freeze({
   'تربة':[
@@ -916,15 +918,67 @@ function renderTests() {
 function renderCatalog() {
   const query = $('catalogSearch') ? $('catalogSearch').value.toLowerCase() : '';
   setHtml($('catalogTable'), catalog.filter(function(item) { return [item.code,item.name_ar,item.name_en,item.standard,item.category].join(' ').toLowerCase().indexOf(query) >= 0; }).map(function(item) {
-    const fileLink = function(id,label){return id ? '<button class="text-btn download-link" type="button" data-catalog-file="'+id+'" data-catalog-file-name="'+esc(item.code+'-'+label+'.pdf')+'">⬇ '+label+'</button>' : '';};
-    const resources = [fileLink(item.astm_attachment_id,'تنزيل المواصفة PDF'),fileLink(item.worksheet_attachment_id,'تنزيل Work Sheet'),fileLink(item.results_attachment_id,'تنزيل Excel النتائج')].filter(Boolean).join(' ');
+    const fileLink = function(id,label,nameHint){return id ? '<button class="text-btn download-link" type="button" data-catalog-file="'+id+'" data-catalog-file-name="'+esc(nameHint||item.code+'-'+label)+'">فتح '+label+'</button>' : '';};
+    const resources = [fileLink(item.astm_attachment_id,'المواصفة',item.code+'-standard.pdf'),fileLink(item.worksheet_attachment_id,'Work Sheet',item.code+'-worksheet.xlsx'),fileLink(item.results_attachment_id,'ملف النتائج',item.code+'-results.xlsx')].filter(Boolean).join(' ');
     const canManage = currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','document_controller','quality'].indexOf(currentUser.role) >= 0;
     return '<tr><td>' + esc(item.code) + '</td><td>' + escUI(item.name_ar) + '<small>' + esc(item.name_en || '') + '</small></td><td>' + escUI(item.category) + '</td><td>' + esc(item.standard) + '</td><td>' + esc(item.version || '—') + '</td><td><div class="row-actions">'+(resources || '—')+(canManage ? '<button class="text-btn" data-catalog-resources="'+item.id+'">إدارة الملفات</button>' : '')+'</div></td></tr>';
   }).join('') || '<tr><td colspan="6" class="empty">لا توجد نتائج.</td></tr>');
 }
 
-function openCatalogResources(id) { const item=catalog.find(function(x){return x.id===Number(id);});if(!item)return;modal('<h2>ملفات '+esc(item.code)+'</h2><p>ارفع النسخة المرخّصة من مواصفة ASTM وWork Sheet وExcel النتائج. تظل الملفات متاحة للقراءة والتنزيل حسب الصلاحيات.</p><form id="catalogResourcesForm"><input type="hidden" name="catalog_id" value="'+item.id+'"><div class="modal-grid"><label>مواصفة ASTM (PDF أو Word)<input name="astm" type="file" accept=".pdf,.doc,.docx"></label><label>Work Sheet (PDF أو Word أو Excel)<input name="worksheet" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx"></label><label>Excel الاختبارات والنتائج<input name="results" type="file" accept=".xls,.xlsx,.pdf"></label></div><p class="form-note">الحجم الأقصى لكل ملف 25MB. اترك الحقل فارغًا للإبقاء على الملف الحالي.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الملفات</button></div></form>'); }
-async function submitCatalogResources(form) { const catalogId=form.elements.catalog_id.value; let count=0; for(const type of ['astm','worksheet','results']) { const file=form.elements[type].files[0]; if(!file)continue; if(file.size>25*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 25MB'); const bytes=new Uint8Array(await file.arrayBuffer()); let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/catalog/resources',{method:'POST',body:JSON.stringify({catalog_id:catalogId,resource_type:type,file_name:file.name,file_base64:btoa(binary)})});count++; } if(!count)throw new Error('اختر ملفًا واحدًا على الأقل');closeModal();await refresh();showToast('تم ربط ملفات الاختبار بدليل الجودة'); }
+function openCatalogResources(id) { const item=catalog.find(function(x){return x.id===Number(id);});if(!item)return;modal('<h2>ملفات '+esc(item.code)+'</h2><p>ارفع النسخة المرخّصة من مواصفة ASTM وWork Sheet وExcel النتائج. تظل الملفات متاحة للقراءة والتنزيل حسب الصلاحيات.</p><form id="catalogResourcesForm"><input type="hidden" name="catalog_id" value="'+item.id+'"><div class="modal-grid"><label>مواصفة ASTM (PDF أو Word)<input name="astm" type="file" accept=".pdf,.doc,.docx"></label><label>Work Sheet (PDF أو Word أو Excel)<input name="worksheet" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx"></label><label>Excel الاختبارات والنتائج<input name="results" type="file" accept=".xls,.xlsx,.pdf"></label></div><p class="form-note">الحد التشغيلي لكل ملف 100MB. اترك الحقل فارغًا للإبقاء على الملف الحالي.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الملفات</button></div></form>'); }
+async function submitCatalogResources(form) { const catalogId=form.elements.catalog_id.value; let count=0; for(const type of ['astm','worksheet','results']) { const file=form.elements[type].files[0]; if(!file)continue; if(file.size>100*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 100MB'); const bytes=new Uint8Array(await file.arrayBuffer()); let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/catalog/resources',{method:'POST',body:JSON.stringify({catalog_id:catalogId,resource_type:type,file_name:file.name,file_base64:btoa(binary)})});count++; } if(!count)throw new Error('اختر ملفًا واحدًا على الأقل');closeModal();await refresh();showToast('تم ربط ملفات الاختبار بدليل الجودة'); }
+
+function openFieldManual(){
+  modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميداني</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><a class="btn secondary" href="'+esc(FIELD_MANUAL_URL)+'" target="_blank" rel="noopener">فتح النسخة الرسمية</a><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><iframe class="field-manual-frame" src="'+esc(FIELD_MANUAL_URL)+'#toolbar=1&navpanes=1" title="'+esc(FIELD_MANUAL_TITLE)+'"></iframe></section>');
+}
+
+function catalogBatchUploadId(file){
+  const random=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
+  return 'catalog-standard-'+random+'-'+String(file.name||'file').slice(0,60);
+}
+
+async function uploadCatalogStandardsBatch(files){
+  files=Array.from(files||[]);
+  if(!files.length)return;
+  const status=$('catalogStandardsStatus'),button=$('catalogBulkStandardsButton');
+  if(button)button.disabled=true;
+  let linked=0,unmatched=[],failed=[],processed=0;
+  try{
+    for(const file of files){
+      processed+=1;
+      if(status)setText(status,'جارٍ الفرز والربط '+processed+' / '+files.length+' — '+file.name);
+      try{
+        const payload={section:'catalog',file_name:file.name,file_base64:await smartFileBase64(file),upload_id:catalogBatchUploadId(file)};
+        const result=await api('/api/smart-import',{method:'POST',body:JSON.stringify(payload)});
+        linked+=Number(result.matched||0);
+        (result.imported||[]).filter(function(item){return !item.entity_id;}).forEach(function(item){unmatched.push(item.name);});
+        (result.skipped||[]).forEach(function(item){failed.push(item.name+': '+item.reason);});
+      }catch(error){failed.push(file.name+': '+(error.message||'تعذر الرفع'));}
+    }
+    await refresh();
+    const parts=['تم فرز وربط '+linked+' ملف تلقائيًا داخل الاختبارات'];
+    if(unmatched.length)parts.push('غير محسوم: '+unmatched.length);
+    if(failed.length)parts.push('تعذر: '+failed.length);
+    if(status)setText(status,parts.join(' · '));
+    showToast(parts.join(' · '),Boolean(unmatched.length||failed.length));
+  }finally{
+    if(button)button.disabled=false;
+    const input=$('catalogStandardsInput');if(input)input.value='';
+  }
+}
+
+async function chooseCatalogStandards(){
+  if(window.showOpenFilePicker){
+    try{
+      const handles=await window.showOpenFilePicker({multiple:true,startIn:'downloads',types:[{description:'Standards and test resources',accept:{'application/pdf':['.pdf'],'application/msword':['.doc'],'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx'],'application/vnd.ms-excel':['.xls'],'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx'],'text/csv':['.csv']}}]});
+      const files=[];for(const handle of handles){try{files.push(await handle.getFile());}catch(error){showToast('تعذر الوصول إلى '+handle.name+'؛ اختر الملف من مكانه الحالي.',true);}}
+      if(files.length)await uploadCatalogStandardsBatch(files);
+      return;
+    }catch(error){if(error&&error.name==='AbortError')return;}
+  }
+  const input=$('catalogStandardsInput');if(input)input.click();
+}
+
 
 function renderReports() {
   const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
@@ -1428,6 +1482,36 @@ function attachmentFormatLabel(kind,name){
   return labels[kind]||ext;
 }
 
+async function spreadsheetPreviewHtml(blob,name){
+  if(!window.XLSX)return '<div class="attachment-original-format"><h3>'+esc(name)+'</h3><p>تعذر تحميل عارض Excel الداخلي. يمكنك إعادة فتح الصفحة أو تنزيل الأصل.</p></div>';
+  const workbook=XLSX.read(await blob.arrayBuffer(),{type:'array',cellDates:true});
+  const sheetName=workbook.SheetNames[0];
+  if(!sheetName)return '<div class="empty-state">ملف Excel لا يحتوي على أوراق قابلة للعرض.</div>';
+  const rows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,raw:false,defval:''}).slice(0,250);
+  const width=Math.min(40,Math.max(1,rows.reduce(function(max,row){return Math.max(max,row.length);},0)));
+  const table='<table class="spreadsheet-preview-table"><tbody>'+rows.map(function(row,rowIndex){return '<tr>'+Array.from({length:width},function(_,i){const tag=rowIndex===0?'th':'td';return '<'+tag+'>'+esc(row[i]===undefined?'':row[i])+'</'+tag+'>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
+  return '<div class="spreadsheet-preview"><div class="spreadsheet-preview-head"><strong>'+esc(sheetName)+'</strong><span>'+workbook.SheetNames.length+' ورقة · عرض أول '+rows.length+' صف</span></div><div class="spreadsheet-preview-scroll">'+table+'</div></div>';
+}
+
+async function wordPreviewHtml(blob,name){
+  if(/\.docx$/i.test(name)&&window.mammoth){
+    try{
+      const result=await mammoth.extractRawText({arrayBuffer:await blob.arrayBuffer()});
+      return '<div class="word-preview"><pre>'+esc(String(result.value||'').slice(0,1500000))+'</pre></div>';
+    }catch(_error){}
+  }
+  return '<div class="attachment-original-format"><div class="attachment-format-icon">Word</div><h3>'+esc(name)+'</h3><p>النسخة الأصلية محفوظة. ملفات DOC القديمة تحتاج Microsoft Word، بينما DOCX يتم عرض نصها داخليًا عند توفر العارض.</p></div>';
+}
+
+async function zipPreviewHtml(blob,name){
+  if(!window.JSZip)return '<div class="attachment-original-format"><h3>'+esc(name)+'</h3><p>الملف ZIP محفوظ ويمكن تنزيله؛ تعذر تحميل عارض الحزمة الداخلي.</p></div>';
+  try{
+    const archive=await JSZip.loadAsync(blob);
+    const names=Object.keys(archive.files).filter(function(key){return !archive.files[key].dir;}).slice(0,500);
+    return '<div class="zip-preview"><h3>محتويات '+esc(name)+'</h3><div class="qc-record-list">'+names.map(function(file){return '<div class="qc-record-row"><strong>'+esc(file)+'</strong></div>';}).join('')+'</div>'+(Object.keys(archive.files).length>names.length?'<p class="muted">تم عرض أول 500 عنصر.</p>':'')+'</div>';
+  }catch(_error){return '<div class="attachment-original-format"><h3>'+esc(name)+'</h3><p>تعذر قراءة محتويات ZIP، لكن النسخة الأصلية محفوظة ويمكن تنزيلها.</p></div>';}
+}
+
 async function openAttachmentInViewer(item){
   const fetched=await fetchAuthenticatedAttachment(item);
   if(activeAttachmentObjectUrl)URL.revokeObjectURL(activeAttachmentObjectUrl);
@@ -1443,10 +1527,19 @@ async function openAttachmentInViewer(item){
   }else if(kind==='text'){
     const text=await fetched.blob.text();
     content='<pre class="attachment-text-stage">'+esc(text.slice(0,1000000))+'</pre>';
+  }else if(kind==='excel'){
+    content=await spreadsheetPreviewHtml(fetched.blob,item.original_name||'Excel');
+  }else if(kind==='word'){
+    content=await wordPreviewHtml(fetched.blob,item.original_name||'Word');
+  }else if(kind==='zip'){
+    content=await zipPreviewHtml(fetched.blob,item.original_name||'ZIP');
+  }else if(kind==='cad'&&/\.dxf$/i.test(item.original_name||'')){
+    const text=await fetched.blob.text();
+    content='<pre class="attachment-text-stage cad-text-preview">'+esc(text.slice(0,1200000))+'</pre>';
   }else{
-    content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(item.original_name||'ملف')+'</h3><p>الملف محفوظ في النظام بصيغته الأصلية دون تحويل. هذه الصيغة لا يضمن المتصفح عرض محتواها داخليًا بنفس برنامجها الأصلي، لذلك يمكنك تنزيل الأصل أو فتحه من الجهاز مع بقاء النسخة الأصلية داخل النظام.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
+    content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(item.original_name||'ملف')+'</h3><p>الملف محفوظ في النظام بصيغته الأصلية دون تحويل. هذه الصيغة تحتاج برنامجها الأصلي للعرض الكامل، ويمكن تنزيلها مباشرة دون فقدان النسخة المحفوظة.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
   }
-  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Original File Viewer</span><h2>'+esc(item.original_name||'ملف')+'</h2><p>نسخة أصلية محفوظة · '+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-viewer-newtab>فتح في نافذة مستقلة</button><button class="btn primary" type="button" data-viewer-download>تنزيل الأصل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
+  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Internal File Viewer</span><h2>'+esc(item.original_name||'ملف')+'</h2><p>نسخة أصلية محفوظة · '+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-viewer-newtab>فتح الأصل في نافذة</button><button class="btn primary" type="button" data-viewer-download>تنزيل الأصل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
   const downloadButton=document.querySelector('[data-viewer-download]');
   if(downloadButton)downloadButton.addEventListener('click',function(){downloadAttachmentBlob(item,fetched.blob,fetched.url);});
   const newTabButton=document.querySelector('[data-viewer-newtab]');
@@ -2119,6 +2212,9 @@ function bindEvents() {
   $('projectSearch').addEventListener('input',renderProjects);
   $('projectPriorityFilter').addEventListener('change',renderProjects);
   $('catalogSearch').addEventListener('input',renderCatalog);
+  if($('catalogBulkStandardsButton'))$('catalogBulkStandardsButton').addEventListener('click',function(){chooseCatalogStandards().catch(function(error){showToast(error.message||'تعذر رفع المواصفات',true);});});
+  if($('catalogStandardsInput'))$('catalogStandardsInput').addEventListener('change',function(){uploadCatalogStandardsBatch(this.files).catch(function(error){showToast(error.message||'تعذر رفع المواصفات',true);});});
+  if($('openFieldManual'))$('openFieldManual').addEventListener('click',openFieldManual);
   $('openWorkOrder').addEventListener('click',function() { openWorkOrderForm(); });
   $('openClient').addEventListener('click',openClientForm);
   $('openSample').addEventListener('click',openSampleForm);

@@ -95,7 +95,9 @@ class SchemaMigrationTests(unittest.TestCase):
         guide = (Path(__file__).parent / 'field-test-guide.html').read_text(encoding='utf-8')
         self.assertIn('id="fieldGuideFilters"', html)
         self.assertIn('4 أقسام رئيسية', html)
-        self.assertIn('field-test-guide.html', html)
+        self.assertIn('id="openFieldManual"', html)
+        self.assertIn('دليل الاختبارات الميداني', html)
+        self.assertIn('FIELD_MANUAL_URL', app)
         self.assertIn('field-group-card', app)
         for english in ('Concrete', 'Soil', 'Asphalt', 'Field & NDT'):
             self.assertIn("english:'" + english + "'", app)
@@ -1087,7 +1089,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.2.19-quality-control-unified'", server)
+        self.assertIn("APP_VERSION = '10.2.20-smart-standards-field-guide'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1106,7 +1108,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-2-19-quality-control-unified', sw)
+        self.assertIn('v10-2-20-smart-standards-field-guide', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1151,6 +1153,61 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("if (page === 'documentCenter') page = 'quality';", app)
         self.assertIn('.quality-control-hero', css)
         self.assertIn('#quality .qc-window-card', css)
+
+
+
+    def test_v10220_smart_standards_auto_link_and_field_manual(self):
+        root = Path(__file__).parent
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        css = (root / 'style.css').read_text(encoding='utf-8')
+        server = (root / 'server.py').read_text(encoding='utf-8')
+
+        self.assertIn('id="catalogBulkStandardsButton"', html)
+        self.assertIn('id="catalogStandardsInput"', html)
+        self.assertIn('دليل الاختبارات الميداني', html)
+        self.assertIn('id="openFieldManual"', html)
+        self.assertIn('xlsx.full.min.js', html)
+        self.assertIn('mammoth.browser.min.js', html)
+        self.assertIn('jszip.min.js', html)
+        self.assertIn('uploadCatalogStandardsBatch', app)
+        self.assertIn('spreadsheetPreviewHtml', app)
+        self.assertIn('wordPreviewHtml', app)
+        self.assertIn('zipPreviewHtml', app)
+        self.assertIn('FIELD_MANUAL_URL', app)
+        self.assertIn('detect_catalog_target', server)
+        self.assertIn('detect_catalog_resource_type', server)
+        self.assertIn('.spreadsheet-preview-table', css)
+
+    def test_catalog_smart_upload_links_short_and_long_astm_codes_without_manual_step(self):
+        self.server.init()
+        self.server.RECORD_UPLOADS = str(Path(self.temp.name) / 'records')
+        os.makedirs(self.server.RECORD_UPLOADS, exist_ok=True)
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+
+        d1557 = connection.execute("select id from test_catalog where code='D1557'").fetchone()['id']
+        d5 = connection.execute("select id from test_catalog where code='D5'").fetchone()['id']
+        d5444 = connection.execute("select id from test_catalog where code='D5444'").fetchone()['id']
+
+        first = self.server.store_smart_file(connection, admin, 'catalog', 'ASTM D1557 Modified Proctor.pdf', b'%PDF-1.4 ASTM D1557')
+        self.assertEqual(first['entity_id'], d1557)
+        self.assertEqual(first['resource_type'], 'astm')
+        linked = connection.execute('select astm_attachment_id from catalog_resources where test_catalog_id=?', (d1557,)).fetchone()
+        self.assertEqual(linked['astm_attachment_id'], first['id'])
+
+        short = self.server.store_smart_file(connection, admin, 'catalog', 'ASTM D5 penetration.pdf', b'%PDF-1.4 ASTM D5')
+        self.assertEqual(short['entity_id'], d5)
+        self.assertNotEqual(short['entity_id'], d5444)
+
+        worksheet = self.server.store_smart_file(connection, admin, 'catalog', 'C39 Work Sheet.xlsx', b'not-a-real-xlsx C39 worksheet')
+        c39 = connection.execute("select id from test_catalog where code='C39'").fetchone()['id']
+        self.assertEqual(worksheet['entity_id'], c39)
+        self.assertEqual(worksheet['resource_type'], 'worksheet')
+        linked_ws = connection.execute('select worksheet_attachment_id from catalog_resources where test_catalog_id=?', (c39,)).fetchone()
+        self.assertEqual(linked_ws['worksheet_attachment_id'], worksheet['id'])
+        connection.commit()
+        connection.close()
 
 
 
