@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.3.0-decision-intelligence'
+APP_VERSION = '10.4.0-operational-workspace'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -598,7 +598,7 @@ def init():
             raise RuntimeError('يتطلب أول تشغيل تعيين LIMS_BOOTSTRAP_PHONE برقم المدير بصيغة دولية، مثل +9665XXXXXXXX، لاستخدام OTP.')
         connection.execute(
             'insert into users(username,password_hash,full_name,role,phone) values(?,?,?,?,?)',
-            ('admin', hp(password), 'مدير المختبر', 'admin', phone)
+            ('admin', hp(password), os.environ.get('LIMS_BOOTSTRAP_NAME', 'Eng. osama Ismail').strip() or 'Eng. osama Ismail', 'admin', phone)
         )
         print('تم إنشاء حساب admin الأول باستخدام كلمة المرور المحلية التي وفرتها.')
     connection.commit()
@@ -1397,13 +1397,15 @@ class H(BaseHTTPRequestHandler):
             for key, table in (
                 ('projects', 'projects'), ('work_orders', 'work_orders'), ('samples', 'samples'),
                 ('tests', 'tests'), ('reports', 'reports'), ('equipment', 'equipment'),
-                ('field_visits', 'field_visits'), ('sync_queue', 'sync_queue')
+                ('field_visits', 'field_visits'), ('sync_queue', 'sync_queue'),
+                ('operational_tasks', 'operational_tasks')
             )
         }
         alerts = {
             'blocked_projects': q("select id,code,name,priority,due_date from projects where status='موقوف' order by priority desc,id desc"),
             'overdue_work_orders': q("select w.id,w.order_no,w.title,w.due_date,p.code project_code from work_orders w join projects p on p.id=w.project_id where w.due_date is not null and w.due_date < date('now') and w.status != 'مكتمل' order by w.due_date"),
-            'awaiting_review': q("select id,code,name,'project' entity from projects where status='قيد المراجعة' union all select id,license_no,'زيارة ميدانية','field_visit' entity from field_visits where status='قيد المراجعة' order by id desc")
+            'awaiting_review': q("select id,code,name,'project' entity from projects where status='قيد المراجعة' union all select id,license_no,'زيارة ميدانية','field_visit' entity from field_visits where status='قيد المراجعة' order by id desc"),
+            'overdue_tasks': q("select t.id,t.title,t.priority,t.due_date,u.full_name assignee_name from operational_tasks t left join users u on u.id=t.assigned_to where t.due_date is not null and t.due_date < date('now') and t.status != 'مكتملة' order by t.due_date")
         }
         return {
             'counts': counts,
@@ -1422,7 +1424,9 @@ class H(BaseHTTPRequestHandler):
             'activity': q("select created_at,action,details from audit_log where entity in ('client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user') and action not like 'حذف %' order by id desc limit 15"),
             'alerts': alerts,
             'sync': q("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue where status='queued' order by id desc limit 30"),
-            'technicians': q("select id,full_name,username from users where active=1 and role in ('technician','field') order by full_name")
+            'technicians': q("select id,full_name,username from users where active=1 and role in ('technician','field') order by full_name"),
+            'users_active': q("select id,full_name,username,role from users where active=1 order by full_name"),
+            'operational_tasks': q("select t.*,u.full_name assignee_name,p.code project_code from operational_tasks t left join users u on u.id=t.assigned_to left join projects p on p.id=t.project_id order by case t.status when 'جديدة' then 0 when 'قيد التنفيذ' then 1 when 'مؤجلة' then 2 else 3 end,case t.priority when 'حرجة' then 0 when 'عالية' then 1 when 'متوسطة' then 2 else 3 end,t.due_date,t.id desc")
         }
     def project_workspace(self, connection, project_id):
         project = connection.execute('''
@@ -2005,7 +2009,7 @@ class H(BaseHTTPRequestHandler):
                     connection.backup(destination)
                 finally:
                     destination.close()
-                operational_tables = ['quotation_items','quotations','contracts','customer_complaints','corrective_actions','nonconformities','chain_of_custody','sample_result_entries','order_requests','inventory_items','maintenance_records','calibration_records','environmental_monitoring','training_records','field_visits','report_files','reports','proctor_points','proctor_results','test_data','tests','samples','work_orders','projects','clients','equipment','quality_documents','proficiency_tests','quality_staff','quality_swot','quality_risks','quality_kpis','quality_actions','quality_cycle_steps','quality_cycles','record_attachments','catalog_resources','whatsapp_drafts','upload_receipts','trash_items','audit_log','sync_queue','suppliers']
+                operational_tables = ['quotation_items','quotations','contracts','customer_complaints','corrective_actions','nonconformities','chain_of_custody','sample_result_entries','order_requests','inventory_items','maintenance_records','calibration_records','environmental_monitoring','training_records','field_visits','report_files','reports','proctor_points','proctor_results','test_data','tests','samples','work_orders','operational_tasks','projects','clients','equipment','quality_documents','proficiency_tests','quality_staff','quality_swot','quality_risks','quality_kpis','quality_actions','quality_cycle_steps','quality_cycles','record_attachments','catalog_resources','whatsapp_drafts','upload_receipts','trash_items','audit_log','sync_queue','suppliers']
                 connection.execute('PRAGMA foreign_keys=OFF')
                 try:
                     connection.execute('BEGIN IMMEDIATE')
@@ -2030,6 +2034,33 @@ class H(BaseHTTPRequestHandler):
                         SESSIONS.pop(token, None)
                 publish_event('system', 'operational_reset', 0)
                 return self.send_json({'ok': True, 'backup': backup_name, 'preserved_users': [dict(row) for row in keep_rows], 'deleted': deleted, 'queued': 0})
+
+            if path == '/api/operational-tasks':
+                if not self.require_permission(user, 'dashboard'): return
+                action = str(data.get('action') or 'create')
+                if action == 'create':
+                    title = str(data.get('title') or '').strip()
+                    if not title: return self.send_json({'error':'عنوان المهمة مطلوب'},400)
+                    assigned_to, project_id = parse_optional_int(data.get('assigned_to')), parse_optional_int(data.get('project_id'))
+                    if assigned_to and not connection.execute('select id from users where id=? and active=1',(assigned_to,)).fetchone(): return self.send_json({'error':'المسؤول المحدد غير موجود'},400)
+                    if project_id and not connection.execute('select id from projects where id=?',(project_id,)).fetchone(): return self.send_json({'error':'المشروع المحدد غير موجود'},400)
+                    priority = str(data.get('priority') or 'متوسطة')
+                    if priority not in PRIORITIES: return self.send_json({'error':'الأولوية غير صحيحة'},400)
+                    cursor=connection.execute('insert into operational_tasks(title,description,source_type,source_id,project_id,assigned_to,priority,due_date,created_by) values(?,?,?,?,?,?,?,?,?)',(title,data.get('description'),str(data.get('source_type') or 'manual'),parse_optional_int(data.get('source_id')),project_id,assigned_to,priority,data.get('due_date'),user['id']))
+                    task_id=cursor.lastrowid
+                    audit(connection,user['id'],'إنشاء مهمة تشغيلية','operational_task',task_id,title)
+                    queue_sync(connection,'operational_task',task_id,'create',{'title':title,'priority':priority})
+                    connection.commit(); publish_event('operational_task','create',task_id)
+                    return self.send_json({'ok':True,'id':task_id})
+                task_id=parse_optional_int(data.get('id'))
+                if not task_id or not connection.execute('select id from operational_tasks where id=?',(task_id,)).fetchone(): return self.send_json({'error':'المهمة غير موجودة'},404)
+                status=str(data.get('status') or '')
+                if status not in {'جديدة','قيد التنفيذ','مكتملة','مؤجلة'}: return self.send_json({'error':'حالة المهمة غير صحيحة'},400)
+                connection.execute("update operational_tasks set status=?,completed_at=case when ?='مكتملة' then CURRENT_TIMESTAMP else null end where id=?",(status,status,task_id))
+                audit(connection,user['id'],'تحديث حالة مهمة تشغيلية','operational_task',task_id,status)
+                queue_sync(connection,'operational_task',task_id,'update',{'status':status})
+                connection.commit(); publish_event('operational_task','update',task_id)
+                return self.send_json({'ok':True})
 
             if path == '/api/quality/management':
                 if not self.require_permission(user, 'quality'):

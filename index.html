@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-3-0-decision-intelligence">
+  <link rel="stylesheet" href="style.css?v=10-4-0-operational-workspace">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -167,6 +167,11 @@
             </section>
           </div>
           <p class="decision-footnote">التحليل آلي قائم على قواعد تشغيلية وبيانات النظام الحالية؛ لا يفترض بيانات غير مسجلة ولا يستبدل مراجعة المسؤول.</p>
+        </article>
+        <article class="panel operational-workspace" id="operationalWorkspace">
+          <div class="panel-heading"><div><span class="section-kicker">Action Workspace</span><h3>مساحة العمل التنفيذية</h3><p class="muted">تحويل القرارات والتوصيات إلى مهام مسندة بمواعيد وحالات قابلة للمتابعة.</p></div><button id="openOperationalTask" class="btn primary" type="button">+ مهمة تنفيذية</button></div>
+          <div class="task-kpi-row"><span>المفتوحة <b id="taskOpenCount">0</b></span><span>قيد التنفيذ <b id="taskActiveCount">0</b></span><span>المتأخرة <b id="taskOverdueCount">0</b></span><span>المكتملة <b id="taskDoneCount">0</b></span></div>
+          <div id="operationalTaskList" class="operational-task-list"></div>
         </article>
         <div class="dashboard-grid">
           <article class="panel priority-panel">
@@ -528,18 +533,18 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="runtime-config.js?v=10-3-0-decision-intelligence"></script>
-  <script src="i18n.js?v=10-3-0-decision-intelligence"></script>
-  <script src="app-password.js?v=10-3-0-decision-intelligence"></script>
+  <script src="runtime-config.js?v=10-4-0-operational-workspace"></script>
+  <script src="i18n.js?v=10-4-0-operational-workspace"></script>
+  <script src="app-password.js?v=10-4-0-operational-workspace"></script>
   <script src="quality-management.js?v=10-3-0-quality-management"></script>
-  <script src="branch-map.js?v=10-3-0-decision-intelligence"></script>
+  <script src="branch-map.js?v=10-4-0-operational-workspace"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-3-0-decision-intelligence'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-4-0-operational-workspace'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-3-0-decision-intelligence', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-4-0-operational-workspace', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>

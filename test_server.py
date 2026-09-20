@@ -1091,7 +1091,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.3.0-decision-intelligence'", server)
+        self.assertIn("APP_VERSION = '10.4.0-operational-workspace'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1110,7 +1110,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-3-0-decision-intelligence', sw)
+        self.assertIn('v10-4-0-operational-workspace', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1409,8 +1409,8 @@ class SchemaMigrationTests(unittest.TestCase):
         server = (root / 'server.py').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.3.0-decision-intelligence'", server)
-        self.assertIn('v10-3-0-decision-intelligence', sw)
+        self.assertIn("APP_VERSION = '10.4.0-operational-workspace'", server)
+        self.assertIn('v10-4-0-operational-workspace', sw)
         self.assertIn('id="decisionIntelligenceCenter"', html)
         self.assertIn('id="refreshDecisionIntelligence"', html)
         self.assertIn('id="exportDecisionIntelligence"', html)
@@ -1446,6 +1446,54 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("data-decision-report-print", app)
         self.assertIn("data-decision-go", app)
         self.assertIn('renderDecisionIntelligence();', app)
+
+    def test_v104_operational_workspace_is_persistent_and_actionable(self):
+        root = Path(__file__).parent
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        schema = (root / 'schema.sql').read_text(encoding='utf-8')
+        server = (root / 'server.py').read_text(encoding='utf-8')
+        self.assertIn("APP_VERSION = '10.4.0-operational-workspace'", server)
+        self.assertIn('CREATE TABLE IF NOT EXISTS operational_tasks', schema)
+        self.assertIn("path == '/api/operational-tasks'", server)
+        self.assertIn('id="operationalWorkspace"', html)
+        self.assertIn('id="openOperationalTask"', html)
+        self.assertIn('function renderOperationalWorkspace()', app)
+        self.assertIn("form.id === 'operationalTaskForm'", app)
+        self.assertIn("data-task-status", app)
+        self.assertIn("Eng. osama Ismail", server)
+
+    def test_operational_task_api_creates_updates_and_queues_sync(self):
+        self.server.init()
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        connection.close()
+        token = self.server.create_session(admin)
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        def post(payload):
+            client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
+            client.request('POST', '/api/operational-tasks', json.dumps(payload).encode('utf-8'), {
+                'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+            response = client.getresponse()
+            body = json.loads(response.read().decode('utf-8'))
+            client.close()
+            return response.status, body
+        try:
+            status, created = post({'title':'مراجعة الاختبارات المتأخرة','assigned_to':admin['id'],'priority':'حرجة','due_date':'2026-09-21'})
+            self.assertEqual(status, 200)
+            status, updated = post({'action':'update','id':created['id'],'status':'مكتملة'})
+            self.assertEqual(status, 200)
+            connection = self.server.db()
+            task = connection.execute('select * from operational_tasks where id=?',(created['id'],)).fetchone()
+            queued = connection.execute("select count(*) total from sync_queue where entity='operational_task' and entity_id=?",(created['id'],)).fetchone()['total']
+            connection.close()
+            self.assertEqual(task['status'], 'مكتملة')
+            self.assertIsNotNone(task['completed_at'])
+            self.assertEqual(queued, 2)
+        finally:
+            httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
 
 
 if __name__ == '__main__':
