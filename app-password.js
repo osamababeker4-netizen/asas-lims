@@ -303,6 +303,9 @@ function staticApi(path, options) {
   }
   if (path === '/api/trash/restore') {
     const item=data.trash.find(function(row){return row.id===Number(body.id);});if(!item)throw new Error('العنصر غير موجود في السلة');const p=item.payload;
+    if(item.entity_type==='project'){data.projects.push(p.record);data.workOrders=data.workOrders.concat(p.workOrders||[]);data.samples=data.samples.concat(p.samples||[]);data.tests=data.tests.concat(p.tests||[]);data.reports=data.reports.concat(p.reports||[]);}
+    if(item.entity_type==='work_order')data.workOrders.push(p.record);
+    if(item.entity_type==='equipment')data.equipment.push(p.record);
     if(item.entity_type==='client'){data.clients.push(p.record);data.projects.forEach(function(row){if((p.linked_projects||[]).indexOf(row.id)>=0)row.client_id=p.original_id;});}
     if(item.entity_type==='sample'){data.samples.push(p.record);data.tests=data.tests.concat(p.tests||[]);data.reports=data.reports.concat(p.reports||[]);}
     if(item.entity_type==='test'){data.tests.push(p.record);data.reports=data.reports.concat(p.reports||[]);}
@@ -312,11 +315,20 @@ function staticApi(path, options) {
   if (path === '/api/trash/delete') {
     if(!currentUser||['admin','quality_manager'].indexOf(currentUser.role)<0)throw new Error('الحذف النهائي متاح لمدير النظام ومدير الجودة فقط');const before=data.trash.length;data.trash=data.trash.filter(function(row){return row.id!==Number(body.id);});if(before===data.trash.length)throw new Error('العنصر غير موجود في السلة');saveLocal(data);return {ok:true,deleted:1};
   }
+  if (path === '/api/sync/reset') {
+    if(!currentUser||['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)<0)throw new Error('ليس لديك صلاحية إعادة بدء المزامنة');const count=data.syncQueue.length;data.syncQueue=[];saveLocal(data);return {ok:true,deleted:count,queued:0};
+  }
   if (path === '/api/records/delete') {
     if (!currentUser || ['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role) < 0) throw new Error('ليس لديك صلاحية حذف السجلات');
     const entity=String(body.entity||'');const id=Number(body.id);let label='';let payload={entity_type:entity,original_id:id};
     if (!id) throw new Error('معرف السجل مطلوب');
-    if (entity === 'client') {
+    if (entity === 'project') {
+      const item=data.projects.find(function(row){return row.id===id;});if(!item)throw new Error('المشروع غير موجود');label=item.code;payload.record=JSON.parse(JSON.stringify(item));payload.workOrders=data.workOrders.filter(function(row){return Number(row.project_id)===id;}).map(function(row){return JSON.parse(JSON.stringify(row));});payload.samples=data.samples.filter(function(row){return Number(row.project_id)===id;}).map(function(row){return JSON.parse(JSON.stringify(row));});const sampleIds=payload.samples.map(function(row){return row.id;});payload.tests=data.tests.filter(function(row){return sampleIds.indexOf(Number(row.sample_id))>=0;}).map(function(row){return JSON.parse(JSON.stringify(row));});const testIds=payload.tests.map(function(row){return row.id;});payload.reports=data.reports.filter(function(row){return testIds.indexOf(Number(row.test_id))>=0;}).map(function(row){return JSON.parse(JSON.stringify(row));});data.reports=data.reports.filter(function(row){return testIds.indexOf(Number(row.test_id))<0;});data.tests=data.tests.filter(function(row){return sampleIds.indexOf(Number(row.sample_id))<0;});data.samples=data.samples.filter(function(row){return Number(row.project_id)!==id;});data.workOrders=data.workOrders.filter(function(row){return Number(row.project_id)!==id;});data.visits.forEach(function(row){if(Number(row.project_id)===id)row.project_id=null;if(sampleIds.indexOf(Number(row.sample_id))>=0)row.sample_id=null;});data.projects=data.projects.filter(function(row){return row.id!==id;});
+    } else if (entity === 'work_order') {
+      const item=data.workOrders.find(function(row){return row.id===id;});if(!item)throw new Error('أمر العمل غير موجود');label=item.order_no;payload.record=JSON.parse(JSON.stringify(item));data.workOrders=data.workOrders.filter(function(row){return row.id!==id;});
+    } else if (entity === 'equipment') {
+      const item=data.equipment.find(function(row){return row.id===id;});if(!item)throw new Error('الجهاز غير موجود');label=item.name;payload.record=JSON.parse(JSON.stringify(item));data.equipment=data.equipment.filter(function(row){return row.id!==id;});
+    } else if (entity === 'client') {
       const item=data.clients.find(function(row){return row.id===id;});if(!item)throw new Error('العميل غير موجود');label=item.name;payload.record=JSON.parse(JSON.stringify(item));payload.linked_projects=data.projects.filter(function(row){return Number(row.client_id)===id;}).map(function(row){return row.id;});
       data.projects.forEach(function(project){if(Number(project.client_id)===id)project.client_id=null;});
       data.clients=data.clients.filter(function(row){return row.id!==id;});
@@ -335,7 +347,7 @@ function staticApi(path, options) {
       const item=data.reports.find(function(row){return row.id===id;});if(!item)throw new Error('التقرير غير موجود');label=item.report_no;payload.record=JSON.parse(JSON.stringify(item));
       data.reports=data.reports.filter(function(row){return row.id!==id;});
     } else throw new Error('نوع السجل غير قابل للحذف');
-    const names={client:'عميل',sample:'عينة',test:'اختبار',report:'تقرير'};data.trash.push({id:localId(data.trash),entity_type:entity,original_id:id,label:label,payload:payload,deleted_at:saudiNow(),deleted_by_name:currentUser.full_name||currentUser.username});
+    const names={client:'عميل',project:'مشروع',work_order:'أمر عمل',sample:'عينة',test:'اختبار',report:'تقرير',equipment:'جهاز',quality_document:'وثيقة جودة'};data.trash.push({id:localId(data.trash),entity_type:entity,original_id:id,label:label,payload:payload,deleted_at:saudiNow(),deleted_by_name:currentUser.full_name||currentUser.username});
     localQueue(data,entity,id,'delete');localAudit(data,'حذف '+names[entity],entity,label);saveLocal(data);return {ok:true,deleted:1};
   }
   if (path === '/api/auth/change-password') {
@@ -833,7 +845,8 @@ function renderProjects() {
   if (!dashboard) return;
   const projects = filteredProjects();
   setHtml($('projectsTable'), projects.map(function(project) {
-    return '<tr><td><strong>' + esc(project.code) + '</strong><small>' + esc(project.name) + '</small></td><td>' + esc(project.client_name || '—') + '<small>' + (project.location ? esc(project.location) : escUI('بدون موقع')) + '</small></td><td>' + priorityChip(project.priority) + '</td><td>' + (project.due_date ? esc(project.due_date) : escUI('غير محدد')) + '</td><td><div class="progress"><span style="width:' + Math.min(100,Math.max(0,Number(project.progress) || 0)) + '%"></span></div><small>' + esc(project.progress || 0) + '%</small></td><td><select class="project-status" data-project-id="' + project.id + '">' + optionList(PROJECT_STATUSES, project.status, function(value) { return value; }, function(value) { return value; }) + '</select></td><td><small>' + esc(project.work_orders_count) + ' أمر · ' + esc(project.samples_count) + ' عينة</small><small>' + esc(project.tests_count) + ' اختبار · ' + esc(project.reports_count) + ' تقرير</small></td><td><div class="row-actions"><button class="text-btn" data-project-open="' + project.id + '" type="button">مساحة العمل</button><button class="text-btn" data-project-edit="' + project.id + '" type="button">تعديل</button></div></td></tr>';
+    const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+    return '<tr><td><strong>' + esc(project.code) + '</strong><small>' + esc(project.name) + '</small></td><td>' + esc(project.client_name || '—') + '<small>' + (project.location ? esc(project.location) : escUI('بدون موقع')) + '</small></td><td>' + priorityChip(project.priority) + '</td><td>' + (project.due_date ? esc(project.due_date) : escUI('غير محدد')) + '</td><td><div class="progress"><span style="width:' + Math.min(100,Math.max(0,Number(project.progress) || 0)) + '%"></span></div><small>' + esc(project.progress || 0) + '%</small></td><td><select class="project-status" data-project-id="' + project.id + '">' + optionList(PROJECT_STATUSES, project.status, function(value) { return value; }, function(value) { return value; }) + '</select></td><td><small>' + esc(project.work_orders_count) + ' أمر · ' + esc(project.samples_count) + ' عينة</small><small>' + esc(project.tests_count) + ' اختبار · ' + esc(project.reports_count) + ' تقرير</small></td><td><div class="row-actions"><button class="text-btn" data-project-open="' + project.id + '" type="button">مساحة العمل</button><button class="text-btn" data-project-edit="' + project.id + '" type="button">تعديل</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="project" data-record-id="'+project.id+'" data-record-label="'+esc(project.code)+'" type="button">حذف</button>':'')+'</div></td></tr>';
   }).join('') || '<tr><td colspan="8" class="empty">لا توجد مشاريع مطابقة.</td></tr>');
   renderBoard(projects);
   renderRoadmap(projects);
@@ -865,9 +878,10 @@ function setProjectView(view) {
 }
 
 function renderWorkOrders() {
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
   setHtml($('workOrdersTable'), (dashboard ? dashboard.work_orders : []).map(function(order) {
-    return '<tr><td><strong>' + esc(order.order_no) + '</strong></td><td>' + esc(order.title) + '<small>' + esc(order.description || '') + '</small></td><td>' + esc(order.project_code) + '<small>' + esc(order.project_name) + '</small></td><td>' + (order.assignee_name ? esc(order.assignee_name) : escUI('غير محدد')) + '</td><td>' + priorityChip(order.priority) + '</td><td>' + esc(order.due_date || '—') + '</td><td>' + statusChip(order.status) + '</td></tr>';
-  }).join('') || '<tr><td colspan="7" class="empty">لا توجد أوامر عمل.</td></tr>');
+    return '<tr><td><strong>' + esc(order.order_no) + '</strong></td><td>' + esc(order.title) + '<small>' + esc(order.description || '') + '</small></td><td>' + esc(order.project_code) + '<small>' + esc(order.project_name) + '</small></td><td>' + (order.assignee_name ? esc(order.assignee_name) : escUI('غير محدد')) + '</td><td>' + priorityChip(order.priority) + '</td><td>' + esc(order.due_date || '—') + '</td><td>' + statusChip(order.status) + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="work_order" data-record-id="'+order.id+'" data-record-label="'+esc(order.order_no)+'" type="button">حذف</button>':'')+'</td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">لا توجد أوامر عمل.</td></tr>');
 }
 
 function renderClients() {
@@ -934,12 +948,13 @@ function equipmentBadge(value, type) {
 
 function renderEquipment() {
   const rows = dashboard ? dashboard.equipment : [];
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
   setHtml($('equipmentTable'), rows.map(function(item) {
     const calibration = item.calibrated_to || item.next_calibration || '—';
     const tones = [equipmentTone(item.verification_status,'verification'),equipmentTone(calibration,'calibration'),equipmentTone(item.maintenance_status,'maintenance')];
     const rowTone = tones.indexOf('danger') >= 0 ? 'danger' : tones.indexOf('warning') >= 0 ? 'warning' : tones.indexOf('success') >= 0 ? 'success' : 'neutral';
-    return '<tr class="equipment-row state-'+rowTone+'"><td><span class="equipment-code">'+esc(item.equipment_code || '—')+'</span></td><td><strong class="equipment-name">'+esc(item.name)+'</strong></td><td>'+esc(item.serial_no || '—')+'</td><td><span class="equipment-section">'+esc(item.section || '—')+'</span></td><td>'+esc(item.range_text || '—')+'</td><td>'+equipmentBadge(item.verification_status || '—','verification')+'</td><td>'+equipmentBadge(calibration,'calibration')+'</td><td>'+equipmentBadge(item.maintenance_status || '—','maintenance')+'</td><td class="equipment-notes">'+esc(item.notes || '—')+'</td></tr>';
-  }).join('') || '<tr><td colspan="9" class="empty">لا توجد أجهزة.</td></tr>');
+    return '<tr class="equipment-row state-'+rowTone+'"><td><span class="equipment-code">'+esc(item.equipment_code || '—')+'</span></td><td><strong class="equipment-name">'+esc(item.name)+'</strong></td><td>'+esc(item.serial_no || '—')+'</td><td><span class="equipment-section">'+esc(item.section || '—')+'</span></td><td>'+esc(item.range_text || '—')+'</td><td>'+equipmentBadge(item.verification_status || '—','verification')+'</td><td>'+equipmentBadge(calibration,'calibration')+'</td><td>'+equipmentBadge(item.maintenance_status || '—','maintenance')+'</td><td class="equipment-notes">'+esc(item.notes || '—')+'</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</td></tr>';
+  }).join('') || '<tr><td colspan="10" class="empty">لا توجد أجهزة.</td></tr>');
 }
 
 function renderAudit() {
@@ -948,7 +963,7 @@ function renderAudit() {
   setHtml($('auditTable'), (dashboard ? dashboard.audit : []).map(function(item) { return '<tr><td>' + esc(saudiDisplay(item.created_at)) + '</td><td>' + esc(item.full_name || '') + '</td><td>' + escUI(item.action) + '</td><td>' + esc(item.entity || '') + '</td><td>' + esc(item.details || '') + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-audit-delete="'+item.id+'" type="button">حذف</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد عمليات.</td></tr>');
 }
 
-const TRASH_ENTITY_NAMES={client:'عميل',sample:'عينة',test:'اختبار',report:'تقرير'};
+const TRASH_ENTITY_NAMES={client:'عميل',project:'مشروع',work_order:'أمر عمل',sample:'عينة',test:'اختبار',report:'تقرير',equipment:'جهاز',quality_document:'وثيقة جودة'};
 
 async function loadTrash(){
   const table=$('trashTable');if(!table)return;
@@ -965,7 +980,7 @@ async function downloadTrashItem(id){const item=await api('/api/trash/item?id='+
 
 async function deleteAuditEntry(id){if(!window.confirm('هل تريد حذف هذا السجل نهائياً؟'))return;await api('/api/audit/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف السجل نهائياً');}
 async function clearAuditLog(){if(!window.confirm('هل تريد حذف سجل التدقيق بالكامل؟ لا يمكن التراجع عن هذه العملية.'))return;const result=await api('/api/audit/clear',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' عملية ومزامنة التغيير');}
-async function deleteRecord(entity,id,label){const names={client:'العميل',sample:'العينة',test:'الاختبار',report:'التقرير'};if(!window.confirm('هل تريد حذف '+(names[entity]||'السجل')+' '+(label||'')+'؟ سيختفي من النظام وتُحفظ نسخة في سلة المحذوفات.'))return;await api('/api/records/delete',{method:'POST',body:JSON.stringify({entity:entity,id:Number(id)})});await refresh();showToast('تم الحذف ونقل نسخة إلى سلة المحذوفات');}
+async function deleteRecord(entity,id,label){const names={client:'العميل',project:'المشروع',work_order:'أمر العمل',sample:'العينة',test:'الاختبار',report:'التقرير',equipment:'الجهاز',quality_document:'وثيقة الجودة'};if(!window.confirm('هل تريد حذف '+(names[entity]||'السجل')+' '+(label||'')+'؟ سيختفي من النظام وتُحفظ نسخة في سلة المحذوفات.'))return;await api('/api/records/delete',{method:'POST',body:JSON.stringify({entity:entity,id:Number(id)})});await refresh();showToast('تم الحذف ونقل نسخة إلى سلة المحذوفات');}
 
 async function renderUsers() {
   try {
@@ -1045,7 +1060,7 @@ async function renderQuality() {
   try {
     qualityData = await api('/api/quality');
     const categoryNames = {procedure:'إجراء',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
-    setHtml($('qualityDocumentsTable'), qualityData.documents.map(function(item) { const ref = item.document_ref ? (item.document_ref.indexOf('/api/') === 0 ? '<a class="text-btn" href="' + esc(API_BASE_URL + item.document_ref) + '" target="_blank" rel="noopener">فتح الملف</a>' : esc(item.document_ref)) : '—'; return '<tr><td>' + escUI(categoryNames[item.category] || item.category) + '</td><td>' + esc(item.code) + '</td><td>' + esc(item.title) + '</td><td>' + esc(item.revision || '—') + '</td><td>' + statusChip(item.status) + '</td><td>' + ref + '</td><td><div class="row-actions"><button class="text-btn" data-quality-document-edit="' + item.id + '" type="button">تعديل</button><button class="text-btn danger" data-quality-document-delete="' + item.id + '" type="button">حذف</button></div></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
+    setHtml($('qualityDocumentsTable'), qualityData.documents.map(function(item) { const ref = item.document_ref ? (item.document_ref.indexOf('/api/') === 0 ? '<a class="text-btn" href="' + esc(API_BASE_URL + item.document_ref) + '" target="_blank" rel="noopener">فتح الملف</a>' : esc(item.document_ref)) : '—'; return '<tr><td>' + escUI(categoryNames[item.category] || item.category) + '</td><td>' + esc(item.code) + '</td><td>' + esc(item.title) + '</td><td>' + esc(item.revision || '—') + '</td><td>' + statusChip(item.status) + '</td><td>' + ref + '</td><td><div class="row-actions"><button class="text-btn" data-quality-document-edit="' + item.id + '" type="button">تعديل</button><button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="' + item.id + '" data-record-label="' + esc(item.code) + '" type="button">حذف</button></div></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
     setHtml($('proficiencyTable'), qualityData.proficiency.map(function(item) { return '<tr><td>' + esc(item.test_name) + '</td><td>' + esc(item.material || '—') + '</td><td>' + esc(item.provider || '—') + '</td><td>' + esc(item.participation_date || '—') + '</td><td>' + esc(item.result || '—') + '</td><td>' + esc(item.z_score || '—') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
     setHtml($('qualityStaffTable'), qualityData.staff.map(function(item) { return '<tr><td>' + esc(item.full_name) + '</td><td>' + esc(item.job_title || '—') + '</td><td>' + esc(item.specialty || '—') + '</td><td>' + esc(item.experience_years || '—') + '</td><td>' + esc(item.qualification_ref || '—') + '</td><td>' + (item.active ? 'نشط' : 'موقوف') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
   } catch (error) { ['qualityDocumentsTable','proficiencyTable','qualityStaffTable'].forEach(function(id) { if ($(id)) setHtml($(id), '<tr><td colspan="6" class="empty">تعذر تحميل بيانات الجودة.</td></tr>'); }); }
@@ -1227,6 +1242,7 @@ async function submitQualityDocument(form) { const data = {}; new FormData(form)
 function openQualityDocumentEdit(item) { modal('<h2>تعديل وثيقة الجودة</h2><form id="qualityDocumentEditForm"><input type="hidden" name="id" value="'+item.id+'"><input type="hidden" name="category" value="'+esc(item.category)+'"><div class="modal-grid"><label>الكود<input name="code" required value="'+esc(item.code)+'"></label><label>العنوان<input name="title" required value="'+esc(item.title)+'"></label><label>الإصدار<input name="revision" value="'+esc(item.revision||'')+'"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ التعديل</button></div></form>'); }
 async function submitQualityDocumentEdit(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/quality/documents/update',{method:'POST',body:JSON.stringify(data)});closeModal();await refresh();showToast('تم تعديل وثيقة الجودة'); }
 async function deleteQualityDocument(id) { if(!window.confirm('هل تريد حذف وثيقة الجودة نهائياً؟'))return;await api('/api/quality/documents/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف وثيقة الجودة'); }
+async function resetSyncQueue(){if(!window.confirm('سيتم حذف جميع نتائج وطابور المزامنة السابق والبدء من الصفر. هل تريد المتابعة؟'))return;const result=await api('/api/sync/reset',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' نتيجة وبدأ طابور مزامنة جديد');}
 async function uploadQualityFile(file) { if (!file) return ''; if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset=0; offset<bytes.length; offset+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192)); const result = await api('/api/quality/files',{method:'POST',body:JSON.stringify({file_name:file.name,file_base64:btoa(binary)})}); return result.ref; }
 async function submitQualityRecord(form,path,files) { const data={}; new FormData(form).forEach(function(value,key){if(files.indexOf(key)<0)data[key]=value;}); for(const item of files){const ref=await uploadQualityFile(form.elements[item].files[0]); if(ref)data[item === 'quality_file' ? 'report_ref' : item === 'qualification_file' ? 'qualification_ref' : 'cv_ref']=ref;} await api(path,{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم الحفظ'); }
 
@@ -1889,6 +1905,7 @@ function bindEvents() {
   $('addFieldTest').addEventListener('click',openFieldTestPicker);
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
   $('clearAudit').addEventListener('click',function(){clearAuditLog().catch(function(error){showToast(error.message,true);});});
+  $('resetSyncQueue').addEventListener('click',function(){resetSyncQueue().catch(function(error){showToast(error.message,true);});});
   document.addEventListener('change',function(event) {
     if (event.target.matches('.project-status')) changeProjectStatus(event.target.dataset.projectId,event.target.value);
     if (event.target.id === 'testCatalogSelect') updateTestDynamic();

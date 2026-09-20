@@ -458,7 +458,32 @@ def insert_snapshot_row(connection, table, row):
 def snapshot_deleted_record(connection, entity, entity_id):
     """Capture one important operational record and everything needed to restore it."""
     payload = {'entity_type': entity, 'original_id': entity_id, 'attachments': []}
-    if entity == 'client':
+    if entity == 'project':
+        payload['record'] = rowdict(connection.execute('select * from projects where id=?', (entity_id,)).fetchone())
+        payload['work_orders'] = rows_for_json(connection, 'select * from work_orders where project_id=? order by id', (entity_id,))
+        payload['samples'] = [snapshot_deleted_record(connection, 'sample', row['id']) for row in connection.execute('select id from samples where project_id=? order by id', (entity_id,))]
+        work_ids = [row['id'] for row in payload['work_orders']]
+        clauses = ["(entity_type='project' and entity_id=?)"]
+        params = [entity_id]
+        if work_ids:
+            marks = ','.join('?' for _ in work_ids); clauses.append("(entity_type='work_order' and entity_id in (" + marks + "))"); params += work_ids
+        payload['attachments'] = rows_for_json(connection, 'select * from record_attachments where ' + ' or '.join(clauses), params)
+        payload['linked_field_visits'] = [row['id'] for row in connection.execute('select id from field_visits where project_id=?', (entity_id,))]
+        payload['linked_quotations'] = [row['id'] for row in connection.execute('select id from quotations where project_id=?', (entity_id,))]
+        payload['linked_contracts'] = [row['id'] for row in connection.execute('select id from contracts where project_id=?', (entity_id,))]
+        payload['linked_complaints'] = [row['id'] for row in connection.execute('select id from customer_complaints where project_id=?', (entity_id,))]
+    elif entity == 'work_order':
+        payload['record'] = rowdict(connection.execute('select * from work_orders where id=?', (entity_id,)).fetchone())
+        payload['attachments'] = rows_for_json(connection, "select * from record_attachments where entity_type='work_order' and entity_id=?", (entity_id,))
+    elif entity == 'equipment':
+        payload['record'] = rowdict(connection.execute('select * from equipment where id=?', (entity_id,)).fetchone())
+        payload['calibration_records'] = rows_for_json(connection, 'select * from calibration_records where equipment_id=? order by id', (entity_id,))
+        payload['maintenance_records'] = rows_for_json(connection, 'select * from maintenance_records where equipment_id=? order by id', (entity_id,))
+        payload['attachments'] = rows_for_json(connection, "select * from record_attachments where entity_type='equipment' and entity_id=?", (entity_id,))
+    elif entity == 'quality_document':
+        payload['record'] = rowdict(connection.execute('select * from quality_documents where id=?', (entity_id,)).fetchone())
+        payload['attachments'] = rows_for_json(connection, "select * from record_attachments where entity_type='quality_document' and entity_id=?", (entity_id,))
+    elif entity == 'client':
         payload['record'] = rowdict(connection.execute('select * from clients where id=?', (entity_id,)).fetchone())
         payload['linked_projects'] = [row['id'] for row in connection.execute('select id from projects where client_id=?', (entity_id,))]
         payload['linked_quotations'] = [row['id'] for row in connection.execute('select id from quotations where client_id=?', (entity_id,))]
@@ -506,7 +531,26 @@ def snapshot_deleted_record(connection, entity, entity_id):
 
 def restore_deleted_record(connection, payload):
     entity = payload['entity_type']
-    if entity == 'client':
+    if entity == 'project':
+        insert_snapshot_row(connection, 'projects', payload['record'])
+        for row in payload.get('work_orders', []): insert_snapshot_row(connection, 'work_orders', row)
+        for sample in payload.get('samples', []): restore_deleted_record(connection, sample)
+        ids = payload.get('linked_field_visits', [])
+        if ids:
+            connection.execute('update field_visits set project_id=? where id in (' + ','.join('?' for _ in ids) + ')', [payload['original_id']] + ids)
+        for table, key in (('quotations','linked_quotations'),('contracts','linked_contracts'),('customer_complaints','linked_complaints')):
+            ids = payload.get(key, [])
+            if ids:
+                connection.execute('update ' + table + ' set project_id=? where id in (' + ','.join('?' for _ in ids) + ')', [payload['original_id']] + ids)
+    elif entity == 'work_order':
+        insert_snapshot_row(connection, 'work_orders', payload['record'])
+    elif entity == 'equipment':
+        insert_snapshot_row(connection, 'equipment', payload['record'])
+        for table in ('calibration_records', 'maintenance_records'):
+            for row in payload.get(table, []): insert_snapshot_row(connection, table, row)
+    elif entity == 'quality_document':
+        insert_snapshot_row(connection, 'quality_documents', payload['record'])
+    elif entity == 'client':
         insert_snapshot_row(connection, 'clients', payload['record'])
         for table, key in (('projects','linked_projects'),('quotations','linked_quotations'),('contracts','linked_contracts'),('customer_complaints','linked_complaints')):
             ids = payload.get(key, [])
@@ -1658,6 +1702,15 @@ class H(BaseHTTPRequestHandler):
                 connection.commit(); publish_event('audit', 'clear', 0)
                 return self.send_json({'ok': True, 'deleted': count})
 
+            if path == '/api/sync/reset':
+                if user.get('role') not in {'admin','general_manager','manager','quality_manager','laboratory_manager'}:
+                    return self.send_json({'error': 'ليس لديك صلاحية إعادة بدء المزامنة'}, 403)
+                count = connection.execute('select count(*) from sync_queue').fetchone()[0]
+                connection.execute('delete from sync_queue')
+                connection.execute("delete from sqlite_sequence where name='sync_queue'")
+                connection.commit(); publish_event('sync', 'reset', 0)
+                return self.send_json({'ok': True, 'deleted': count, 'queued': 0})
+
             if path == '/api/trash/restore':
                 if not self.require_permission(user, 'trash'):
                     return
@@ -1701,17 +1754,47 @@ class H(BaseHTTPRequestHandler):
                 entity_id = parse_optional_int(data.get('id'))
                 if not entity_id:
                     return self.send_json({'error': 'معرف السجل مطلوب'}, 400)
-                names = {'client': 'عميل', 'sample': 'عينة', 'test': 'اختبار', 'report': 'تقرير'}
+                names = {'client':'عميل','project':'مشروع','work_order':'أمر عمل','sample':'عينة','test':'اختبار','report':'تقرير','equipment':'جهاز','quality_document':'وثيقة جودة'}
                 if entity not in names:
                     return self.send_json({'error': 'نوع السجل غير قابل للحذف'}, 400)
                 payload = snapshot_deleted_record(connection, entity, entity_id)
                 if not payload.get('record'):
                     return self.send_json({'error': 'السجل غير موجود'}, 404)
-                label_field = {'client':'name','sample':'sample_no','test':'test_no','report':'report_no'}[entity]
+                label_field = {'client':'name','project':'code','work_order':'order_no','sample':'sample_no','test':'test_no','report':'report_no','equipment':'name','quality_document':'code'}[entity]
                 trash_label = str(payload['record'].get(label_field) or entity_id)
                 connection.execute('insert into trash_items(entity_type,original_id,label,payload_json,deleted_by) values(?,?,?,?,?)',
                                    (entity, entity_id, trash_label, json.dumps(payload, ensure_ascii=False), user['id']))
-                if entity == 'client':
+                if entity == 'project':
+                    current = connection.execute('select code label from projects where id=?', (entity_id,)).fetchone()
+                    sample_ids = [row['id'] for row in connection.execute('select id from samples where project_id=?', (entity_id,))]
+                    for sample_id in sample_ids:
+                        connection.execute("delete from record_attachments where (entity_type='sample' and entity_id=?) or (entity_type='test' and entity_id in (select id from tests where sample_id=?)) or (entity_type='report' and entity_id in (select r.id from reports r join tests t on t.id=r.test_id where t.sample_id=?))", (sample_id, sample_id, sample_id))
+                        connection.execute('update field_visits set sample_id=null where sample_id=?', (sample_id,))
+                        connection.execute('delete from reports where test_id in (select id from tests where sample_id=?)', (sample_id,))
+                        connection.execute('delete from tests where sample_id=?', (sample_id,))
+                        connection.execute('delete from samples where id=?', (sample_id,))
+                    connection.execute("delete from record_attachments where (entity_type='project' and entity_id=?) or (entity_type='work_order' and entity_id in (select id from work_orders where project_id=?))", (entity_id, entity_id))
+                    connection.execute('delete from work_orders where project_id=?', (entity_id,))
+                    connection.execute('update field_visits set project_id=null where project_id=?', (entity_id,))
+                    for table in ('quotations','contracts','customer_complaints'):
+                        connection.execute('update ' + table + ' set project_id=null where project_id=?', (entity_id,))
+                    connection.execute('delete from projects where id=?', (entity_id,))
+                elif entity == 'work_order':
+                    current = connection.execute('select order_no label from work_orders where id=?', (entity_id,)).fetchone()
+                    connection.execute("delete from record_attachments where entity_type='work_order' and entity_id=?", (entity_id,))
+                    connection.execute("delete from whatsapp_drafts where related_entity='work_order' and related_id=?", (entity_id,))
+                    connection.execute('delete from work_orders where id=?', (entity_id,))
+                elif entity == 'equipment':
+                    current = connection.execute('select name label from equipment where id=?', (entity_id,)).fetchone()
+                    connection.execute("delete from record_attachments where entity_type='equipment' and entity_id=?", (entity_id,))
+                    connection.execute('delete from maintenance_records where equipment_id=?', (entity_id,))
+                    connection.execute('delete from calibration_records where equipment_id=?', (entity_id,))
+                    connection.execute('delete from equipment where id=?', (entity_id,))
+                elif entity == 'quality_document':
+                    current = connection.execute('select code label from quality_documents where id=?', (entity_id,)).fetchone()
+                    connection.execute("delete from record_attachments where entity_type='quality_document' and entity_id=?", (entity_id,))
+                    connection.execute('delete from quality_documents where id=?', (entity_id,))
+                elif entity == 'client':
                     current = connection.execute('select name label from clients where id=?', (entity_id,)).fetchone()
                     if not current:
                         return self.send_json({'error': 'العميل غير موجود'}, 404)
@@ -1747,7 +1830,6 @@ class H(BaseHTTPRequestHandler):
                     connection.execute('delete from reports where id=?', (entity_id,))
                 connection.execute('delete from sync_queue where entity=? and entity_id=?', (entity, entity_id))
                 queue_sync(connection, entity, entity_id, 'delete', {'label': current['label']})
-                audit(connection, user['id'], 'حذف ' + names[entity], entity, entity_id, current['label'])
                 connection.commit(); publish_event(entity, 'delete', entity_id)
                 return self.send_json({'ok': True, 'deleted': 1})
 
