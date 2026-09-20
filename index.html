@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
-  <meta name="theme-color" content="#123f4a">
+  <meta name="theme-color" content="#0b1f33">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-2-14-unified-delete-sync-reset">
+  <link rel="stylesheet" href="style.css?v=10-2-15-approved-palette">
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -444,18 +444,18 @@
     <div class="modal-card"><button id="closeModal" class="icon-btn modal-close" type="button" aria-label="إغلاق">×</button><div id="modalBody"></div></div>
   </div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=10-2-14-unified-delete-sync-reset"></script>
-  <script src="i18n.js?v=10-2-14-unified-delete-sync-reset"></script>
-  <script src="app-password.js?v=10-2-14-unified-delete-sync-reset"></script>
+  <script src="runtime-config.js?v=10-2-15-approved-palette"></script>
+  <script src="i18n.js?v=10-2-15-approved-palette"></script>
+  <script src="app-password.js?v=10-2-15-approved-palette"></script>
   <script src="quality-management.js?v=10-3-0-quality-management"></script>
-  <script src="branch-map.js?v=10-2-14-unified-delete-sync-reset"></script>
+  <script src="branch-map.js?v=10-2-15-approved-palette"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-14-unified-delete-sync-reset'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-2-15-approved-palette'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-2-14-unified-delete-sync-reset', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-2-15-approved-palette', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>
