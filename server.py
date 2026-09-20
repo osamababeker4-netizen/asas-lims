@@ -1661,19 +1661,19 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'تصفير النظام متاح لمدير النظام ومدير الجودة فقط'}, 403)
                 if str(data.get('confirmation') or '') != 'RESET-ASAS-OPERATIONAL':
                     return self.send_json({'error': 'رمز تأكيد التصفير غير صحيح'}, 400)
-                keep_names = ['أسامة']
-                keep_rows = []
-                for name in keep_names:
-                    matches = connection.execute("select id,username,full_name,role from users where active=1 and (trim(full_name)=? or full_name like ? or trim(username)=?)", (name, '%'+name+'%', name)).fetchall()
-                    if len(matches) != 1:
-                        return self.send_json({'error': 'لم يتم التصفير: يجب أن يطابق الاسم «'+name+'» مستخدمًا نشطًا واحدًا فقط'}, 409)
-                    keep_rows.append(matches[0])
-                keep_ids = list(dict.fromkeys(row['id'] for row in keep_rows))
-                if len(keep_ids) != 1:
-                    return self.send_json({'error': 'لم يتم التصفير: حساب أسامة غير متطابق'}, 409)
-                osama = keep_rows[0]
-                if osama['role'] not in {'admin','quality_manager'}:
-                    return self.send_json({'error': 'لم يتم التصفير: يجب أن يكون حساب أسامة مدير النظام أو مدير الجودة'}, 409)
+                # Preserve the authenticated manager who explicitly performs the reset.
+                # Account display names may be Arabic or English, so name matching is
+                # both brittle and unsafe for a destructive operation.
+                manager = connection.execute(
+                    'select id,username,full_name,role from users where id=? and active=1',
+                    (user['id'],)
+                ).fetchone()
+                if not manager:
+                    return self.send_json({'error': 'لم يتم التصفير: حساب المدير الحالي غير موجود أو غير نشط'}, 409)
+                if manager['role'] not in {'admin','quality_manager'}:
+                    return self.send_json({'error': 'لم يتم التصفير: الحساب الحالي ليس مدير النظام أو مدير الجودة'}, 409)
+                keep_rows = [manager]
+                keep_ids = [manager['id']]
                 os.makedirs(BACKUP_DIR, exist_ok=True)
                 stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
                 backup_name = 'before-operational-reset-' + stamp + '.sqlite3'
@@ -1702,6 +1702,10 @@ class H(BaseHTTPRequestHandler):
                     raise
                 finally:
                     connection.execute('PRAGMA foreign_keys=ON')
+                for token, open_session in list(SESSIONS.items()):
+                    account = open_session.get('user', open_session)
+                    if account.get('id') != manager['id']:
+                        SESSIONS.pop(token, None)
                 publish_event('system', 'operational_reset', 0)
                 return self.send_json({'ok': True, 'backup': backup_name, 'preserved_users': [dict(row) for row in keep_rows], 'deleted': deleted, 'queued': 0})
 
