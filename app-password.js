@@ -202,6 +202,12 @@ function localAudit(data, action, entity, details) {
   data.audit.unshift({id:localId(data.audit),created_at:saudiNow(),full_name:currentUser ? currentUser.full_name : 'محلي',action:action,entity:entity,details:details});
 }
 
+const IMPACTFUL_AUDIT_ENTITIES = ['client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user'];
+
+function impactfulAuditRows(rows) {
+  return (rows || []).filter(function(item) { return IMPACTFUL_AUDIT_ENTITIES.indexOf(item.entity) >= 0; });
+}
+
 function localQueue(data, entity, entityId, operation) {
   data.syncQueue.unshift({id:localId(data.syncQueue),entity:entity,entity_id:entityId,operation:operation,status:'queued',attempts:0,created_at:saudiNow()});
 }
@@ -238,7 +244,7 @@ function localDashboard(data) {
   });
   return {
     counts:{projects:projects.length,work_orders:orders.length,samples:samples.length,tests:tests.length,reports:reports.length,equipment:data.equipment.length,field_visits:data.visits.length,sync_queue:data.syncQueue.length},
-    projects:projects,work_orders:orders,clients:data.clients.slice().reverse(),samples:samples.slice().reverse().map(function(sample) { return Object.assign({}, sample, {planned_tests_count:(sample.test_plan || []).length}); }),tests:tests.slice().reverse(),reports:reports.slice().reverse(),equipment:data.equipment.slice().reverse(),audit:data.audit,activity:data.audit.slice(0,15),sync:data.syncQueue,
+    projects:projects,work_orders:orders,clients:data.clients.slice().reverse(),samples:samples.slice().reverse().map(function(sample) { return Object.assign({}, sample, {planned_tests_count:(sample.test_plan || []).length}); }),tests:tests.slice().reverse(),reports:reports.slice().reverse(),equipment:data.equipment.slice().reverse(),audit:impactfulAuditRows(data.audit).slice(0,150),activity:impactfulAuditRows(data.audit).slice(0,15),sync:data.syncQueue,
     alerts:{
       blocked_projects:projects.filter(function(item) { return item.status === 'موقوف'; }),
       overdue_work_orders:orders.filter(function(item) { return item.due_date && item.due_date < today() && item.status !== 'مكتمل'; }),
@@ -287,6 +293,31 @@ function staticApi(path, options) {
   if (path === '/api/audit/clear') {
     if (!currentUser || ['admin','quality_manager'].indexOf(currentUser.role) < 0) throw new Error('الحذف متاح لمدير النظام ومدير الجودة فقط');
     const count=data.audit.length;data.audit=[];localAudit(data,'مسح سجل التدقيق','audit','تم حذف '+count+' عملية سابقة');saveLocal(data);return {ok:true,deleted:count};
+  }
+  if (path === '/api/records/delete') {
+    if (!currentUser || ['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role) < 0) throw new Error('ليس لديك صلاحية حذف السجلات');
+    const entity=String(body.entity||'');const id=Number(body.id);let label='';
+    if (!id) throw new Error('معرف السجل مطلوب');
+    if (entity === 'client') {
+      const item=data.clients.find(function(row){return row.id===id;});if(!item)throw new Error('العميل غير موجود');label=item.name;
+      data.projects.forEach(function(project){if(Number(project.client_id)===id)project.client_id=null;});
+      data.clients=data.clients.filter(function(row){return row.id!==id;});
+    } else if (entity === 'sample') {
+      const item=data.samples.find(function(row){return row.id===id;});if(!item)throw new Error('العينة غير موجودة');label=item.sample_no;
+      const testIds=data.tests.filter(function(test){return Number(test.sample_id)===id;}).map(function(test){return test.id;});
+      data.reports=data.reports.filter(function(report){return testIds.indexOf(Number(report.test_id))<0;});
+      data.tests=data.tests.filter(function(test){return Number(test.sample_id)!==id;});
+      data.samples=data.samples.filter(function(row){return row.id!==id;});
+    } else if (entity === 'test') {
+      const item=data.tests.find(function(row){return row.id===id;});if(!item)throw new Error('الاختبار غير موجود');label=item.test_no;
+      data.reports=data.reports.filter(function(report){return Number(report.test_id)!==id;});
+      data.tests=data.tests.filter(function(row){return row.id!==id;});
+    } else if (entity === 'report') {
+      const item=data.reports.find(function(row){return row.id===id;});if(!item)throw new Error('التقرير غير موجود');label=item.report_no;
+      data.reports=data.reports.filter(function(row){return row.id!==id;});
+    } else throw new Error('نوع السجل غير قابل للحذف');
+    const names={client:'عميل',sample:'عينة',test:'اختبار',report:'تقرير'};
+    localQueue(data,entity,id,'delete');localAudit(data,'حذف '+names[entity],entity,label);saveLocal(data);return {ok:true,deleted:1};
   }
   if (path === '/api/auth/change-password') {
     const user = data.users.find(function(item) { return item.id === currentUser.id; });
@@ -819,18 +850,21 @@ function renderWorkOrders() {
 }
 
 function renderClients() {
-  setHtml($('clientsTable'), (dashboard ? dashboard.clients : []).map(function(client) { return '<tr><td>' + esc(client.name) + '</td><td>' + esc(client.phone || '') + '</td><td>' + esc(client.email || '') + '</td></tr>'; }).join('') || '<tr><td colspan="3" class="empty">لا يوجد عملاء.</td></tr>');
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+  setHtml($('clientsTable'), (dashboard ? dashboard.clients : []).map(function(client) { return '<tr><td>' + esc(client.name) + '</td><td>' + esc(client.phone || '') + '</td><td>' + esc(client.email || '') + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="client" data-record-id="'+client.id+'" data-record-label="'+esc(client.name)+'" type="button">حذف</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="4" class="empty">لا يوجد عملاء.</td></tr>');
 }
 
 function renderSamples() {
-  setHtml($('samplesTable'), (dashboard ? dashboard.samples : []).map(function(sample) { return '<tr><td><strong>' + esc(sample.sample_no) + '</strong></td><td>' + esc(sample.project_code || '—') + '<small>' + esc(sample.project_name || '') + '</small></td><td>' + escUI(sample.material) + '</td><td>' + esc(sample.planned_tests_count || 0) + ' اختباراً تلقائياً</td><td>' + esc(sample.received_date) + '</td><td>' + statusChip(sample.status) + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد عينات.</td></tr>');
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+  setHtml($('samplesTable'), (dashboard ? dashboard.samples : []).map(function(sample) { return '<tr><td><strong>' + esc(sample.sample_no) + '</strong></td><td>' + esc(sample.project_code || '—') + '<small>' + esc(sample.project_name || '') + '</small></td><td>' + escUI(sample.material) + '</td><td>' + esc(sample.planned_tests_count || 0) + ' اختباراً تلقائياً</td><td>' + esc(sample.received_date) + '</td><td>' + statusChip(sample.status) + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="sample" data-record-id="'+sample.id+'" data-record-label="'+esc(sample.sample_no)+'" type="button">حذف</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد عينات.</td></tr>');
 }
 
 function renderTests() {
   setHtml($('testsTable'), (dashboard ? dashboard.tests : []).map(function(test) {
     const result = test.mdd !== null && test.mdd !== undefined ? 'MDD ' + Number(test.mdd).toFixed(3) + ' / OMC ' + Number(test.omc).toFixed(2) + '%' : '—';
     const canAssign = currentUser && ['admin','manager','quality_manager'].indexOf(currentUser.role) >= 0;
-    return '<tr><td><strong>' + esc(test.test_no) + '</strong></td><td>' + esc(test.sample_no) + '</td><td>' + escUI(test.name_ar) + '<small>' + esc(test.code) + '</small></td><td>' + esc(test.standard) + '</td><td>' + escUI(test.technician_name || 'غير مسند') + '</td><td>' + esc(result) + '</td><td>' + statusChip(test.status) + '</td><td>' + (canAssign ? '<button class="text-btn" data-test-assign="' + test.id + '" type="button">إسناد لفني</button>' : '—') + '</td></tr>';
+    const canDelete = currentUser && ['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role) >= 0;
+    return '<tr><td><strong>' + esc(test.test_no) + '</strong></td><td>' + esc(test.sample_no) + '</td><td>' + escUI(test.name_ar) + '<small>' + esc(test.code) + '</small></td><td>' + esc(test.standard) + '</td><td>' + escUI(test.technician_name || 'غير مسند') + '</td><td>' + esc(result) + '</td><td>' + statusChip(test.status) + '</td><td><div class="row-actions">' + (canAssign ? '<button class="text-btn" data-test-assign="' + test.id + '" type="button">إسناد لفني</button>' : '') + (canDelete?'<button class="text-btn danger-link" data-record-delete="test" data-record-id="'+test.id+'" data-record-label="'+esc(test.test_no)+'" type="button">حذف</button>':'') + '</div></td></tr>';
   }).join('') || '<tr><td colspan="8" class="empty">لا توجد اختبارات.</td></tr>');
 }
 
@@ -848,8 +882,9 @@ function openCatalogResources(id) { const item=catalog.find(function(x){return x
 async function submitCatalogResources(form) { const catalogId=form.elements.catalog_id.value; let count=0; for(const type of ['astm','worksheet','results']) { const file=form.elements[type].files[0]; if(!file)continue; if(file.size>25*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 25MB'); const bytes=new Uint8Array(await file.arrayBuffer()); let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/catalog/resources',{method:'POST',body:JSON.stringify({catalog_id:catalogId,resource_type:type,file_name:file.name,file_base64:btoa(binary)})});count++; } if(!count)throw new Error('اختر ملفًا واحدًا على الأقل');closeModal();await refresh();showToast('تم ربط ملفات الاختبار بدليل الجودة'); }
 
 function renderReports() {
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
   setHtml($('reportsTable'), (dashboard ? dashboard.reports : []).map(function(report) {
-    return '<tr><td><strong>' + esc(report.report_no) + '</strong></td><td>' + esc(report.sample_no || '') + '<small>' + escUI(report.name_ar) + ' · ' + esc(report.test_no) + '</small></td><td>' + statusChip(report.status) + '</td><td>' + esc(saudiDisplay(report.issued_at)) + '</td><td><div class="row-actions"><button class="text-btn" data-report-print="' + report.test_id + '" type="button">طباعة</button><button class="text-btn" data-report-review="' + report.id + '" type="button">حالة</button></div></td></tr>';
+    return '<tr><td><strong>' + esc(report.report_no) + '</strong></td><td>' + esc(report.sample_no || '') + '<small>' + escUI(report.name_ar) + ' · ' + esc(report.test_no) + '</small></td><td>' + statusChip(report.status) + '</td><td>' + esc(saudiDisplay(report.issued_at)) + '</td><td><div class="row-actions"><button class="text-btn" data-report-print="' + report.test_id + '" type="button">طباعة</button><button class="text-btn" data-report-review="' + report.id + '" type="button">حالة</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="report" data-record-id="'+report.id+'" data-record-label="'+esc(report.report_no)+'" type="button">حذف</button>':'')+'</div></td></tr>';
   }).join('') || '<tr><td colspan="5" class="empty">لا توجد تقارير.</td></tr>');
 }
 
@@ -894,6 +929,7 @@ function renderAudit() {
 
 async function deleteAuditEntry(id){if(!window.confirm('هل تريد حذف هذا السجل؟ سيُسجل النظام واقعة الحذف الجديدة.'))return;await api('/api/audit/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف السجل ومزامنة التغيير');}
 async function clearAuditLog(){if(!window.confirm('هل تريد حذف سجل التدقيق بالكامل؟ لا يمكن التراجع عن هذه العملية.'))return;const result=await api('/api/audit/clear',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' عملية ومزامنة التغيير');}
+async function deleteRecord(entity,id,label){const names={client:'العميل',sample:'العينة',test:'الاختبار',report:'التقرير'};if(!window.confirm('هل تريد حذف '+(names[entity]||'السجل')+' '+(label||'')+'؟'))return;await api('/api/records/delete',{method:'POST',body:JSON.stringify({entity:entity,id:Number(id)})});await refresh();showToast('تم الحذف ومزامنة التغيير');}
 
 async function renderUsers() {
   try {
@@ -1853,6 +1889,7 @@ function bindEvents() {
     if (button.dataset.fieldRemove !== undefined) { fieldTests.splice(Number(button.dataset.fieldRemove),1); renderFieldTests(); return; }
     if (button.dataset.fieldStatus) return setFieldStatus(button.dataset.fieldStatus);
     if (button.dataset.auditDelete) return deleteAuditEntry(button.dataset.auditDelete);
+    if (button.dataset.recordDelete) return deleteRecord(button.dataset.recordDelete,button.dataset.recordId,button.dataset.recordLabel).catch(function(error){showToast(error.message,true);});
     if (button.hasAttribute('data-print-preview')) return window.print();
     if (button.dataset.reportPrint) return printReport(button.dataset.reportPrint);
     if (button.dataset.reportReview) return changeReportStatus(button.dataset.reportReview);

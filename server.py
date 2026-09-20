@@ -1087,8 +1087,8 @@ class H(BaseHTTPRequestHandler):
             'tests': q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,pr.mdd,pr.omc,u.full_name technician_name from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id left join users u on u.id=t.technician_id order by t.id desc'),
             'reports': q('select r.*,t.test_no,tc.name_ar,s.sample_no from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id order by r.id desc'),
             'equipment': q("select * from equipment order by coalesce(section,''),coalesce(equipment_code,''),name,id"),
-            'audit': q('select a.*,u.full_name from audit_log a left join users u on u.id=a.user_id order by a.id desc limit 150'),
-            'activity': q('select created_at,action,details from audit_log order by id desc limit 15'),
+            'audit': q("select a.*,u.full_name from audit_log a left join users u on u.id=a.user_id where a.entity in ('client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user') order by a.id desc limit 150"),
+            'activity': q("select created_at,action,details from audit_log where entity in ('client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user') order by id desc limit 15"),
             'alerts': alerts,
             'sync': q("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue where status='queued' order by id desc limit 30"),
             'technicians': q("select id,full_name,username from users where active=1 and role in ('technician','field') order by full_name")
@@ -1552,6 +1552,56 @@ class H(BaseHTTPRequestHandler):
                 audit(connection, user['id'], 'مسح سجل التدقيق', 'audit', 0, 'تم حذف {} عملية سابقة'.format(count))
                 connection.commit(); publish_event('audit', 'clear', 0)
                 return self.send_json({'ok': True, 'deleted': count})
+
+            if path == '/api/records/delete':
+                if user.get('role') not in {'admin', 'general_manager', 'manager', 'quality_manager', 'laboratory_manager'}:
+                    return self.send_json({'error': 'ليس لديك صلاحية حذف السجلات'}, 403)
+                entity = str(data.get('entity') or '').strip()
+                entity_id = parse_optional_int(data.get('id'))
+                if not entity_id:
+                    return self.send_json({'error': 'معرف السجل مطلوب'}, 400)
+                names = {'client': 'عميل', 'sample': 'عينة', 'test': 'اختبار', 'report': 'تقرير'}
+                if entity not in names:
+                    return self.send_json({'error': 'نوع السجل غير قابل للحذف'}, 400)
+                if entity == 'client':
+                    current = connection.execute('select name label from clients where id=?', (entity_id,)).fetchone()
+                    if not current:
+                        return self.send_json({'error': 'العميل غير موجود'}, 404)
+                    for table in ('projects', 'quotations', 'contracts', 'customer_complaints'):
+                        connection.execute('update ' + table + ' set client_id=null where client_id=?', (entity_id,))
+                    connection.execute("delete from record_attachments where entity_type='client' and entity_id=?", (entity_id,))
+                    connection.execute("delete from whatsapp_drafts where related_entity='client' and related_id=?", (entity_id,))
+                    connection.execute('delete from clients where id=?', (entity_id,))
+                elif entity == 'sample':
+                    current = connection.execute('select sample_no label from samples where id=?', (entity_id,)).fetchone()
+                    if not current:
+                        return self.send_json({'error': 'العينة غير موجودة'}, 404)
+                    connection.execute("delete from record_attachments where (entity_type='sample' and entity_id=?) or (entity_type='test' and entity_id in (select id from tests where sample_id=?)) or (entity_type='report' and entity_id in (select r.id from reports r join tests t on t.id=r.test_id where t.sample_id=?))", (entity_id, entity_id, entity_id))
+                    connection.execute("delete from whatsapp_drafts where (related_entity='sample' and related_id=?) or (related_entity='test' and related_id in (select id from tests where sample_id=?)) or (related_entity='report' and related_id in (select r.id from reports r join tests t on t.id=r.test_id where t.sample_id=?))", (entity_id, entity_id, entity_id))
+                    connection.execute('update field_visits set sample_id=null where sample_id=?', (entity_id,))
+                    connection.execute('delete from reports where test_id in (select id from tests where sample_id=?)', (entity_id,))
+                    connection.execute('delete from tests where sample_id=?', (entity_id,))
+                    connection.execute('delete from samples where id=?', (entity_id,))
+                elif entity == 'test':
+                    current = connection.execute('select test_no label from tests where id=?', (entity_id,)).fetchone()
+                    if not current:
+                        return self.send_json({'error': 'الاختبار غير موجود'}, 404)
+                    connection.execute("delete from record_attachments where (entity_type='test' and entity_id=?) or (entity_type='report' and entity_id in (select id from reports where test_id=?))", (entity_id, entity_id))
+                    connection.execute("delete from whatsapp_drafts where (related_entity='test' and related_id=?) or (related_entity='report' and related_id in (select id from reports where test_id=?))", (entity_id, entity_id))
+                    connection.execute('delete from reports where test_id=?', (entity_id,))
+                    connection.execute('delete from tests where id=?', (entity_id,))
+                else:
+                    current = connection.execute('select report_no label from reports where id=?', (entity_id,)).fetchone()
+                    if not current:
+                        return self.send_json({'error': 'التقرير غير موجود'}, 404)
+                    connection.execute("delete from record_attachments where entity_type='report' and entity_id=?", (entity_id,))
+                    connection.execute("delete from whatsapp_drafts where related_entity='report' and related_id=?", (entity_id,))
+                    connection.execute('delete from reports where id=?', (entity_id,))
+                connection.execute('delete from sync_queue where entity=? and entity_id=?', (entity, entity_id))
+                queue_sync(connection, entity, entity_id, 'delete', {'label': current['label']})
+                audit(connection, user['id'], 'حذف ' + names[entity], entity, entity_id, current['label'])
+                connection.commit(); publish_event(entity, 'delete', entity_id)
+                return self.send_json({'ok': True, 'deleted': 1})
 
             if path == '/api/auth/change-password':
                 current_password = str(data.get('current_password') or '')

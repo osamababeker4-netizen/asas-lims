@@ -205,6 +205,68 @@ class SchemaMigrationTests(unittest.TestCase):
             httpd.server_close()
             worker.join(timeout=5)
 
+    def test_direct_core_record_delete_and_impactful_audit_filter(self):
+        self.server.init()
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        catalog_id = connection.execute('select id from test_catalog order by id limit 1').fetchone()['id']
+        connection.execute("insert into clients(name) values('عميل للحذف')")
+        client_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+        connection.execute("insert into projects(code,name,client_id) values('DEL-PR-1','مشروع باقٍ',?)", (client_id,))
+        project_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+        connection.execute("insert into samples(sample_no,project_id,material,received_date) values('DEL-S-1',?,'تربة','2026-09-20')", (project_id,))
+        sample_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+        connection.execute("insert into tests(test_no,sample_id,catalog_id) values('DEL-T-1',?,?)", (sample_id, catalog_id))
+        test_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+        connection.execute("insert into reports(report_no,test_id) values('DEL-R-1',?)", (test_id,))
+        connection.execute("insert into audit_log(user_id,action,entity,entity_id,details) values(?,?,?,?,?)", (admin['id'],'مزامنة تلقائية','system',0,'غير مؤثر'))
+        connection.commit(); connection.close()
+        token = self.server.create_session(admin)
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start(); port = httpd.server_address[1]
+
+        def request(method, path, payload=None):
+            client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            headers = {'Authorization': 'Bearer ' + token}
+            body = None
+            if payload is not None:
+                headers['Content-Type'] = 'application/json'; body = json.dumps(payload).encode('utf-8')
+            client.request(method, path, body, headers)
+            response = client.getresponse(); data = json.loads(response.read().decode('utf-8')); client.close()
+            return response.status, data
+
+        try:
+            self.assertEqual(request('POST','/api/records/delete',{'entity':'sample','id':sample_id})[0], 200)
+            connection = self.server.db()
+            self.assertEqual(connection.execute('select count(*) from samples where id=?',(sample_id,)).fetchone()[0], 0)
+            self.assertEqual(connection.execute('select count(*) from tests where id=?',(test_id,)).fetchone()[0], 0)
+            self.assertEqual(connection.execute("select count(*) from reports where report_no='DEL-R-1'").fetchone()[0], 0)
+            connection.close()
+            self.assertEqual(request('POST','/api/records/delete',{'entity':'client','id':client_id})[0], 200)
+            connection = self.server.db()
+            project = connection.execute('select client_id from projects where id=?',(project_id,)).fetchone()
+            connection.close()
+            self.assertIsNotNone(project); self.assertIsNone(project['client_id'])
+            status, dashboard = request('GET','/api/dashboard')
+            self.assertEqual(status, 200)
+            self.assertTrue(all(item.get('entity') in {'client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user'} for item in dashboard['audit']))
+            self.assertNotIn('مزامنة تلقائية', [item.get('action') for item in dashboard['audit']])
+        finally:
+            self.server.SESSIONS.pop(token, None)
+            httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
+
+    def test_core_tables_show_plain_delete_buttons(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        self.assertIn("data-record-delete=\"client\"", app)
+        self.assertIn("data-record-delete=\"sample\"", app)
+        self.assertIn("data-record-delete=\"test\"", app)
+        self.assertIn("data-record-delete=\"report\"", app)
+        self.assertIn("type=\"button\">حذف</button>", app)
+        self.assertIn('<th>البريد</th><th></th>', html)
+        self.assertIn('<th>الحالة</th><th></th>', html)
+
     def test_safe_upload_picker_and_drag_drop_are_available(self):
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
         css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
