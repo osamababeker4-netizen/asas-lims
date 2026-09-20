@@ -7,7 +7,7 @@ import urllib.request
 API='https://asas-lims-api.onrender.com'
 PAGES='https://osamababeker4-netizen.github.io/asas-lims/'
 ORIGIN='https://osamababeker4-netizen.github.io'
-EXPECTED_VERSION='10.2.21-field-guide-file-actions'
+EXPECTED_VERSION='10.2.22-field-sidebar-layout'
 STRICT_PRODUCTION=os.environ.get('GITHUB_REF') == 'refs/heads/main'
 
 def once(req):
@@ -30,7 +30,7 @@ def retry(check, attempts=18, delay=10):
     raise AssertionError('production acceptance timed out')
 
 def health_check():
-    status, headers, body=once(urllib.request.Request(API+'/api/health', headers={'User-Agent':'ASAS-LIMS-Acceptance/10.2.21'}))
+    status, headers, body=once(urllib.request.Request(API+'/api/health', headers={'User-Agent':'ASAS-LIMS-Acceptance/10.2.22'}))
     payload=json.loads(body.decode('utf-8'))
     if status != 200 or payload.get('status') != 'ok' or payload.get('database') != 'ready' or payload.get('service') != 'asas-lims':
         return None
@@ -47,7 +47,7 @@ preflight=urllib.request.Request(
         'Origin': ORIGIN,
         'Access-Control-Request-Method':'POST',
         'Access-Control-Request-Headers':'content-type,authorization',
-        'User-Agent':'ASAS-LIMS-Acceptance/10.2.21'
+        'User-Agent':'ASAS-LIMS-Acceptance/10.2.22'
     }
 )
 status, headers, body=once(preflight)
@@ -58,9 +58,9 @@ assert cors_headers.get('access-control-allow-origin') == ORIGIN, headers
 pages_state='not-required-on-pr'
 if STRICT_PRODUCTION:
     def pages_check():
-        status, headers, body=once(urllib.request.Request(PAGES, headers={'Cache-Control':'no-cache','User-Agent':'ASAS-LIMS-Acceptance/10.2.21'}))
+        status, headers, body=once(urllib.request.Request(PAGES, headers={'Cache-Control':'no-cache','User-Agent':'ASAS-LIMS-Acceptance/10.2.22'}))
         text=body.decode('utf-8','replace')
-        if status == 200 and 'V10.2.21 File Actions' in text and '10-2-21-field-guide-file-actions' in text:
+        if status == 200 and 'V10.2.22 Field Sidebar' in text and '10-2-22-field-sidebar-layout' in text:
             return 'current'
         return None
     pages_state=retry(pages_check)
