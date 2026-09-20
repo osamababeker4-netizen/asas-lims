@@ -52,7 +52,7 @@ PRIORITIES = {'منخفضة', 'متوسطة', 'عالية', 'حرجة'}
 
 ROLE_PERMS = {
     'admin': {'*'},
-    'general_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync', 'settings'},
+    'general_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'trash', 'users', 'sync', 'settings'},
     'technical_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
     'laboratory_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
     # مدير الجودة مخوّل كمدير شامل: إضافة وتعديل واعتماد وإدارة المستخدمين والإعدادات.
@@ -60,7 +60,7 @@ ROLE_PERMS = {
     'quality_officer': {'dashboard', 'quality'},
     'calibration_officer': {'dashboard', 'quality'},
     'document_controller': {'dashboard', 'quality'},
-    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'users', 'sync', 'settings'},
+    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'trash', 'users', 'sync', 'settings'},
     'quality': {'dashboard', 'quality'},
     'technician': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports'},
     'field': {'dashboard', 'field', 'clients', 'projects', 'samples'}
@@ -181,7 +181,7 @@ SMART_SECTIONS = {
     'quality': ('quality', 'quality'), 'company': ('company', 'dashboard'),
     'technicalLibrary': ('technical_library', 'quality'),
     'companyVault': ('company_vault', 'users'),
-    'audit': ('audit', 'audit'), 'users': ('user', 'users'), 'settings': ('settings', 'settings'),
+    'audit': ('audit', 'audit'), 'trash': ('trash', 'trash'), 'users': ('user', 'users'), 'settings': ('settings', 'settings'),
     'equipment': ('equipment', 'equipment')
 }
 
@@ -437,6 +437,97 @@ def queue_sync(connection, entity, entity_id, operation, payload):
         'insert into sync_queue(entity,entity_id,operation,payload_json) values(?,?,?,?)',
         (entity, entity_id, operation, json.dumps(payload, ensure_ascii=False))
     )
+
+
+def rows_for_json(connection, sql, params=()):
+    return [dict(row) for row in connection.execute(sql, params).fetchall()]
+
+
+def insert_snapshot_row(connection, table, row):
+    if not row:
+        return
+    columns = list(row.keys())
+    connection.execute(
+        'insert or replace into {}({}) values({})'.format(
+            table, ','.join(columns), ','.join('?' for _ in columns)
+        ),
+        tuple(row[column] for column in columns)
+    )
+
+
+def snapshot_deleted_record(connection, entity, entity_id):
+    """Capture one important operational record and everything needed to restore it."""
+    payload = {'entity_type': entity, 'original_id': entity_id, 'attachments': []}
+    if entity == 'client':
+        payload['record'] = rowdict(connection.execute('select * from clients where id=?', (entity_id,)).fetchone())
+        payload['linked_projects'] = [row['id'] for row in connection.execute('select id from projects where client_id=?', (entity_id,))]
+        payload['linked_quotations'] = [row['id'] for row in connection.execute('select id from quotations where client_id=?', (entity_id,))]
+        payload['linked_contracts'] = [row['id'] for row in connection.execute('select id from contracts where client_id=?', (entity_id,))]
+        payload['linked_complaints'] = [row['id'] for row in connection.execute('select id from customer_complaints where client_id=?', (entity_id,))]
+        payload['attachments'] = rows_for_json(connection, "select * from record_attachments where entity_type='client' and entity_id=?", (entity_id,))
+    elif entity == 'sample':
+        payload['record'] = rowdict(connection.execute('select * from samples where id=?', (entity_id,)).fetchone())
+        payload['tests'] = rows_for_json(connection, 'select * from tests where sample_id=? order by id', (entity_id,))
+        test_ids = [row['id'] for row in payload['tests']]
+        if test_ids:
+            marks = ','.join('?' for _ in test_ids)
+            payload['reports'] = rows_for_json(connection, 'select * from reports where test_id in (' + marks + ') order by id', test_ids)
+            payload['test_data'] = rows_for_json(connection, 'select * from test_data where test_id in (' + marks + ') order by id', test_ids)
+            payload['proctor_points'] = rows_for_json(connection, 'select * from proctor_points where test_id in (' + marks + ') order by id', test_ids)
+            payload['proctor_results'] = rows_for_json(connection, 'select * from proctor_results where test_id in (' + marks + ')', test_ids)
+            report_ids = [row['id'] for row in payload['reports']]
+            clauses = ["(entity_type='sample' and entity_id=?)", "(entity_type='test' and entity_id in (" + marks + "))"]
+            params = [entity_id] + test_ids
+            if report_ids:
+                report_marks = ','.join('?' for _ in report_ids)
+                clauses.append("(entity_type='report' and entity_id in (" + report_marks + "))")
+                params += report_ids
+            payload['attachments'] = rows_for_json(connection, 'select * from record_attachments where ' + ' or '.join(clauses), params)
+        payload['linked_field_visits'] = [row['id'] for row in connection.execute('select id from field_visits where sample_id=?', (entity_id,))]
+    elif entity == 'test':
+        payload['record'] = rowdict(connection.execute('select * from tests where id=?', (entity_id,)).fetchone())
+        payload['reports'] = rows_for_json(connection, 'select * from reports where test_id=? order by id', (entity_id,))
+        payload['test_data'] = rows_for_json(connection, 'select * from test_data where test_id=? order by id', (entity_id,))
+        payload['proctor_points'] = rows_for_json(connection, 'select * from proctor_points where test_id=? order by id', (entity_id,))
+        payload['proctor_results'] = rows_for_json(connection, 'select * from proctor_results where test_id=?', (entity_id,))
+        report_ids = [row['id'] for row in payload['reports']]
+        clauses = ["(entity_type='test' and entity_id=?)"]
+        params = [entity_id]
+        if report_ids:
+            marks = ','.join('?' for _ in report_ids)
+            clauses.append("(entity_type='report' and entity_id in (" + marks + "))")
+            params += report_ids
+        payload['attachments'] = rows_for_json(connection, 'select * from record_attachments where ' + ' or '.join(clauses), params)
+    elif entity == 'report':
+        payload['record'] = rowdict(connection.execute('select * from reports where id=?', (entity_id,)).fetchone())
+        payload['attachments'] = rows_for_json(connection, "select * from record_attachments where entity_type='report' and entity_id=?", (entity_id,))
+    return payload
+
+
+def restore_deleted_record(connection, payload):
+    entity = payload['entity_type']
+    if entity == 'client':
+        insert_snapshot_row(connection, 'clients', payload['record'])
+        for table, key in (('projects','linked_projects'),('quotations','linked_quotations'),('contracts','linked_contracts'),('customer_complaints','linked_complaints')):
+            ids = payload.get(key, [])
+            if ids:
+                connection.execute('update ' + table + ' set client_id=? where id in (' + ','.join('?' for _ in ids) + ')', [payload['original_id']] + ids)
+    elif entity == 'sample':
+        insert_snapshot_row(connection, 'samples', payload['record'])
+        for row in payload.get('tests', []): insert_snapshot_row(connection, 'tests', row)
+        for table in ('test_data', 'proctor_points', 'proctor_results', 'reports'):
+            for row in payload.get(table, []): insert_snapshot_row(connection, table, row)
+        ids = payload.get('linked_field_visits', [])
+        if ids:
+            connection.execute('update field_visits set sample_id=? where id in (' + ','.join('?' for _ in ids) + ')', [payload['original_id']] + ids)
+    elif entity == 'test':
+        insert_snapshot_row(connection, 'tests', payload['record'])
+        for table in ('test_data', 'proctor_points', 'proctor_results', 'reports'):
+            for row in payload.get(table, []): insert_snapshot_row(connection, table, row)
+    elif entity == 'report':
+        insert_snapshot_row(connection, 'reports', payload['record'])
+    for row in payload.get('attachments', []):
+        insert_snapshot_row(connection, 'record_attachments', row)
 
 
 def user_from(handler):
@@ -1087,8 +1178,8 @@ class H(BaseHTTPRequestHandler):
             'tests': q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,pr.mdd,pr.omc,u.full_name technician_name from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id left join users u on u.id=t.technician_id order by t.id desc'),
             'reports': q('select r.*,t.test_no,tc.name_ar,s.sample_no from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id order by r.id desc'),
             'equipment': q("select * from equipment order by coalesce(section,''),coalesce(equipment_code,''),name,id"),
-            'audit': q("select a.*,u.full_name from audit_log a left join users u on u.id=a.user_id where a.entity in ('client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user') order by a.id desc limit 150"),
-            'activity': q("select created_at,action,details from audit_log where entity in ('client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user') order by id desc limit 15"),
+            'audit': q("select a.*,u.full_name from audit_log a left join users u on u.id=a.user_id where a.entity in ('client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user') and a.action not like 'حذف %' order by a.id desc limit 150"),
+            'activity': q("select created_at,action,details from audit_log where entity in ('client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user') and action not like 'حذف %' order by id desc limit 15"),
             'alerts': alerts,
             'sync': q("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue where status='queued' order by id desc limit 30"),
             'technicians': q("select id,full_name,username from users where active=1 and role in ('technician','field') order by full_name")
@@ -1290,6 +1381,23 @@ class H(BaseHTTPRequestHandler):
                 if not self.require_permission(user, 'dashboard'):
                     return
                 return self.send_json(self.dashboard(connection, user))
+
+            if path == '/api/trash':
+                if not self.require_permission(user, 'trash'):
+                    return
+                rows = connection.execute('''select t.id,t.entity_type,t.original_id,t.label,t.deleted_at,u.full_name deleted_by_name
+                    from trash_items t left join users u on u.id=t.deleted_by order by t.id desc limit 500''').fetchall()
+                return self.send_json([dict(row) for row in rows])
+
+            if path == '/api/trash/item':
+                if not self.require_permission(user, 'trash'):
+                    return
+                trash_id = parse_optional_int(parse_qs(parsed.query).get('id', [''])[0])
+                row = connection.execute('select id,entity_type,original_id,label,payload_json,deleted_at from trash_items where id=?', (trash_id,)).fetchone()
+                if not row:
+                    return self.send_json({'error': 'العنصر غير موجود في السلة'}, 404)
+                result = dict(row); result['payload'] = json.loads(result.pop('payload_json'))
+                return self.send_json(result)
 
             if path == '/api/projects':
                 if not self.require_permission(user, 'projects'):
@@ -1539,8 +1647,6 @@ class H(BaseHTTPRequestHandler):
                 if not current:
                     return self.send_json({'error': 'سجل التدقيق غير موجود'}, 404)
                 connection.execute('delete from audit_log where id=?', (audit_id,))
-                audit(connection, user['id'], 'حذف سجل تدقيق', 'audit', audit_id,
-                      '{} · {} · {}'.format(current['action'], current['entity'] or '', current['details'] or ''))
                 connection.commit(); publish_event('audit', 'delete', audit_id)
                 return self.send_json({'ok': True, 'deleted': 1})
 
@@ -1549,9 +1655,44 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'الحذف متاح لمدير النظام ومدير الجودة فقط'}, 403)
                 count = connection.execute('select count(*) from audit_log').fetchone()[0]
                 connection.execute('delete from audit_log')
-                audit(connection, user['id'], 'مسح سجل التدقيق', 'audit', 0, 'تم حذف {} عملية سابقة'.format(count))
                 connection.commit(); publish_event('audit', 'clear', 0)
                 return self.send_json({'ok': True, 'deleted': count})
+
+            if path == '/api/trash/restore':
+                if not self.require_permission(user, 'trash'):
+                    return
+                trash_id = parse_optional_int(data.get('id'))
+                row = connection.execute('select * from trash_items where id=?', (trash_id,)).fetchone()
+                if not row:
+                    return self.send_json({'error': 'العنصر غير موجود في السلة'}, 404)
+                payload = json.loads(row['payload_json'])
+                try:
+                    restore_deleted_record(connection, payload)
+                except sqlite3.IntegrityError:
+                    connection.rollback()
+                    return self.send_json({'error': 'تعذر الاستعادة لأن رقم السجل مستخدم حالياً أو أن السجل الأب غير موجود'}, 409)
+                connection.execute('delete from trash_items where id=?', (trash_id,))
+                queue_sync(connection, row['entity_type'], row['original_id'], 'restore', {'label': row['label']})
+                audit(connection, user['id'], 'استعادة من السلة', row['entity_type'], row['original_id'], row['label'])
+                connection.commit(); publish_event(row['entity_type'], 'restore', row['original_id'])
+                return self.send_json({'ok': True, 'restored': 1})
+
+            if path == '/api/trash/delete':
+                if user.get('role') not in {'admin', 'quality_manager'}:
+                    return self.send_json({'error': 'الحذف النهائي متاح لمدير النظام ومدير الجودة فقط'}, 403)
+                trash_id = parse_optional_int(data.get('id'))
+                row = connection.execute('select * from trash_items where id=?', (trash_id,)).fetchone()
+                if not row:
+                    return self.send_json({'error': 'العنصر غير موجود في السلة'}, 404)
+                payload = json.loads(row['payload_json'])
+                for attachment in payload.get('attachments', []):
+                    stored_name = os.path.basename(str(attachment.get('stored_name') or ''))
+                    target = os.path.join(RECORD_UPLOADS, stored_name)
+                    if stored_name and os.path.isfile(target):
+                        os.remove(target)
+                connection.execute('delete from trash_items where id=?', (trash_id,))
+                connection.commit(); publish_event('trash', 'delete', trash_id)
+                return self.send_json({'ok': True, 'deleted': 1})
 
             if path == '/api/records/delete':
                 if user.get('role') not in {'admin', 'general_manager', 'manager', 'quality_manager', 'laboratory_manager'}:
@@ -1563,6 +1704,13 @@ class H(BaseHTTPRequestHandler):
                 names = {'client': 'عميل', 'sample': 'عينة', 'test': 'اختبار', 'report': 'تقرير'}
                 if entity not in names:
                     return self.send_json({'error': 'نوع السجل غير قابل للحذف'}, 400)
+                payload = snapshot_deleted_record(connection, entity, entity_id)
+                if not payload.get('record'):
+                    return self.send_json({'error': 'السجل غير موجود'}, 404)
+                label_field = {'client':'name','sample':'sample_no','test':'test_no','report':'report_no'}[entity]
+                trash_label = str(payload['record'].get(label_field) or entity_id)
+                connection.execute('insert into trash_items(entity_type,original_id,label,payload_json,deleted_by) values(?,?,?,?,?)',
+                                   (entity, entity_id, trash_label, json.dumps(payload, ensure_ascii=False), user['id']))
                 if entity == 'client':
                     current = connection.execute('select name label from clients where id=?', (entity_id,)).fetchone()
                     if not current:

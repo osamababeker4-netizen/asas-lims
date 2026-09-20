@@ -237,6 +237,18 @@ CREATE TABLE IF NOT EXISTS sync_queue(
  sent_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS trash_items(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ entity_type TEXT NOT NULL,
+ original_id INTEGER NOT NULL,
+ label TEXT NOT NULL,
+ payload_json TEXT NOT NULL,
+ deleted_by INTEGER,
+ deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(deleted_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at ON trash_items(deleted_at);
+
 -- Quality records are intentionally separate from technical operations.
 CREATE TABLE IF NOT EXISTS quality_documents(
  id INTEGER PRIMARY KEY AUTOINCREMENT,

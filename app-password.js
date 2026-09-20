@@ -159,9 +159,9 @@ function localDB() {
   let data;
   try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (error) { data = null; }
   if (!data) {
-    data = {users:[],clients:[],projects:[],workOrders:[],samples:[],tests:[],reports:[],equipment:[],visits:[],catalog:[],audit:[],syncQueue:[],settings:{},inventory:[],orderRequests:[]};
+    data = {users:[],clients:[],projects:[],workOrders:[],samples:[],tests:[],reports:[],equipment:[],visits:[],catalog:[],audit:[],trash:[],syncQueue:[],settings:{},inventory:[],orderRequests:[]};
   }
-  ['users','clients','projects','workOrders','samples','tests','reports','equipment','visits','catalog','audit','syncQueue','inventory','orderRequests'].forEach(function(key) {
+  ['users','clients','projects','workOrders','samples','tests','reports','equipment','visits','catalog','audit','trash','syncQueue','inventory','orderRequests'].forEach(function(key) {
     if (!Array.isArray(data[key])) data[key] = [];
   });
   data.catalog = mergeOfficialCatalog(data.catalog);
@@ -205,7 +205,7 @@ function localAudit(data, action, entity, details) {
 const IMPACTFUL_AUDIT_ENTITIES = ['client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user'];
 
 function impactfulAuditRows(rows) {
-  return (rows || []).filter(function(item) { return IMPACTFUL_AUDIT_ENTITIES.indexOf(item.entity) >= 0; });
+  return (rows || []).filter(function(item) { return IMPACTFUL_AUDIT_ENTITIES.indexOf(item.entity) >= 0 && !/^حذف\s/.test(String(item.action||'')); });
 }
 
 function localQueue(data, entity, entityId, operation) {
@@ -288,35 +288,54 @@ function staticApi(path, options) {
   if (path === '/api/audit/delete') {
     if (!currentUser || ['admin','quality_manager'].indexOf(currentUser.role) < 0) throw new Error('الحذف متاح لمدير النظام ومدير الجودة فقط');
     const before=data.audit.length;data.audit=data.audit.filter(function(item){return item.id!==Number(body.id);});
-    if(data.audit.length===before)throw new Error('سجل التدقيق غير موجود');localAudit(data,'حذف سجل تدقيق','audit',String(body.id));saveLocal(data);return {ok:true,deleted:1};
+    if(data.audit.length===before)throw new Error('سجل التدقيق غير موجود');saveLocal(data);return {ok:true,deleted:1};
   }
   if (path === '/api/audit/clear') {
     if (!currentUser || ['admin','quality_manager'].indexOf(currentUser.role) < 0) throw new Error('الحذف متاح لمدير النظام ومدير الجودة فقط');
-    const count=data.audit.length;data.audit=[];localAudit(data,'مسح سجل التدقيق','audit','تم حذف '+count+' عملية سابقة');saveLocal(data);return {ok:true,deleted:count};
+    const count=data.audit.length;data.audit=[];saveLocal(data);return {ok:true,deleted:count};
+  }
+  if (path === '/api/trash') {
+    if(!currentUser||['admin','general_manager','manager','quality_manager'].indexOf(currentUser.role)<0)throw new Error('غير مصرح');
+    return data.trash.slice().reverse().map(function(item){return {id:item.id,entity_type:item.entity_type,original_id:item.original_id,label:item.label,deleted_at:item.deleted_at,deleted_by_name:item.deleted_by_name};});
+  }
+  if (path.indexOf('/api/trash/item')===0) {
+    const id=Number(new URL(path,'https://local.invalid').searchParams.get('id'));const item=data.trash.find(function(row){return row.id===id;});if(!item)throw new Error('العنصر غير موجود في السلة');return item;
+  }
+  if (path === '/api/trash/restore') {
+    const item=data.trash.find(function(row){return row.id===Number(body.id);});if(!item)throw new Error('العنصر غير موجود في السلة');const p=item.payload;
+    if(item.entity_type==='client'){data.clients.push(p.record);data.projects.forEach(function(row){if((p.linked_projects||[]).indexOf(row.id)>=0)row.client_id=p.original_id;});}
+    if(item.entity_type==='sample'){data.samples.push(p.record);data.tests=data.tests.concat(p.tests||[]);data.reports=data.reports.concat(p.reports||[]);}
+    if(item.entity_type==='test'){data.tests.push(p.record);data.reports=data.reports.concat(p.reports||[]);}
+    if(item.entity_type==='report')data.reports.push(p.record);
+    data.trash=data.trash.filter(function(row){return row.id!==item.id;});localQueue(data,item.entity_type,item.original_id,'restore');localAudit(data,'استعادة من السلة',item.entity_type,item.label);saveLocal(data);return {ok:true,restored:1};
+  }
+  if (path === '/api/trash/delete') {
+    if(!currentUser||['admin','quality_manager'].indexOf(currentUser.role)<0)throw new Error('الحذف النهائي متاح لمدير النظام ومدير الجودة فقط');const before=data.trash.length;data.trash=data.trash.filter(function(row){return row.id!==Number(body.id);});if(before===data.trash.length)throw new Error('العنصر غير موجود في السلة');saveLocal(data);return {ok:true,deleted:1};
   }
   if (path === '/api/records/delete') {
     if (!currentUser || ['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role) < 0) throw new Error('ليس لديك صلاحية حذف السجلات');
-    const entity=String(body.entity||'');const id=Number(body.id);let label='';
+    const entity=String(body.entity||'');const id=Number(body.id);let label='';let payload={entity_type:entity,original_id:id};
     if (!id) throw new Error('معرف السجل مطلوب');
     if (entity === 'client') {
-      const item=data.clients.find(function(row){return row.id===id;});if(!item)throw new Error('العميل غير موجود');label=item.name;
+      const item=data.clients.find(function(row){return row.id===id;});if(!item)throw new Error('العميل غير موجود');label=item.name;payload.record=JSON.parse(JSON.stringify(item));payload.linked_projects=data.projects.filter(function(row){return Number(row.client_id)===id;}).map(function(row){return row.id;});
       data.projects.forEach(function(project){if(Number(project.client_id)===id)project.client_id=null;});
       data.clients=data.clients.filter(function(row){return row.id!==id;});
     } else if (entity === 'sample') {
-      const item=data.samples.find(function(row){return row.id===id;});if(!item)throw new Error('العينة غير موجودة');label=item.sample_no;
+      const item=data.samples.find(function(row){return row.id===id;});if(!item)throw new Error('العينة غير موجودة');label=item.sample_no;payload.record=JSON.parse(JSON.stringify(item));payload.tests=data.tests.filter(function(test){return Number(test.sample_id)===id;}).map(function(row){return JSON.parse(JSON.stringify(row));});
       const testIds=data.tests.filter(function(test){return Number(test.sample_id)===id;}).map(function(test){return test.id;});
+      payload.reports=data.reports.filter(function(report){return testIds.indexOf(Number(report.test_id))>=0;}).map(function(row){return JSON.parse(JSON.stringify(row));});
       data.reports=data.reports.filter(function(report){return testIds.indexOf(Number(report.test_id))<0;});
       data.tests=data.tests.filter(function(test){return Number(test.sample_id)!==id;});
       data.samples=data.samples.filter(function(row){return row.id!==id;});
     } else if (entity === 'test') {
-      const item=data.tests.find(function(row){return row.id===id;});if(!item)throw new Error('الاختبار غير موجود');label=item.test_no;
+      const item=data.tests.find(function(row){return row.id===id;});if(!item)throw new Error('الاختبار غير موجود');label=item.test_no;payload.record=JSON.parse(JSON.stringify(item));payload.reports=data.reports.filter(function(report){return Number(report.test_id)===id;}).map(function(row){return JSON.parse(JSON.stringify(row));});
       data.reports=data.reports.filter(function(report){return Number(report.test_id)!==id;});
       data.tests=data.tests.filter(function(row){return row.id!==id;});
     } else if (entity === 'report') {
-      const item=data.reports.find(function(row){return row.id===id;});if(!item)throw new Error('التقرير غير موجود');label=item.report_no;
+      const item=data.reports.find(function(row){return row.id===id;});if(!item)throw new Error('التقرير غير موجود');label=item.report_no;payload.record=JSON.parse(JSON.stringify(item));
       data.reports=data.reports.filter(function(row){return row.id!==id;});
     } else throw new Error('نوع السجل غير قابل للحذف');
-    const names={client:'عميل',sample:'عينة',test:'اختبار',report:'تقرير'};
+    const names={client:'عميل',sample:'عينة',test:'اختبار',report:'تقرير'};data.trash.push({id:localId(data.trash),entity_type:entity,original_id:id,label:label,payload:payload,deleted_at:saudiNow(),deleted_by_name:currentUser.full_name||currentUser.username});
     localQueue(data,entity,id,'delete');localAudit(data,'حذف '+names[entity],entity,label);saveLocal(data);return {ok:true,deleted:1};
   }
   if (path === '/api/auth/change-password') {
@@ -556,6 +575,7 @@ function navigate(page) {
   if (page === 'settings') loadSystemSettings();
   if (page === 'communications') loadCommunicationLinks();
   if (page === 'documentCenter') loadDocumentCenter();
+  if (page === 'trash') loadTrash();
 }
 
 function goBackPage() {
@@ -643,6 +663,7 @@ async function completeLogin(result) {
   $('settingsNav').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
   $('manageCommunicationLinks').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
   $('qualityNav').classList.toggle('hidden', QUALITY_ACCESS_ROLES.indexOf(result.user.role) < 0);
+  $('trashNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager'].indexOf(result.user.role) < 0);
   $('companyVaultCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager'].indexOf(result.user.role) < 0);
   $('qualityEquipmentCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','technical_manager','laboratory_manager'].indexOf(result.user.role) < 0);
   await loadCatalog(); await refresh(); startLiveUpdates(); navigate('dashboard');
@@ -927,9 +948,24 @@ function renderAudit() {
   setHtml($('auditTable'), (dashboard ? dashboard.audit : []).map(function(item) { return '<tr><td>' + esc(saudiDisplay(item.created_at)) + '</td><td>' + esc(item.full_name || '') + '</td><td>' + escUI(item.action) + '</td><td>' + esc(item.entity || '') + '</td><td>' + esc(item.details || '') + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-audit-delete="'+item.id+'" type="button">حذف</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد عمليات.</td></tr>');
 }
 
-async function deleteAuditEntry(id){if(!window.confirm('هل تريد حذف هذا السجل؟ سيُسجل النظام واقعة الحذف الجديدة.'))return;await api('/api/audit/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف السجل ومزامنة التغيير');}
+const TRASH_ENTITY_NAMES={client:'عميل',sample:'عينة',test:'اختبار',report:'تقرير'};
+
+async function loadTrash(){
+  const table=$('trashTable');if(!table)return;
+  setHtml(table,'<tr><td colspan="5" class="empty">جارٍ تحميل سلة المحذوفات…</td></tr>');
+  try{
+    const rows=await api('/api/trash');const canPurge=currentUser&&['admin','quality_manager'].indexOf(currentUser.role)>=0;
+    setHtml(table,rows.map(function(item){return '<tr><td>'+esc(saudiDisplay(item.deleted_at))+'</td><td>'+esc(TRASH_ENTITY_NAMES[item.entity_type]||item.entity_type)+'</td><td><strong>'+esc(item.label)+'</strong></td><td>'+esc(item.deleted_by_name||'—')+'</td><td><div class="row-actions"><button class="text-btn" data-trash-restore="'+item.id+'" type="button">استعادة</button><button class="text-btn" data-trash-download="'+item.id+'" type="button">تحميل نسخة</button>'+(canPurge?'<button class="text-btn danger-link" data-trash-delete="'+item.id+'" type="button">حذف نهائي</button>':'')+'</div></td></tr>';}).join('')||'<tr><td colspan="5" class="empty">سلة المحذوفات فارغة.</td></tr>');
+  }catch(error){setHtml(table,'<tr><td colspan="5" class="empty">'+esc(error.message)+'</td></tr>');}
+}
+
+async function restoreTrashItem(id){if(!window.confirm('هل تريد استعادة هذا العنصر إلى مكانه السابق؟'))return;await api('/api/trash/restore',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();await loadTrash();showToast('تمت استعادة العنصر بنجاح');}
+async function permanentlyDeleteTrashItem(id){if(!window.confirm('حذف نهائي لا يمكن التراجع عنه. هل تريد المتابعة؟'))return;await api('/api/trash/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await loadTrash();showToast('تم الحذف النهائي');}
+async function downloadTrashItem(id){const item=await api('/api/trash/item?id='+encodeURIComponent(id));const blob=new Blob([JSON.stringify(item,null,2)],{type:'application/json;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='ASAS-deleted-'+String(item.entity_type||'record')+'-'+String(item.original_id||id)+'.json';link.click();setTimeout(function(){URL.revokeObjectURL(link.href);},1000);}
+
+async function deleteAuditEntry(id){if(!window.confirm('هل تريد حذف هذا السجل نهائياً؟'))return;await api('/api/audit/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف السجل نهائياً');}
 async function clearAuditLog(){if(!window.confirm('هل تريد حذف سجل التدقيق بالكامل؟ لا يمكن التراجع عن هذه العملية.'))return;const result=await api('/api/audit/clear',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' عملية ومزامنة التغيير');}
-async function deleteRecord(entity,id,label){const names={client:'العميل',sample:'العينة',test:'الاختبار',report:'التقرير'};if(!window.confirm('هل تريد حذف '+(names[entity]||'السجل')+' '+(label||'')+'؟'))return;await api('/api/records/delete',{method:'POST',body:JSON.stringify({entity:entity,id:Number(id)})});await refresh();showToast('تم الحذف ومزامنة التغيير');}
+async function deleteRecord(entity,id,label){const names={client:'العميل',sample:'العينة',test:'الاختبار',report:'التقرير'};if(!window.confirm('هل تريد حذف '+(names[entity]||'السجل')+' '+(label||'')+'؟ سيختفي من النظام وتُحفظ نسخة في سلة المحذوفات.'))return;await api('/api/records/delete',{method:'POST',body:JSON.stringify({entity:entity,id:Number(id)})});await refresh();showToast('تم الحذف ونقل نسخة إلى سلة المحذوفات');}
 
 async function renderUsers() {
   try {
@@ -1251,7 +1287,7 @@ async function loadDocumentCenter() {
   }
 }
 
-const SMART_SECTION_LABELS={dashboard:'لوحة القيادة',projects:'المشاريع',workOrders:'أوامر العمل',field:'البرنامج الميداني',clients:'العملاء',samples:'العينات',tests:'الاختبارات',catalog:'دليل الاختبارات',reports:'التقارير',communications:'قنوات التواصل',quality:'الجودة والوثائق',technicalLibrary:'المكتبة الفنية',companyVault:'خزنة مستندات الشركة',company:'عن مختبر أساس',audit:'سجل التدقيق',users:'المستخدمون',equipment:'الأجهزة والمعايرة'};
+const SMART_SECTION_LABELS={dashboard:'لوحة القيادة',projects:'المشاريع',workOrders:'أوامر العمل',field:'البرنامج الميداني',clients:'العملاء',samples:'العينات',tests:'الاختبارات',catalog:'دليل الاختبارات',reports:'التقارير',communications:'قنوات التواصل',quality:'الجودة والوثائق',technicalLibrary:'المكتبة الفنية',companyVault:'خزنة مستندات الشركة',company:'عن مختبر أساس',audit:'سجل التدقيق',trash:'سلة المحذوفات',users:'المستخدمون',equipment:'الأجهزة والمعايرة'};
 function installSmartImportButtons(){document.querySelectorAll('.page').forEach(function(page){const heading=page.querySelector(':scope > .page-heading');if(!heading||heading.querySelector('[data-smart-import]')||!SMART_SECTION_LABELS[page.id])return;let actions=heading.querySelector('.heading-actions');if(!actions){actions=document.createElement('div');actions.className='heading-actions';const existing=Array.from(heading.children).filter(function(x){return x.tagName==='BUTTON'||x.tagName==='A';});existing.forEach(function(x){actions.appendChild(x);});heading.appendChild(actions);}const button=document.createElement('button');button.className='btn secondary smart-import-button smart-import-edge';button.type='button';button.dataset.smartImport=page.id;button.textContent='إرفاق ملف';actions.insertBefore(button,actions.firstChild);});}
 async function fetchAuthenticatedAttachment(item){
   const headers={};
@@ -1889,6 +1925,9 @@ function bindEvents() {
     if (button.dataset.fieldRemove !== undefined) { fieldTests.splice(Number(button.dataset.fieldRemove),1); renderFieldTests(); return; }
     if (button.dataset.fieldStatus) return setFieldStatus(button.dataset.fieldStatus);
     if (button.dataset.auditDelete) return deleteAuditEntry(button.dataset.auditDelete);
+    if (button.dataset.trashRestore) return restoreTrashItem(button.dataset.trashRestore).catch(function(error){showToast(error.message,true);});
+    if (button.dataset.trashDownload) return downloadTrashItem(button.dataset.trashDownload).catch(function(error){showToast(error.message,true);});
+    if (button.dataset.trashDelete) return permanentlyDeleteTrashItem(button.dataset.trashDelete).catch(function(error){showToast(error.message,true);});
     if (button.dataset.recordDelete) return deleteRecord(button.dataset.recordDelete,button.dataset.recordId,button.dataset.recordLabel).catch(function(error){showToast(error.message,true);});
     if (button.hasAttribute('data-print-preview')) return window.print();
     if (button.dataset.reportPrint) return printReport(button.dataset.reportPrint);

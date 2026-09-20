@@ -242,6 +242,17 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(connection.execute('select count(*) from samples where id=?',(sample_id,)).fetchone()[0], 0)
             self.assertEqual(connection.execute('select count(*) from tests where id=?',(test_id,)).fetchone()[0], 0)
             self.assertEqual(connection.execute("select count(*) from reports where report_no='DEL-R-1'").fetchone()[0], 0)
+            self.assertEqual(connection.execute("select count(*) from trash_items where entity_type='sample' and original_id=?",(sample_id,)).fetchone()[0], 1)
+            connection.close()
+            status, trash = request('GET','/api/trash')
+            self.assertEqual(status, 200); self.assertEqual(trash[0]['label'], 'DEL-S-1')
+            status, exported = request('GET','/api/trash/item?id='+str(trash[0]['id']))
+            self.assertEqual(status, 200); self.assertEqual(exported['payload']['record']['sample_no'], 'DEL-S-1')
+            self.assertEqual(request('POST','/api/trash/restore',{'id':trash[0]['id']})[0], 200)
+            connection = self.server.db()
+            self.assertEqual(connection.execute('select count(*) from samples where id=?',(sample_id,)).fetchone()[0], 1)
+            self.assertEqual(connection.execute('select count(*) from tests where id=?',(test_id,)).fetchone()[0], 1)
+            self.assertEqual(connection.execute("select count(*) from reports where report_no='DEL-R-1'").fetchone()[0], 1)
             connection.close()
             self.assertEqual(request('POST','/api/records/delete',{'entity':'client','id':client_id})[0], 200)
             connection = self.server.db()
@@ -266,6 +277,11 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("type=\"button\">حذف</button>", app)
         self.assertIn('<th>البريد</th><th></th>', html)
         self.assertIn('<th>الحالة</th><th></th>', html)
+        self.assertIn('id="trashNav"', html)
+        self.assertIn('id="trashTable"', html)
+        self.assertIn('data-trash-restore', app)
+        self.assertIn('data-trash-download', app)
+        self.assertIn('data-trash-delete', app)
 
     def test_safe_upload_picker_and_drag_drop_are_available(self):
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
@@ -625,7 +641,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(audit_count, 1)
         self.assertEqual((sync['entity'], sync['entity_id'], sync['operation'], sync['status']), ('project', 7, 'create', 'queued'))
 
-    def test_admin_can_delete_audit_entry_and_deletion_is_audited(self):
+    def test_admin_can_delete_audit_entry_without_leaving_a_delete_marker(self):
         self.server.init()
         connection = self.server.db()
         self.server.audit(connection, 1, 'عملية قابلة للحذف', 'test', 9, 'تفاصيل')
@@ -649,7 +665,7 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(result['deleted'], 1)
             connection = self.server.db()
             self.assertIsNone(connection.execute('select id from audit_log where id=?', (target_id,)).fetchone())
-            self.assertIsNotNone(connection.execute("select id from audit_log where action='حذف سجل تدقيق'").fetchone())
+            self.assertIsNone(connection.execute("select id from audit_log where action='حذف سجل تدقيق'").fetchone())
             connection.close()
         finally:
             self.server.SESSIONS.pop(token, None)

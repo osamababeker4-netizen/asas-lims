@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-2-11-direct-delete-audit-filter';
-const APP_SHELL = ['./','./index.html','./style.css?v=10-2-11-direct-delete-audit-filter','./app-password.js?v=10-2-11-direct-delete-audit-filter','./branch-map.js?v=10-2-11-direct-delete-audit-filter','./i18n.js?v=10-2-11-direct-delete-audit-filter','./runtime-config.js?v=10-2-11-direct-delete-audit-filter','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
+const CACHE_NAME = 'asas-lims-pwa-v10-2-12-recycle-bin';
+const APP_SHELL = ['./','./index.html','./style.css?v=10-2-12-recycle-bin','./app-password.js?v=10-2-12-recycle-bin','./branch-map.js?v=10-2-12-recycle-bin','./i18n.js?v=10-2-12-recycle-bin','./runtime-config.js?v=10-2-12-recycle-bin','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
