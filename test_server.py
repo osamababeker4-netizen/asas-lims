@@ -58,10 +58,11 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('data-page="dashboard">الرئيسية</button>', html)
         self.assertNotIn('id="documentCenterNav"', html)
         self.assertIn('id="qualityFilesEntry"', html)
-        self.assertIn('data-page-go="documentCenter"', html)
+        self.assertIn('data-inline-smart-import="technicalLibrary"', html)
         self.assertIn('id="documentCenter"', html)
         self.assertIn('QUALITY_ACCESS_ROLES', app)
-        self.assertIn("page === 'quality' || page === 'documentCenter'", app)
+        self.assertIn("if (page === 'documentCenter') page = 'quality';", app)
+        self.assertIn("page === 'quality'", app)
         for group in ('الأسفلت', 'التربة', 'الخرسانة', 'الحقل وNDT'):
             self.assertIn(group, html)
         self.assertIn('technicalLibrary', self.server.SMART_SECTIONS)
@@ -216,7 +217,7 @@ class SchemaMigrationTests(unittest.TestCase):
         scripts = '\n'.join((Path(__file__).parent / name).read_text(encoding='utf-8') for name in (
             'app-password.js','quality-management.js','branch-map.js'))
         delegated = {'page','page-go','open-project','project-view','smart-import','quality-add','quality-template',
-            'quality-import','qm-open','document-group','branch-query','field-guide-filter','profile-action'}
+            'quality-import','qm-open','qm-inline-save','document-group','branch-query','field-guide-filter','profile-action'}
         missing = []
         for tag in re.findall(r'<button\b[^>]*>', html, flags=re.I):
             attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', tag))
