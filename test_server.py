@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import unittest
+import re
 from pathlib import Path
 
 
@@ -203,6 +204,24 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(completed['next_stage'], 2)
         finally:
             httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
+
+    def test_every_static_button_has_a_real_interaction_handler(self):
+        html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
+        scripts = '\n'.join((Path(__file__).parent / name).read_text(encoding='utf-8') for name in (
+            'app-password.js','quality-management.js','branch-map.js'))
+        delegated = {'page','page-go','open-project','project-view','smart-import','quality-add','quality-template',
+            'quality-import','qm-open','document-group','branch-query','field-guide-filter','profile-action'}
+        missing = []
+        for tag in re.findall(r'<button\b[^>]*>', html, flags=re.I):
+            attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', tag))
+            button_id = attrs.get('id')
+            data_keys = {key[5:] for key in re.findall(r'\b(data-[\w-]+)(?:=|\s|>)', tag)}
+            bound_id = button_id and ("$('" + button_id + "')" in scripts or
+                "getElementById('" + button_id + "')" in scripts or 'getElementById("' + button_id + '")' in scripts)
+            implicit = attrs.get('type') == 'submit' or attrs.get('value') in {'cancel','default'}
+            if not (bound_id or data_keys.intersection(delegated) or implicit):
+                missing.append(button_id or sorted(data_keys) or tag)
+        self.assertEqual(missing, [], 'أزرار بلا معالج فعلي: ' + repr(missing))
 
     def test_authorized_user_can_extend_catalog_but_field_user_cannot(self):
         self.server.init()
