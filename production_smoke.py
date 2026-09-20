@@ -1,30 +1,44 @@
 #!/usr/bin/env python3
 import json
+import os
 import time
-import urllib.error
 import urllib.request
 
 API='https://asas-lims-api.onrender.com'
+PAGES='https://osamababeker4-netizen.github.io/asas-lims/'
 ORIGIN='https://osamababeker4-netizen.github.io'
+EXPECTED_VERSION='10.2.17-final-acceptance'
+STRICT_PRODUCTION=os.environ.get('GITHUB_REF') == 'refs/heads/main'
 
-def request(req, attempts=6):
+def once(req):
+    with urllib.request.urlopen(req, timeout=30) as response:
+        return response.status, dict(response.headers), response.read()
+
+def retry(check, attempts=18, delay=10):
     last=None
     for i in range(attempts):
         try:
-            with urllib.request.urlopen(req, timeout=30) as response:
-                return response.status, dict(response.headers), response.read()
+            value=check()
+            if value is not None:
+                return value
         except Exception as error:
             last=error
-            if i+1<attempts:
-                time.sleep(min(20, 3*(i+1)))
-    raise last
+        if i+1<attempts:
+            time.sleep(delay)
+    if last:
+        raise last
+    raise AssertionError('production acceptance timed out')
 
-status, headers, body = request(urllib.request.Request(API+'/api/health', headers={'User-Agent':'ASAS-LIMS-Acceptance/10.2.17'}))
-payload=json.loads(body.decode('utf-8'))
-assert status == 200, (status, payload)
-assert payload.get('status') == 'ok', payload
-assert payload.get('database') == 'ready', payload
-assert payload.get('service') == 'asas-lims', payload
+def health_check():
+    status, headers, body=once(urllib.request.Request(API+'/api/health', headers={'User-Agent':'ASAS-LIMS-Acceptance/10.2.17'}))
+    payload=json.loads(body.decode('utf-8'))
+    if status != 200 or payload.get('status') != 'ok' or payload.get('database') != 'ready' or payload.get('service') != 'asas-lims':
+        return None
+    if STRICT_PRODUCTION and payload.get('version') != EXPECTED_VERSION:
+        return None
+    return payload
+
+payload=retry(health_check)
 
 preflight=urllib.request.Request(
     API+'/api/auth/login',
@@ -36,8 +50,26 @@ preflight=urllib.request.Request(
         'User-Agent':'ASAS-LIMS-Acceptance/10.2.17'
     }
 )
-status, headers, body = request(preflight)
-assert status == 204, status
+status, headers, body=once(preflight)
 cors_headers={str(k).lower():v for k,v in headers.items()}
+assert status == 204, status
 assert cors_headers.get('access-control-allow-origin') == ORIGIN, headers
-print(json.dumps({'production_api':'pass','database':'ready','cors':'pass','version':payload.get('version')}, ensure_ascii=False))
+
+pages_state='not-required-on-pr'
+if STRICT_PRODUCTION:
+    def pages_check():
+        status, headers, body=once(urllib.request.Request(PAGES, headers={'Cache-Control':'no-cache','User-Agent':'ASAS-LIMS-Acceptance/10.2.17'}))
+        text=body.decode('utf-8','replace')
+        if status == 200 and 'V10.2.17 Final' in text and '10-2-17-final-acceptance' in text:
+            return 'current'
+        return None
+    pages_state=retry(pages_check)
+
+print(json.dumps({
+    'production_api':'pass',
+    'database':'ready',
+    'cors':'pass',
+    'version':payload.get('version'),
+    'pages':pages_state,
+    'strict_production':STRICT_PRODUCTION
+}, ensure_ascii=False))
