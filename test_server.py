@@ -610,7 +610,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("kind==='video'", app)
         self.assertIn('.attachment-viewer-frame', css)
         self.assertIn('.attachment-original-format', css)
-        self.assertIn('فتح الملف</button>', app)
+        self.assertIn('data-smart-open', app)
         self.assertNotIn("excel?'تشغيل/تنزيل':'فتح'", app)
 
     def test_asas_brand_palette_is_consistent(self):
@@ -1226,7 +1226,10 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('data-smart-delete', app)
         self.assertIn('data-catalog-download', app)
         self.assertIn('data-catalog-delete', app)
+        self.assertIn('data-quality-file-download', app)
+        self.assertIn('data-quality-file-delete', app)
         self.assertIn("'/api/attachments/delete'", server)
+        self.assertIn("'/api/quality/files/delete'", server)
         self.assertIn('FILE_DELETE_ROLES', server)
         self.assertIn('smart_file_category', server)
         self.assertIn("return ('ملف ' + extension.lstrip('.').upper()) if extension else 'ملف'", server)
