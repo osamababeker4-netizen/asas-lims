@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.2.21-field-guide-file-actions'
+APP_VERSION = '10.2.22-field-sidebar-layout'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -696,8 +696,23 @@ def restore_deleted_record(connection, payload):
             for row in payload.get(table, []): insert_snapshot_row(connection, table, row)
     elif entity == 'report':
         insert_snapshot_row(connection, 'reports', payload['record'])
+    elif entity == 'quality_file':
+        for link in payload.get('quality_links', []):
+            table = link.get('table')
+            column = link.get('column')
+            row_id = parse_optional_int(link.get('id'))
+            ref = str(payload.get('quality_file', {}).get('ref') or '')
+            if table in {'quality_documents','proficiency_tests','quality_staff'} and column in {'document_ref','report_ref','qualification_ref','cv_ref'} and row_id and ref:
+                connection.execute('update ' + table + ' set ' + column + '=? where id=? and (' + column + ' is null or ' + column + "='')", (ref, row_id))
     for row in payload.get('attachments', []):
         insert_snapshot_row(connection, 'record_attachments', row)
+    if entity == 'uploaded_file':
+        for link in payload.get('catalog_links', []):
+            catalog_id = parse_optional_int(link.get('test_catalog_id'))
+            column = str(link.get('column') or '')
+            attachment_id = parse_optional_int(payload.get('original_id'))
+            if catalog_id and attachment_id and column in {'astm_attachment_id','worksheet_attachment_id','results_attachment_id'}:
+                connection.execute('insert into catalog_resources(test_catalog_id,' + column + ') values(?,?) on conflict(test_catalog_id) do update set ' + column + '=case when ' + column + ' is null then excluded.' + column + ' else ' + column + ' end,updated_at=CURRENT_TIMESTAMP', (catalog_id, attachment_id))
 
 
 def user_from(handler):
@@ -1667,6 +1682,30 @@ class H(BaseHTTPRequestHandler):
                 result = dict(row); result['payload'] = json.loads(result.pop('payload_json'))
                 return self.send_json(result)
 
+            if path == '/api/trash/file':
+                if not self.require_permission(user, 'trash'):
+                    return
+                trash_id = parse_optional_int(parse_qs(parsed.query).get('id', [''])[0])
+                row = connection.execute('select id,entity_type,label,payload_json from trash_items where id=?', (trash_id,)).fetchone()
+                if not row:
+                    return self.send_json({'error': 'العنصر غير موجود في السلة'}, 404)
+                payload = json.loads(row['payload_json'])
+                target = ''
+                if row['entity_type'] == 'uploaded_file':
+                    attachments = payload.get('attachments', [])
+                    stored_name = os.path.basename(str((attachments[0] if attachments else {}).get('stored_name') or ''))
+                    target = os.path.join(RECORD_UPLOADS, stored_name) if stored_name else ''
+                elif row['entity_type'] == 'quality_file':
+                    stored_name = os.path.basename(str(payload.get('quality_file', {}).get('stored_name') or ''))
+                    target = os.path.join(QUALITY_UPLOADS, stored_name) if stored_name else ''
+                else:
+                    return self.send_json({'error': 'عنصر السلة ليس ملفًا'}, 400)
+                if not target or not os.path.isfile(target):
+                    return self.send_json({'error': 'الملف المحذوف غير متاح على التخزين'}, 404)
+                extension = os.path.splitext(target)[1].lower()
+                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.rtf':'application/rtf','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.xlsm':'application/vnd.ms-excel.sheet.macroEnabled.12','.csv':'text/csv','.txt':'text/plain','.json':'application/json','.xml':'application/xml','.log':'text/plain','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic','.gif':'image/gif','.bmp':'image/bmp','.dwg':'application/acad','.dxf':'application/dxf','.ppt':'application/vnd.ms-powerpoint','.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation','.zip':'application/zip','.rar':'application/vnd.rar','.7z':'application/x-7z-compressed','.mp3':'audio/mpeg','.wav':'audio/wav','.m4a':'audio/mp4','.ogg':'audio/ogg','.mp4':'video/mp4','.webm':'video/webm','.mov':'video/quicktime','.m4v':'video/x-m4v'}
+                return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'), {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(row['label'])})
+
             if path == '/api/projects':
                 if not self.require_permission(user, 'projects'):
                     return
@@ -2110,6 +2149,11 @@ class H(BaseHTTPRequestHandler):
                 for attachment in payload.get('attachments', []):
                     stored_name = os.path.basename(str(attachment.get('stored_name') or ''))
                     target = os.path.join(RECORD_UPLOADS, stored_name)
+                    if stored_name and os.path.isfile(target):
+                        os.remove(target)
+                if row['entity_type'] == 'quality_file':
+                    stored_name = os.path.basename(str(payload.get('quality_file', {}).get('stored_name') or ''))
+                    target = os.path.join(QUALITY_UPLOADS, stored_name)
                     if stored_name and os.path.isfile(target):
                         os.remove(target)
                 connection.execute('delete from trash_items where id=?', (trash_id,))
@@ -2748,17 +2792,17 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'الملف غير موجود'}, 404)
                 if not attachment_delete_allowed(user, row):
                     return self.send_json({'error': 'ليس لديك صلاحية حذف هذا الملف'}, 403)
+                catalog_links = []
+                for column in ('astm_attachment_id','worksheet_attachment_id','results_attachment_id'):
+                    for link in connection.execute('select test_catalog_id from catalog_resources where ' + column + '=?', (attachment_id,)).fetchall():
+                        catalog_links.append({'test_catalog_id': link['test_catalog_id'], 'column': column})
+                payload = {'entity_type':'uploaded_file','original_id':attachment_id,'attachments':[dict(row)],'catalog_links':catalog_links}
+                connection.execute('insert into trash_items(entity_type,original_id,label,payload_json,deleted_by) values(?,?,?,?,?)',
+                                   ('uploaded_file', attachment_id, row['original_name'], json.dumps(payload, ensure_ascii=False), user['id']))
                 deleted = delete_record_attachment(connection, attachment_id)
                 connection.commit()
-                stored_name = os.path.basename(str(deleted.get('stored_name') or ''))
-                target = os.path.join(RECORD_UPLOADS, stored_name)
-                if stored_name and os.path.isfile(target):
-                    try:
-                        os.remove(target)
-                    except OSError:
-                        pass
-                publish_event(deleted.get('section') or deleted.get('entity_type') or 'attachments', 'delete', attachment_id)
-                return self.send_json({'ok': True, 'deleted': attachment_id, 'name': deleted.get('original_name')})
+                publish_event(deleted.get('section') or deleted.get('entity_type') or 'attachments', 'trash', attachment_id)
+                return self.send_json({'ok': True, 'trashed': attachment_id, 'name': deleted.get('original_name')})
 
             if path == '/api/smart-import':
                 section = str(data.get('section') or '')
@@ -3007,19 +3051,23 @@ class H(BaseHTTPRequestHandler):
                 stored_name = os.path.basename(ref[len(prefix):])
                 if not stored_name:
                     return self.send_json({'error': 'مرجع الملف غير صالح'}, 400)
+                target = os.path.join(QUALITY_UPLOADS, stored_name)
+                if not os.path.isfile(target):
+                    return self.send_json({'error': 'الملف غير موجود على التخزين'}, 404)
+                quality_links = []
+                for table, column in (('quality_documents','document_ref'),('proficiency_tests','report_ref'),('quality_staff','qualification_ref'),('quality_staff','cv_ref')):
+                    for link in connection.execute('select id from ' + table + ' where ' + column + '=?', (ref,)).fetchall():
+                        quality_links.append({'table':table,'column':column,'id':link['id']})
+                payload = {'entity_type':'quality_file','original_id':0,'quality_file':{'stored_name':stored_name,'ref':ref},'quality_links':quality_links}
+                connection.execute('insert into trash_items(entity_type,original_id,label,payload_json,deleted_by) values(?,?,?,?,?)',
+                                   ('quality_file', 0, str(data.get('name') or stored_name), json.dumps(payload, ensure_ascii=False), user['id']))
                 connection.execute('update quality_documents set document_ref=null where document_ref=?', (ref,))
                 connection.execute('update proficiency_tests set report_ref=null where report_ref=?', (ref,))
                 connection.execute('update quality_staff set qualification_ref=null where qualification_ref=?', (ref,))
                 connection.execute('update quality_staff set cv_ref=null where cv_ref=?', (ref,))
                 connection.commit()
-                target = os.path.join(QUALITY_UPLOADS, stored_name)
-                if os.path.isfile(target):
-                    try:
-                        os.remove(target)
-                    except OSError:
-                        pass
-                publish_event('quality_file', 'delete', 0)
-                return self.send_json({'ok': True, 'deleted': stored_name})
+                publish_event('quality_file', 'trash', 0)
+                return self.send_json({'ok': True, 'trashed': stored_name})
 
             if path == '/api/quality/proficiency':
                 if not self.require_permission(user, 'quality'):

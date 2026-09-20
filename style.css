@@ -874,3 +874,122 @@ input:focus,select:focus,textarea:focus{
   .catalog-resource-actions strong{width:100%}
   .document-file-actions .btn{flex:1 1 28%}
 }
+
+
+/* V10.2.22 field program: catalog sidebar beside visit form */
+#field .field-layout{
+  grid-template-columns:minmax(0,1.35fr) minmax(330px,.65fr);
+  align-items:start;
+  gap:18px;
+}
+#field .field-guide-sidebar{
+  min-width:0;
+  margin:0;
+  align-self:start;
+  overflow:visible;
+}
+#field .field-sidebar-guide{
+  display:flex;
+  justify-content:stretch;
+  margin-bottom:12px;
+}
+#field .field-sidebar-guide .field-manual-button{
+  width:100%;
+  min-height:44px;
+}
+#field .field-sidebar-toolbar{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+  align-items:stretch;
+  margin:0 0 12px;
+  padding:12px;
+}
+#field .field-sidebar-toolbar .field-search-box{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+  width:100%;
+  max-width:none;
+}
+#field .field-sidebar-toolbar .field-search-box input{width:100%;min-width:0}
+#field .field-sidebar-toolbar #openCustomFieldTest{width:100%}
+#field .field-guide-sidebar .field-guide-filters{margin:10px 0 12px}
+#field .field-guide-sidebar .field-guide-grid{
+  grid-template-columns:1fr;
+  gap:12px;
+}
+#field .field-guide-sidebar .field-group-card{
+  min-height:0;
+  padding:14px;
+  grid-template-columns:68px minmax(0,1fr);
+  grid-template-rows:auto auto auto;
+  gap:8px 12px;
+}
+#field .field-guide-sidebar .field-group-icon{
+  grid-column:1;
+  grid-row:1 / span 2;
+  width:68px;
+  min-height:60px;
+}
+#field .field-guide-sidebar .field-group-card>div:not(.field-group-meta){
+  grid-column:2;
+  grid-row:1;
+}
+#field .field-guide-sidebar .field-group-card h3{font-size:1.05rem}
+#field .field-guide-sidebar .field-group-card p{font-size:.78rem;line-height:1.55}
+#field .field-guide-sidebar .field-group-meta{
+  grid-column:2;
+  grid-row:2;
+  padding-top:5px;
+  font-size:.72rem;
+}
+#field .field-guide-sidebar .field-group-card>.btn{
+  grid-column:1 / -1;
+  grid-row:3;
+  width:100%;
+}
+#field .field-guide-sidebar .field-catalog-card{
+  grid-template-columns:58px minmax(0,1fr);
+  gap:10px;
+  padding:12px;
+}
+#field .field-guide-sidebar .field-catalog-code{min-height:52px}
+#field .field-guide-sidebar .field-catalog-actions{
+  grid-column:1 / -1;
+  justify-content:stretch;
+}
+#field .field-guide-sidebar .field-catalog-actions .btn{flex:1}
+#field .field-guide-sidebar .field-search-empty{grid-column:1 / -1}
+
+@media(max-width:1100px){
+  #field .field-layout{grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr)}
+  #field .form-grid{grid-template-columns:1fr}
+}
+@media(max-width:900px){
+  #field .field-layout{grid-template-columns:1fr}
+  #field .field-guide-sidebar{order:-1}
+  #field .field-guide-sidebar .field-guide-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #field .field-guide-sidebar .field-catalog-card{grid-template-columns:58px minmax(0,1fr)}
+  #field .field-guide-sidebar .field-search-empty{grid-column:1 / -1}
+}
+@media(max-width:620px){
+  #field .page-heading{margin-bottom:12px}
+  #field .field-layout{gap:12px}
+  #field .field-guide-sidebar{padding:12px}
+  #field .field-sidebar-toolbar{padding:10px}
+  #field .field-sidebar-toolbar .field-search-box{grid-template-columns:1fr}
+  #field .field-sidebar-toolbar .field-search-box span{grid-column:1}
+  #field .field-sidebar-toolbar .field-search-box .btn{width:100%}
+  #field .field-guide-sidebar .field-guide-grid{grid-template-columns:1fr}
+  #field .field-guide-sidebar .field-group-card{
+    grid-template-columns:60px minmax(0,1fr);
+    padding:12px;
+  }
+  #field .field-guide-sidebar .field-group-icon{width:60px;min-height:56px}
+  #field .field-guide-sidebar .field-catalog-card{grid-template-columns:52px minmax(0,1fr)}
+  #field .field-guide-sidebar .field-catalog-actions{display:grid;grid-template-columns:1fr}
+  #field .field-guide-sidebar .field-catalog-actions .btn,
+  #field .field-guide-sidebar .field-catalog-actions .text-btn{width:100%;text-align:center}
+  #field .form-grid{grid-template-columns:1fr}
+}

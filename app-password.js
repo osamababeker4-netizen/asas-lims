@@ -1036,20 +1036,29 @@ function renderAudit() {
   setHtml($('auditTable'), (dashboard ? dashboard.audit : []).map(function(item) { return '<tr><td>' + esc(saudiDisplay(item.created_at)) + '</td><td>' + esc(item.full_name || '') + '</td><td>' + escUI(item.action) + '</td><td>' + esc(item.entity || '') + '</td><td>' + esc(item.details || '') + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-audit-delete="'+item.id+'" type="button">حذف</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد عمليات.</td></tr>');
 }
 
-const TRASH_ENTITY_NAMES={client:'عميل',project:'مشروع',work_order:'أمر عمل',sample:'عينة',test:'اختبار',report:'تقرير',equipment:'جهاز',quality_document:'وثيقة جودة'};
+const TRASH_ENTITY_NAMES={client:'عميل',project:'مشروع',work_order:'أمر عمل',sample:'عينة',test:'اختبار',report:'تقرير',equipment:'جهاز',quality_document:'وثيقة جودة',uploaded_file:'ملف مرفوع',quality_file:'ملف جودة'};
 
 async function loadTrash(){
   const table=$('trashTable');if(!table)return;
   setHtml(table,'<tr><td colspan="5" class="empty">جارٍ تحميل سلة المحذوفات…</td></tr>');
   try{
     const rows=await api('/api/trash');const canPurge=currentUser&&['admin','quality_manager'].indexOf(currentUser.role)>=0;
-    setHtml(table,rows.map(function(item){return '<tr><td>'+esc(saudiDisplay(item.deleted_at))+'</td><td>'+esc(TRASH_ENTITY_NAMES[item.entity_type]||item.entity_type)+'</td><td><strong>'+esc(item.label)+'</strong></td><td>'+esc(item.deleted_by_name||'—')+'</td><td><div class="row-actions"><button class="text-btn" data-trash-restore="'+item.id+'" type="button">استعادة</button><button class="text-btn" data-trash-download="'+item.id+'" type="button">تحميل نسخة</button>'+(canPurge?'<button class="text-btn danger-link" data-trash-delete="'+item.id+'" type="button">حذف نهائي</button>':'')+'</div></td></tr>';}).join('')||'<tr><td colspan="5" class="empty">سلة المحذوفات فارغة.</td></tr>');
+    setHtml(table,rows.map(function(item){const isFile=item.entity_type==='uploaded_file'||item.entity_type==='quality_file';return '<tr><td>'+esc(saudiDisplay(item.deleted_at))+'</td><td>'+esc(TRASH_ENTITY_NAMES[item.entity_type]||item.entity_type)+'</td><td><strong>'+esc(item.label)+'</strong></td><td>'+esc(item.deleted_by_name||'—')+'</td><td><div class="row-actions"><button class="text-btn" data-trash-restore="'+item.id+'" type="button">استعادة</button><button class="text-btn" data-trash-download="'+item.id+'" type="button">'+(isFile?'تنزيل الملف':'تحميل نسخة')+'</button>'+(canPurge?'<button class="text-btn danger-link" data-trash-delete="'+item.id+'" type="button">حذف نهائي</button>':'')+'</div></td></tr>';}).join('')||'<tr><td colspan="5" class="empty">سلة المحذوفات فارغة.</td></tr>');
   }catch(error){setHtml(table,'<tr><td colspan="5" class="empty">'+esc(error.message)+'</td></tr>');}
 }
 
 async function restoreTrashItem(id){if(!window.confirm('هل تريد استعادة هذا العنصر إلى مكانه السابق؟'))return;await api('/api/trash/restore',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();await loadTrash();showToast('تمت استعادة العنصر بنجاح');}
 async function permanentlyDeleteTrashItem(id){if(!window.confirm('حذف نهائي لا يمكن التراجع عنه. هل تريد المتابعة؟'))return;await api('/api/trash/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await loadTrash();showToast('تم الحذف النهائي');}
-async function downloadTrashItem(id){const item=await api('/api/trash/item?id='+encodeURIComponent(id));const blob=new Blob([JSON.stringify(item,null,2)],{type:'application/json;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='ASAS-deleted-'+String(item.entity_type||'record')+'-'+String(item.original_id||id)+'.json';link.click();setTimeout(function(){URL.revokeObjectURL(link.href);},1000);}
+async function downloadTrashItem(id){
+  const item=await api('/api/trash/item?id='+encodeURIComponent(id));
+  if(item.entity_type==='uploaded_file'||item.entity_type==='quality_file'){
+    const headers={};if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+    const response=await fetch(API_BASE_URL+'/api/trash/file?id='+encodeURIComponent(id),{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
+    if(!response.ok){let message='تعذر تحميل الملف من السلة';try{const data=await response.json();message=data.error||message;}catch(_error){}throw new Error(message);}
+    const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=item.label||'ASAS-deleted-file';link.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);return;
+  }
+  const blob=new Blob([JSON.stringify(item,null,2)],{type:'application/json;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='ASAS-deleted-'+String(item.entity_type||'record')+'-'+String(item.original_id||id)+'.json';link.click();setTimeout(function(){URL.revokeObjectURL(link.href);},1000);
+}
 
 async function deleteAuditEntry(id){if(!window.confirm('هل تريد حذف هذا السجل نهائياً؟'))return;await api('/api/audit/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف السجل نهائياً');}
 async function clearAuditLog(){if(!window.confirm('هل تريد حذف سجل التدقيق بالكامل؟ لا يمكن التراجع عن هذه العملية.'))return;const result=await api('/api/audit/clear',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' عملية ومزامنة التغيير');}
@@ -1416,7 +1425,7 @@ function canDeleteUploadedFiles(){
 async function deleteUploadedFile(item){
   if(!item||!item.id)throw new Error('تعذر تحديد الملف');
   if(!canDeleteUploadedFiles())throw new Error('ليس لديك صلاحية حذف الملفات');
-  if(!window.confirm('حذف الملف «'+(item.original_name||'')+'» نهائيًا؟'))return false;
+  if(!window.confirm('نقل الملف «'+(item.original_name||'')+'» إلى سلة المحذوفات؟ يمكنك استعادته لاحقًا.'))return false;
   await api('/api/attachments/delete',{method:'POST',body:JSON.stringify({id:item.id})});
   if(window.__ASAS_SMART_FILES)delete window.__ASAS_SMART_FILES[item.id];
   documentLibraryRows=documentLibraryRows.filter(function(row){return Number(row.id)!==Number(item.id);});
@@ -1424,7 +1433,7 @@ async function deleteUploadedFile(item){
   const smartForm=$('smartImportForm');if(smartForm&&smartForm.elements.section)await loadSmartImports(smartForm.elements.section.value);
   const recordForm=$('recordAttachmentForm');if(recordForm&&typeof recordForm.__loadAttachments==='function')await recordForm.__loadAttachments();
   await loadCatalog();renderCatalog();
-  showToast('تم حذف الملف مباشرة');
+  showToast('تم نقل الملف إلى سلة المحذوفات');
   return true;
 }
 
@@ -1650,9 +1659,9 @@ async function openAuthorizedQualityFile(ref,name,downloadOnly){
 
 async function deleteAuthorizedQualityFile(ref,name){
   if(!canDeleteUploadedFiles())throw new Error('ليس لديك صلاحية حذف ملفات الجودة');
-  if(!window.confirm('حذف الملف «'+(name||'')+'» نهائيًا؟'))return;
-  await api('/api/quality/files/delete',{method:'POST',body:JSON.stringify({ref:ref})});
-  await refresh();showToast('تم حذف الملف مباشرة');
+  if(!window.confirm('نقل الملف «'+(name||'')+'» إلى سلة المحذوفات؟ يمكنك استعادته لاحقًا.'))return;
+  await api('/api/quality/files/delete',{method:'POST',body:JSON.stringify({ref:ref,name:name||''})});
+  await refresh();showToast('تم نقل الملف إلى سلة المحذوفات');
 }
 
 async function loadSmartImports(section){

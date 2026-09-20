@@ -1091,7 +1091,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.2.21-field-guide-file-actions'", server)
+        self.assertIn("APP_VERSION = '10.2.22-field-sidebar-layout'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1110,7 +1110,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-2-21-field-guide-file-actions', sw)
+        self.assertIn('v10-2-22-field-sidebar-layout', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1273,6 +1273,111 @@ class SchemaMigrationTests(unittest.TestCase):
         link = connection.execute('select astm_attachment_id from catalog_resources where test_catalog_id=?', (d1557,)).fetchone()
         self.assertIsNone(link['astm_attachment_id'])
         connection.close()
+
+
+    def test_field_catalog_is_sidebar_of_visit_form_and_responsive(self):
+        root = Path(__file__).parent
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        css = (root / 'style.css').read_text(encoding='utf-8')
+
+        field_start = html.index('<section id="field" class="page">')
+        field_end = html.index('<section id="clients" class="page">', field_start)
+        field_html = html[field_start:field_end]
+        layout_start = field_html.index('<div class="field-layout">')
+        visit_start = field_html.index('<article class="panel">', layout_start)
+        sidebar_start = field_html.index('<aside class="panel field-guide-library field-guide-sidebar">', layout_start)
+
+        self.assertLess(visit_start, sidebar_start)
+        self.assertNotIn('<section class="panel field-guide-library">', field_html[:layout_start])
+        self.assertIn('id="fieldTestSearch"', field_html[sidebar_start:])
+        self.assertIn('id="openCustomFieldTest"', field_html[sidebar_start:])
+        self.assertIn('id="fieldGuideGrid"', field_html[sidebar_start:])
+        self.assertIn('id="openFieldManual"', field_html[sidebar_start:])
+        self.assertIn('دليل الاختبارات الميدانيه', field_html[sidebar_start:])
+
+        self.assertIn('#field .field-layout{', css)
+        self.assertIn('grid-template-columns:minmax(0,1.35fr) minmax(330px,.65fr)', css)
+        self.assertIn('#field .field-guide-sidebar .field-guide-grid{', css)
+        self.assertIn('grid-template-columns:1fr', css)
+        self.assertIn('@media(max-width:900px)', css)
+        self.assertIn('#field .field-guide-sidebar{order:-1}', css)
+        self.assertIn('@media(max-width:620px)', css)
+
+
+    def test_deleted_uploaded_files_move_to_trash_and_restore_with_catalog_link(self):
+        self.server.init()
+        self.server.RECORD_UPLOADS = str(Path(self.temp.name) / 'trash-record-files')
+        os.makedirs(self.server.RECORD_UPLOADS, exist_ok=True)
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        before_audit = connection.execute('select count(*) from audit_log').fetchone()[0]
+
+        d1557 = connection.execute("select id from test_catalog where code='D1557'").fetchone()['id']
+        stored = self.server.store_smart_file(connection, admin, 'catalog', 'ASTM D1557 deleted-standard.pdf', b'%PDF-1.4 ASTM D1557')
+        row = dict(connection.execute('select * from record_attachments where id=?', (stored['id'],)).fetchone())
+        stored_path = Path(self.server.RECORD_UPLOADS) / row['stored_name']
+        self.assertTrue(stored_path.exists())
+        links = []
+        for column in ('astm_attachment_id','worksheet_attachment_id','results_attachment_id'):
+            for link in connection.execute('select test_catalog_id from catalog_resources where ' + column + '=?', (stored['id'],)).fetchall():
+                links.append({'test_catalog_id': link['test_catalog_id'], 'column': column})
+        payload = {'entity_type':'uploaded_file','original_id':stored['id'],'attachments':[row],'catalog_links':links}
+        connection.execute('insert into trash_items(entity_type,original_id,label,payload_json,deleted_by) values(?,?,?,?,?)',
+                           ('uploaded_file', stored['id'], row['original_name'], json.dumps(payload, ensure_ascii=False), admin['id']))
+        self.server.delete_record_attachment(connection, stored['id'])
+        connection.commit()
+
+        self.assertIsNone(connection.execute('select id from record_attachments where id=?', (stored['id'],)).fetchone())
+        self.assertTrue(stored_path.exists(), 'moving to Trash must keep original file bytes')
+        self.assertEqual(connection.execute("select count(*) from trash_items where entity_type='uploaded_file' and original_id=?", (stored['id'],)).fetchone()[0], 1)
+        self.assertEqual(connection.execute('select count(*) from audit_log').fetchone()[0], before_audit)
+
+        self.server.restore_deleted_record(connection, payload)
+        connection.execute("delete from trash_items where entity_type='uploaded_file' and original_id=?", (stored['id'],))
+        connection.commit()
+        self.assertIsNotNone(connection.execute('select id from record_attachments where id=?', (stored['id'],)).fetchone())
+        link = connection.execute('select astm_attachment_id from catalog_resources where test_catalog_id=?', (d1557,)).fetchone()
+        self.assertEqual(link['astm_attachment_id'], stored['id'])
+        self.assertTrue(stored_path.exists())
+        connection.close()
+
+    def test_deleted_quality_file_can_be_restored_from_trash(self):
+        self.server.init()
+        self.server.QUALITY_UPLOADS = str(Path(self.temp.name) / 'trash-quality-files')
+        os.makedirs(self.server.QUALITY_UPLOADS, exist_ok=True)
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        stored_name = 'quality-trash-test.pdf'
+        target = Path(self.server.QUALITY_UPLOADS) / stored_name
+        target.write_bytes(b'%PDF-1.4 quality')
+        ref = '/api/quality/files/' + stored_name
+        connection.execute("insert into quality_documents(category,code,title,status,document_ref) values('procedure','TRASH-Q','Trash quality','ساري',?)", (ref,))
+        document_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+        payload = {'entity_type':'quality_file','original_id':0,'quality_file':{'stored_name':stored_name,'ref':ref},
+                   'quality_links':[{'table':'quality_documents','column':'document_ref','id':document_id}]}
+        connection.execute('insert into trash_items(entity_type,original_id,label,payload_json,deleted_by) values(?,?,?,?,?)',
+                           ('quality_file', 0, 'quality-trash-test.pdf', json.dumps(payload, ensure_ascii=False), admin['id']))
+        connection.execute('update quality_documents set document_ref=null where id=?', (document_id,))
+        connection.commit()
+
+        self.assertTrue(target.exists(), 'quality file bytes must remain while item is in Trash')
+        self.assertIsNone(connection.execute('select document_ref from quality_documents where id=?', (document_id,)).fetchone()['document_ref'])
+        self.server.restore_deleted_record(connection, payload)
+        connection.commit()
+        self.assertEqual(connection.execute('select document_ref from quality_documents where id=?', (document_id,)).fetchone()['document_ref'], ref)
+        self.assertTrue(target.exists())
+        connection.close()
+
+    def test_file_delete_ui_explicitly_moves_files_to_trash(self):
+        root = Path(__file__).parent
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        server = (root / 'server.py').read_text(encoding='utf-8')
+        self.assertIn('إلى سلة المحذوفات؟ يمكنك استعادته لاحقًا', app)
+        self.assertIn('تم نقل الملف إلى سلة المحذوفات', app)
+        self.assertIn("('uploaded_file', attachment_id, row['original_name']", server)
+        self.assertIn("('quality_file', 0, str(data.get('name') or stored_name)", server)
+        self.assertIn("if path == '/api/trash/file':", server)
+        self.assertIn("row['entity_type'] == 'quality_file'", server)
 
 
 if __name__ == '__main__':
