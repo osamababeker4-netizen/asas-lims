@@ -1133,7 +1133,12 @@ async function renderQuality() {
   try {
     qualityData = await api('/api/quality');
     const categoryNames = {procedure:'إجراء',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
-    const fileAction=function(item){return item.document_ref&&item.document_ref.indexOf('/api/')===0?'<button class="text-btn" type="button" data-quality-file-ref="'+esc(item.document_ref)+'" data-quality-file-name="'+esc(item.code||item.title||'quality-file')+'">فتح الملف</button>':(item.document_ref?esc(item.document_ref):'—');};
+    const qualityRefActions=function(ref,name){
+      if(!ref||ref.indexOf('/api/')!==0)return ref?esc(ref):'—';
+      const label=name||decodeURIComponent(String(ref).split('/').pop()||'quality-file');
+      return '<span class="item-actions"><button class="text-btn" type="button" data-quality-file-ref="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">فتح</button><button class="text-btn" type="button" data-quality-file-download="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" type="button" data-quality-file-delete="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">حذف</button>':'')+'</span>';
+    };
+    const fileAction=function(item){return qualityRefActions(item.document_ref,item.code||item.title||'quality-file');};
     const docActions=function(item){return '<div class="row-actions">'+fileAction(item)+'<button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="'+item.id+'" data-record-label="'+esc(item.code)+'" type="button">حذف</button></div>';};
     const docs=qualityData.documents||[];
     setHtml($('qualityDocumentsTable'),docs.map(function(item){return '<tr><td>'+escUI(categoryNames[item.category]||item.category)+'</td><td>'+esc(item.code)+'</td><td>'+esc(item.title)+'</td><td>'+esc(item.revision||'—')+'</td><td>'+statusChip(item.status)+'</td><td>'+fileAction(item)+'</td><td>'+docActions(item)+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
@@ -1143,8 +1148,8 @@ async function renderQuality() {
       setHtml(box,rows.length?rows.map(function(item){return '<div class="qc-record-row"><div><strong>'+esc(item.code)+' — '+esc(item.title)+'</strong><small>'+esc(item.revision||'بدون إصدار')+' · '+escUI(item.status||'—')+'</small></div>'+docActions(item)+'</div>';}).join(''):'<div class="empty-state">لا توجد سجلات بعد.</div>');
     }
     renderDocList('qualityProcedureList','procedure');renderDocList('qualityWorksheetList','worksheet');renderDocList('qualityAdminFormList','admin_form');
-    setHtml($('proficiencyTable'), (qualityData.proficiency||[]).map(function(item){return '<tr><td>'+esc(item.test_name)+'</td><td>'+esc(item.material||'—')+'</td><td>'+esc(item.provider||'—')+'</td><td>'+esc(item.participation_date||'—')+'</td><td>'+esc(item.result||'—')+'</td><td>'+esc(item.z_score||'—')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
-    setHtml($('qualityStaffTable'), (qualityData.staff||[]).map(function(item){return '<tr><td>'+esc(item.full_name)+'</td><td>'+esc(item.job_title||'—')+'</td><td>'+esc(item.specialty||'—')+'</td><td>'+esc(item.experience_years||'—')+'</td><td>'+esc(item.qualification_ref||'—')+'</td><td>'+(item.active?'نشط':'موقوف')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
+    setHtml($('proficiencyTable'), (qualityData.proficiency||[]).map(function(item){return '<tr><td>'+esc(item.test_name)+'</td><td>'+esc(item.material||'—')+'</td><td>'+esc(item.provider||'—')+'</td><td>'+esc(item.participation_date||'—')+'</td><td>'+esc(item.result||'—')+(item.report_ref?'<small>'+qualityRefActions(item.report_ref,'تقرير '+item.test_name)+'</small>':'')+'</td><td>'+esc(item.z_score||'—')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
+    setHtml($('qualityStaffTable'), (qualityData.staff||[]).map(function(item){const refs=[];if(item.qualification_ref)refs.push(qualityRefActions(item.qualification_ref,'المؤهل — '+item.full_name));if(item.cv_ref)refs.push(qualityRefActions(item.cv_ref,'السيرة الذاتية — '+item.full_name));return '<tr><td>'+esc(item.full_name)+'</td><td>'+esc(item.job_title||'—')+'</td><td>'+esc(item.specialty||'—')+'</td><td>'+esc(item.experience_years||'—')+'</td><td>'+(refs.join('<br>')||'—')+'</td><td>'+(item.active?'نشط':'موقوف')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
     const equipmentRows=dashboard&&dashboard.equipment?dashboard.equipment:[];
     const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
     if($('qualityEquipmentInlineTable'))setHtml($('qualityEquipmentInlineTable'),equipmentRows.map(function(item){return '<tr><td>'+esc(item.equipment_code||'—')+'</td><td>'+esc(item.name)+'</td><td>'+esc(item.serial_no||'—')+'</td><td>'+esc(item.section||'—')+'</td><td>'+esc(item.verification_status||'—')+'</td><td>'+esc(item.calibrated_to||item.next_calibration||'—')+'</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد أجهزة بعد.</td></tr>');
@@ -1164,7 +1169,7 @@ async function submitInlineQualityDocument(form){
   const data={owner:'شركة مختبر أساس'};new FormData(form).forEach(function(value,key){if(key!=='quality_file')data[key]=value;});
   const fixed=form.dataset.inlineQualityDocument;if(fixed&&fixed!=='document')data.category=fixed;
   const file=form.elements.quality_file&&form.elements.quality_file.files[0];
-  if(file){data.file_name=file.name;data.file_base64=await inlineFileBase64(file,25);}
+  if(file){data.file_name=file.name;data.file_base64=await inlineFileBase64(file,100);}
   await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تم الحفظ داخل الجودة والوثائق');
 }
 async function submitInlineQualityRecord(form,kind){
@@ -1172,7 +1177,7 @@ async function submitInlineQualityRecord(form,kind){
   const fileFields=kind==='proficiency'?['quality_file']:['qualification_file','cv_file'];
   const data={};
   for(const element of Array.from(form.elements)){if(!element.name||fileFields.indexOf(element.name)>=0)continue;data[element.name]=element.value;}
-  for(const name of fileFields){const input=form.elements[name],file=input&&input.files[0];if(file){data[name+'_name']=file.name;data[name+'_base64']=await inlineFileBase64(file,25);}}
+  for(const name of fileFields){const input=form.elements[name],file=input&&input.files[0];if(file){data[name+'_name']=file.name;data[name+'_base64']=await inlineFileBase64(file,100);}}
   await api(endpoint,{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تم حفظ السجل');
 }
 async function submitInlineEquipment(form){
@@ -1190,9 +1195,9 @@ async function submitInlineSmartImport(form){
 
 function openQualityForm(kind) {
   const names = {procedure:'إجراء جودة',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
-  if (names[kind]) return modal('<h2>إضافة ' + names[kind] + '</h2><form id="qualityDocumentForm"><input type="hidden" name="category" value="' + kind + '"><input type="hidden" name="owner" value="شركة مختبر أساس"><div class="modal-grid"><label>الكود<input name="code" required placeholder="QMS-P-001"></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision" placeholder="Rev. 01"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>رفع ملف Word أو PDF<input name="quality_file" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label><label>رابط بديل (اختياري)<input name="document_ref" type="url"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><p class="form-note">PDF أو Word حتى 25MB.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الوثيقة</button></div></form>');
-  if (kind === 'proficiency') return modal('<h2>إضافة مشاركة اختبار كفاءة</h2><form id="proficiencyForm"><div class="modal-grid"><label>اسم الاختبار<input name="test_name" required></label><label>المادة<input name="material"></label><label>المعيار<input name="standard"></label><label>مقدم الخدمة<input name="provider"></label><label>تاريخ المشاركة<input name="participation_date" type="date"></label><label>النتيجة<input name="result"></label><label>Z-score<input name="z_score"></label><label>رفع تقرير Word أو PDF<input name="quality_file" type="file" accept=".pdf,.doc,.docx"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ المشاركة</button></div></form>');
-  if (kind === 'staff') return modal('<h2>إضافة سجل موظف للجودة</h2><form id="qualityStaffForm"><div class="modal-grid"><label>الاسم الكامل<input name="full_name" required></label><label>المسمى الوظيفي<input name="job_title"></label><label>التخصص<input name="specialty"></label><label>سنوات الخبرة<input name="experience_years" type="number" min="0"></label><label>رفع المؤهل Word أو PDF<input name="qualification_file" type="file" accept=".pdf,.doc,.docx"></label><label>رفع السيرة الذاتية Word أو PDF<input name="cv_file" type="file" accept=".pdf,.doc,.docx"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ السجل</button></div></form>');
+  if (names[kind]) return modal('<h2>إضافة ' + names[kind] + '</h2><form id="qualityDocumentForm"><input type="hidden" name="category" value="' + kind + '"><input type="hidden" name="owner" value="شركة مختبر أساس"><div class="modal-grid"><label>الكود<input name="code" required placeholder="QMS-P-001"></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision" placeholder="Rev. 01"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>رفع ملف<input name="quality_file" type="file"></label><label>رابط بديل (اختياري)<input name="document_ref" type="url"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><p class="form-note">أي صيغة ملف حتى 100MB.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الوثيقة</button></div></form>');
+  if (kind === 'proficiency') return modal('<h2>إضافة مشاركة اختبار كفاءة</h2><form id="proficiencyForm"><div class="modal-grid"><label>اسم الاختبار<input name="test_name" required></label><label>المادة<input name="material"></label><label>المعيار<input name="standard"></label><label>مقدم الخدمة<input name="provider"></label><label>تاريخ المشاركة<input name="participation_date" type="date"></label><label>النتيجة<input name="result"></label><label>Z-score<input name="z_score"></label><label>رفع تقرير<input name="quality_file" type="file"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ المشاركة</button></div></form>');
+  if (kind === 'staff') return modal('<h2>إضافة سجل موظف للجودة</h2><form id="qualityStaffForm"><div class="modal-grid"><label>الاسم الكامل<input name="full_name" required></label><label>المسمى الوظيفي<input name="job_title"></label><label>التخصص<input name="specialty"></label><label>سنوات الخبرة<input name="experience_years" type="number" min="0"></label><label>رفع المؤهل<input name="qualification_file" type="file"></label><label>رفع السيرة الذاتية<input name="cv_file" type="file"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ السجل</button></div></form>');
 }
 
 const QUALITY_TEMPLATES = {
@@ -1360,7 +1365,7 @@ function validChannelUrl(value, channel) { try { const url=new URL(String(value|
 function applyChannelLink(channel,value) { const link=$(channel+'ChannelLink');const status=$(channel+'ChannelStatus');if(!link||!status)return;const href=validChannelUrl(value,channel);if(href){link.href=href;link.classList.remove('disabled');link.setAttribute('aria-disabled','false');setText(status,'متصل وجاهز للفتح');}else{link.removeAttribute('href');link.classList.add('disabled');link.setAttribute('aria-disabled','true');setText(status,'أضف رابطًا صحيحًا من إعدادات النظام');} }
 async function loadCommunicationLinks() { let settings={};try{settings=await api('/api/communication-links');}catch(error){try{if(currentUser&&['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)>=0)settings=await api('/api/settings');}catch(ignore){settings={};}}applyChannelLink('whatsapp',settings.whatsapp_group_url||OFFICIAL_WHATSAPP_URL);applyChannelLink('telegram',settings.telegram_url||OFFICIAL_TELEGRAM_URL); }
 async function submitSystemSettings(form) { const data={};Array.from(form.elements).forEach(function(field){if(!field.name)return;data[field.name]=field.type==='checkbox'?String(field.checked):field.value.trim();});await api('/api/settings/update',{method:'POST',body:JSON.stringify(data)});setText($('settingsMessage'),'تم حفظ الإعدادات ومزامنتها بنجاح');await loadCommunicationLinks();showToast('تم حفظ إعدادات النظام وتحديث روابط التواصل'); }
-async function submitQualityDocument(form) { const data = {}; new FormData(form).forEach(function(value,key) { if (key !== 'quality_file') data[key] = value; }); const file = form.elements.quality_file.files[0]; if (file) { if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 8192)); data.file_name = file.name; data.file_base64 = btoa(binary); } await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم حفظ وثيقة الجودة'); }
+async function submitQualityDocument(form) { const data = {}; new FormData(form).forEach(function(value,key) { if (key !== 'quality_file') data[key] = value; }); const file = form.elements.quality_file.files[0]; if (file) { if (file.size > 100 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 100MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 8192)); data.file_name = file.name; data.file_base64 = btoa(binary); } await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم حفظ وثيقة الجودة'); }
 function openQualityDocumentEdit(item) { modal('<h2>تعديل وثيقة الجودة</h2><form id="qualityDocumentEditForm"><input type="hidden" name="id" value="'+item.id+'"><input type="hidden" name="category" value="'+esc(item.category)+'"><div class="modal-grid"><label>الكود<input name="code" required value="'+esc(item.code)+'"></label><label>العنوان<input name="title" required value="'+esc(item.title)+'"></label><label>الإصدار<input name="revision" value="'+esc(item.revision||'')+'"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ التعديل</button></div></form>'); }
 async function submitQualityDocumentEdit(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/quality/documents/update',{method:'POST',body:JSON.stringify(data)});closeModal();await refresh();showToast('تم تعديل وثيقة الجودة'); }
 async function deleteQualityDocument(id) { if(!window.confirm('هل تريد حذف وثيقة الجودة نهائياً؟'))return;await api('/api/quality/documents/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف وثيقة الجودة'); }
@@ -1372,7 +1377,7 @@ async function resetOperationalData(){
   const result=await api('/api/system/reset-operational',{method:'POST',body:JSON.stringify({confirmation:'RESET-ASAS-OPERATIONAL'})});
   await refresh(); showToast('تم تصفير بيانات التشغيل. النسخة الاحتياطية: '+result.backup);
 }
-async function uploadQualityFile(file) { if (!file) return ''; if (file.size > 25 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 25MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset=0; offset<bytes.length; offset+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192)); const result = await api('/api/quality/files',{method:'POST',body:JSON.stringify({file_name:file.name,file_base64:btoa(binary)})}); return result.ref; }
+async function uploadQualityFile(file) { if (!file) return ''; if (file.size > 100 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 100MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset=0; offset<bytes.length; offset+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192)); const result = await api('/api/quality/files',{method:'POST',body:JSON.stringify({file_name:file.name,file_base64:btoa(binary)})}); return result.ref; }
 async function submitQualityRecord(form,path,files) { const data={}; new FormData(form).forEach(function(value,key){if(files.indexOf(key)<0)data[key]=value;}); for(const item of files){const ref=await uploadQualityFile(form.elements[item].files[0]); if(ref)data[item === 'quality_file' ? 'report_ref' : item === 'qualification_file' ? 'qualification_ref' : 'cv_ref']=ref;} await api(path,{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم الحفظ'); }
 
 const BULK_FIELDS = {clients:['الاسم','الهاتف','البريد'],projects:['اسم المشروع','العميل','الموقع','الأولوية','البداية','الاستحقاق','التقدم','الوصف'],work_orders:['أمر العمل','معرف المشروع','الأولوية','الموعد','الاستحقاق','الوصف'],samples:['المادة','معرف المشروع','المصدر','تاريخ الاستلام','ملاحظات']};
@@ -1608,31 +1613,46 @@ async function authenticatedAttachmentDownload(item,openAfter){
   setTimeout(function(){URL.revokeObjectURL(fetched.url);},30000);
 }
 
-async function openAuthorizedQualityFile(ref,name){
-  const headers={};
-  if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+async function fetchAuthorizedQualityFile(ref){
+  const headers={};if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
   let response;
-  try{
-    response=await fetch(API_BASE_URL+ref,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
-  }catch(error){
-    throw new Error('تعذر الاتصال بالخادم لفتح وثيقة الجودة');
+  try{response=await fetch(API_BASE_URL+ref,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});}
+  catch(error){throw new Error('تعذر الاتصال بالخادم لفتح وثيقة الجودة');}
+  if(!response.ok){let message='تعذر فتح وثيقة الجودة';try{const data=await response.json();message=data.error||message;}catch(_error){}throw new Error(message);}
+  const blob=await response.blob();if(!blob.size)throw new Error('ملف وثيقة الجودة فارغ أو غير متاح');
+  return {blob:blob,url:URL.createObjectURL(blob)};
+}
+
+async function openAuthorizedQualityFile(ref,name,downloadOnly){
+  const fetched=await fetchAuthorizedQualityFile(ref);
+  const storedName=decodeURIComponent(String(ref).split('/').pop()||'quality-file');
+  const displayName=(name&&String(name).indexOf('.')>0)?name:storedName;
+  if(downloadOnly){
+    downloadAttachmentBlob({original_name:displayName},fetched.blob,fetched.url);
+    setTimeout(function(){URL.revokeObjectURL(fetched.url);},30000);return;
   }
-  if(!response.ok){
-    let message='تعذر فتح وثيقة الجودة';
-    try{const data=await response.json();message=data.error||message;}catch(_error){}
-    throw new Error(message);
-  }
-  const blob=await response.blob();
-  if(!blob.size)throw new Error('ملف وثيقة الجودة فارغ أو غير متاح');
-  const url=URL.createObjectURL(blob);
-  const contentType=String(blob.type||'');
-  if(contentType.indexOf('pdf')>=0||contentType.indexOf('image/')===0){
-    window.open(url,'_blank','noopener');
-    setTimeout(function(){URL.revokeObjectURL(url);},60000);
-  }else{
-    downloadAttachmentBlob({original_name:name||'quality-file'},blob,url);
-    setTimeout(function(){URL.revokeObjectURL(url);},30000);
-  }
+  if(activeAttachmentObjectUrl)URL.revokeObjectURL(activeAttachmentObjectUrl);activeAttachmentObjectUrl=fetched.url;
+  const kind=attachmentViewerKind(displayName),format=attachmentFormatLabel(kind,displayName);
+  const size=(fetched.blob.size/1024/1024).toFixed(fetched.blob.size>=1024*1024?2:3)+' MB';
+  let content='';
+  if(kind==='pdf')content='<iframe class="attachment-viewer-frame" src="'+esc(fetched.url)+'#toolbar=1&navpanes=1"></iframe>';
+  else if(kind==='image')content='<div class="attachment-image-stage"><img src="'+esc(fetched.url)+'" alt="'+esc(displayName)+'"></div>';
+  else if(kind==='text')content='<pre class="attachment-text-stage">'+esc((await fetched.blob.text()).slice(0,1000000))+'</pre>';
+  else if(kind==='excel')content=await spreadsheetPreviewHtml(fetched.blob,displayName);
+  else if(kind==='word')content=await wordPreviewHtml(fetched.blob,displayName);
+  else if(kind==='archive'&&/\.zip$/i.test(displayName))content=await zipPreviewHtml(fetched.blob,displayName);
+  else if(kind==='audio')content='<div class="media-file-preview"><audio controls preload="metadata" src="'+esc(fetched.url)+'"></audio></div>';
+  else if(kind==='video')content='<div class="media-file-preview"><video controls preload="metadata" src="'+esc(fetched.url)+'"></video></div>';
+  else content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(displayName)+'</h3><p>تم فتح الملف داخل البرنامج. الملف محفوظ بصيغته الأصلية دون تحويل ويمكن تنزيله عند الحاجة.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
+  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Quality File Viewer</span><h2>'+esc(displayName)+'</h2><p>'+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn primary" type="button" data-quality-viewer-download>تنزيل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
+  const button=document.querySelector('[data-quality-viewer-download]');if(button)button.addEventListener('click',function(){downloadAttachmentBlob({original_name:displayName},fetched.blob,fetched.url);});
+}
+
+async function deleteAuthorizedQualityFile(ref,name){
+  if(!canDeleteUploadedFiles())throw new Error('ليس لديك صلاحية حذف ملفات الجودة');
+  if(!window.confirm('حذف الملف «'+(name||'')+'» نهائيًا؟'))return;
+  await api('/api/quality/files/delete',{method:'POST',body:JSON.stringify({ref:ref})});
+  await refresh();showToast('تم حذف الملف مباشرة');
 }
 
 async function loadSmartImports(section){
@@ -2313,6 +2333,8 @@ function bindEvents() {
     const catalogDownload=event.target.closest('[data-catalog-download]');if(catalogDownload){event.preventDefault();const item={id:Number(catalogDownload.dataset.catalogDownload),original_name:catalogDownload.dataset.catalogFileName||'test-resource'};try{await authenticatedAttachmentDownload(item,false);}catch(error){showToast(error.message,true);}return;}
     const catalogDelete=event.target.closest('[data-catalog-delete]');if(catalogDelete){event.preventDefault();const item={id:Number(catalogDelete.dataset.catalogDelete),original_name:catalogDelete.dataset.catalogFileName||'test-resource'};try{await deleteUploadedFile(item);}catch(error){showToast(error.message,true);}return;}
     const qualityFile=event.target.closest('[data-quality-file-ref]');if(qualityFile){event.preventDefault();try{await openAuthorizedQualityFile(qualityFile.dataset.qualityFileRef,qualityFile.dataset.qualityFileName||'quality-file');}catch(error){showToast(error.message,true);}return;}
+    const qualityDownload=event.target.closest('[data-quality-file-download]');if(qualityDownload){event.preventDefault();try{await openAuthorizedQualityFile(qualityDownload.dataset.qualityFileDownload,qualityDownload.dataset.qualityFileName||'quality-file',true);}catch(error){showToast(error.message,true);}return;}
+    const qualityDelete=event.target.closest('[data-quality-file-delete]');if(qualityDelete){event.preventDefault();try{await deleteAuthorizedQualityFile(qualityDelete.dataset.qualityFileDelete,qualityDelete.dataset.qualityFileName||'quality-file');}catch(error){showToast(error.message,true);}return;}
     const removeSelected=event.target.closest('[data-smart-remove-selected]');if(removeSelected){event.preventDefault();const form=$('smartImportForm');if(form){form.__selectedFiles=smartSelectedFiles(form).filter(function(_file,index){return index!==Number(removeSelected.dataset.smartRemoveSelected);});renderSmartSelectedFiles(form);}return;}
     const retryFailed=event.target.closest('[data-smart-retry-failed]');if(retryFailed){event.preventDefault();const form=$('smartImportForm');if(form)try{await submitSmartImport(form);}catch(error){showToast(error.message,true);}return;}
     const smartOpen=event.target.closest('[data-smart-open]');if(smartOpen){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartOpen.dataset.smartOpen)];if(item)try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
