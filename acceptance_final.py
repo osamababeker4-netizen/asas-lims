@@ -46,6 +46,11 @@ with tempfile.TemporaryDirectory() as tmp:
     ensure("/api/attachments/files/" in app_js, "direct download UI link missing")
     ensure(server.MAX_JSON_BODY_BYTES >= 40 * 1024 * 1024, "request body limit is below 40MB")
 
+    ensure("function openAttachmentInViewer" in app_js, "internal original-file viewer missing")
+    ensure("id=\"fieldTestSearch\"" in index_html and "openFieldTestPicker" in app_js, "searchable full field catalog missing")
+    ensure("equipment-technical-table" in index_html and "function equipmentTone" in app_js, "technical equipment table missing")
+    ensure("QUALITY_ACCESS_ROLES" in app_js and "page === 'quality' || page === 'documentCenter'" in app_js, "quality/document-center UI access guard missing")
+
     connection = server.db()
     admin = dict(connection.execute("select * from users where username='admin'").fetchone())
     connection.close()
@@ -59,6 +64,27 @@ with tempfile.TemporaryDirectory() as tmp:
     def request(method, path, payload=None, raw=False):
         client = http.client.HTTPConnection("127.0.0.1", port, timeout=45)
         headers = {"Authorization": "Bearer " + token}
+        body = None
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+            body = json.dumps(payload).encode("utf-8")
+        client.request(method, path, body, headers)
+        response = client.getresponse()
+        body_bytes = response.read()
+        response_headers = dict(response.getheaders())
+        status = response.status
+        client.close()
+        if raw:
+            return status, body_bytes, response_headers
+        try:
+            parsed = json.loads(body_bytes.decode("utf-8"))
+        except Exception:
+            parsed = {"_raw": body_bytes.decode("utf-8", errors="replace")}
+        return status, parsed, response_headers
+
+    def request_as(access_token, method, path, payload=None, raw=False):
+        client = http.client.HTTPConnection("127.0.0.1", port, timeout=45)
+        headers = {"Authorization": "Bearer " + access_token} if access_token else {}
         body = None
         if payload is not None:
             headers["Content-Type"] = "application/json"
@@ -137,6 +163,69 @@ with tempfile.TemporaryDirectory() as tmp:
         })
         ensure(status == 200 and medium_result.get("total") == 1, f"3MB upload failed: {medium_result}")
 
+        # Operational health gate.
+        status, health, _ = request_as(None, "GET", "/api/health")
+        ensure(status == 200 and health.get("database") == "ready", f"health check failed: {health}")
+
+        # Quality/document-control authorization gate: admin succeeds, technical manager is denied.
+        denied_token = "acceptance-technical-manager"
+        server.SESSIONS[denied_token] = {
+            "id": 99991,
+            "username": "acceptance-tech",
+            "full_name": "Acceptance Technical Manager",
+            "role": "technical_manager",
+        }
+        status, denied_quality, _ = request_as(denied_token, "GET", "/api/quality")
+        ensure(status == 403, f"quality access must be denied to technical_manager: {denied_quality}")
+        status, created_quality, _ = request("POST", "/api/quality/documents", {
+            "category": "procedure",
+            "code": "ACC-QMS-001",
+            "title": "Final operational acceptance procedure",
+        })
+        ensure(status == 200, f"quality document creation failed: {created_quality}")
+        status, quality, _ = request("GET", "/api/quality")
+        ensure(status == 200 and any(row.get("code") == "ACC-QMS-001" for row in quality.get("documents", [])),
+               f"quality document persistence failed: {quality}")
+
+        # Field-program gate: use an actual catalog test and persist it in a field visit.
+        connection = server.db()
+        catalog_test = connection.execute(
+            "select id,code,name_ar,standard from test_catalog order by id limit 1"
+        ).fetchone()
+        ensure(catalog_test is not None, "test catalog is empty")
+        equipment_columns = {row["name"] for row in connection.execute("pragma table_info(equipment)").fetchall()}
+        calibration_columns = {row["name"] for row in connection.execute("pragma table_info(calibration_records)").fetchall()}
+        required_equipment = {
+            "equipment_code", "name", "serial_no", "section", "range_text",
+            "verification_status", "maintenance_status", "calibrated_to",
+            "next_calibration", "certificate_no", "notes"
+        }
+        ensure(required_equipment.issubset(equipment_columns),
+               "equipment technical schema is incomplete: " + str(sorted(required_equipment - equipment_columns)))
+        ensure({"equipment_id", "calibration_date", "next_due", "certificate_no", "provider", "result"}.issubset(calibration_columns),
+               "calibration record schema is incomplete")
+        connection.close()
+
+        status, field_visit, _ = request("POST", "/api/field/visits", {
+            "license_no": "ACC-FIELD-001",
+            "status": "مسودة",
+            "project_name": "Final Acceptance",
+            "location": "Operational acceptance",
+            "tests": [{
+                "catalog_id": catalog_test["id"],
+                "name": catalog_test["name_ar"],
+                "standard": catalog_test["standard"],
+                "result": "قيد الإجراء",
+            }],
+        })
+        ensure(status == 200 and field_visit.get("id"), f"field visit creation failed: {field_visit}")
+        connection = server.db()
+        saved_visit = connection.execute("select tests_json from field_visits where id=?", (field_visit["id"],)).fetchone()
+        connection.close()
+        saved_tests = json.loads(saved_visit["tests_json"] or "[]")
+        ensure(saved_tests and saved_tests[0].get("catalog_id") == catalog_test["id"],
+               "field visit did not persist the selected catalog test")
+
         print(json.dumps({
             "status": "PASS",
             "bulk_files_processed": bulk_count,
@@ -145,10 +234,16 @@ with tempfile.TemporaryDirectory() as tmp:
             "zip_skipped": len(zip_result.get("skipped") or []),
             "direct_download": "PASS",
             "three_mb_upload": "PASS",
+            "health_check": "PASS",
+            "quality_permission_gate": "PASS",
+            "quality_persistence": "PASS",
+            "field_catalog_visit": "PASS",
+            "equipment_calibration_schema": "PASS",
             "json_body_limit_mb": server.MAX_JSON_BODY_BYTES // (1024 * 1024),
         }, ensure_ascii=False, indent=2))
     finally:
         server.SESSIONS.pop(token, None)
+        server.SESSIONS.pop("acceptance-technical-manager", None)
         httpd.shutdown()
         httpd.server_close()
         worker.join(timeout=5)
