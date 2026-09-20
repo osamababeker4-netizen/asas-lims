@@ -1661,7 +1661,7 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'تصفير النظام متاح لمدير النظام ومدير الجودة فقط'}, 403)
                 if str(data.get('confirmation') or '') != 'RESET-ASAS-OPERATIONAL':
                     return self.send_json({'error': 'رمز تأكيد التصفير غير صحيح'}, 400)
-                keep_names = ['أسامة', 'صدام', 'علي']
+                keep_names = ['أسامة']
                 keep_rows = []
                 for name in keep_names:
                     matches = connection.execute("select id,username,full_name,role from users where active=1 and (trim(full_name)=? or full_name like ? or trim(username)=?)", (name, '%'+name+'%', name)).fetchall()
@@ -1669,8 +1669,11 @@ class H(BaseHTTPRequestHandler):
                         return self.send_json({'error': 'لم يتم التصفير: يجب أن يطابق الاسم «'+name+'» مستخدمًا نشطًا واحدًا فقط'}, 409)
                     keep_rows.append(matches[0])
                 keep_ids = list(dict.fromkeys(row['id'] for row in keep_rows))
-                if len(keep_ids) != 3:
-                    return self.send_json({'error': 'لم يتم التصفير: حسابات الاستثناء غير متطابقة'}, 409)
+                if len(keep_ids) != 1:
+                    return self.send_json({'error': 'لم يتم التصفير: حساب أسامة غير متطابق'}, 409)
+                osama = keep_rows[0]
+                if osama['role'] not in {'admin','quality_manager'}:
+                    return self.send_json({'error': 'لم يتم التصفير: يجب أن يكون حساب أسامة مدير النظام أو مدير الجودة'}, 409)
                 os.makedirs(BACKUP_DIR, exist_ok=True)
                 stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
                 backup_name = 'before-operational-reset-' + stamp + '.sqlite3'

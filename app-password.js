@@ -1244,7 +1244,7 @@ async function submitQualityDocumentEdit(form) { const data={};new FormData(form
 async function deleteQualityDocument(id) { if(!window.confirm('هل تريد حذف وثيقة الجودة نهائياً؟'))return;await api('/api/quality/documents/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف وثيقة الجودة'); }
 async function resetSyncQueue(){if(!window.confirm('سيتم حذف جميع نتائج وطابور المزامنة السابق والبدء من الصفر. هل تريد المتابعة؟'))return;const result=await api('/api/sync/reset',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' نتيجة وبدأ طابور مزامنة جديد');}
 async function resetOperationalData(){
-  if(!window.confirm('سيتم إنشاء نسخة احتياطية ثم حذف جميع بيانات التشغيل نهائيًا، مع الإبقاء فقط على أسامة وصدام وعلي. هل تريد المتابعة؟'))return;
+  if(!window.confirm('سيتم إنشاء نسخة احتياطية ثم حذف جميع بيانات التشغيل وبقية المستخدمين نهائيًا، مع الإبقاء فقط على حساب أسامة المدير. هل تريد المتابعة؟'))return;
   const phrase=window.prompt('للتأكيد النهائي اكتب: تصفير نظام أساس');
   if(phrase!=='تصفير نظام أساس'){showToast('تم إلغاء التصفير؛ عبارة التأكيد غير مطابقة',true);return;}
   const result=await api('/api/system/reset-operational',{method:'POST',body:JSON.stringify({confirmation:'RESET-ASAS-OPERATIONAL'})});
