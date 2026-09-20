@@ -953,9 +953,11 @@ async function openFieldManual(){
       downloadAttachmentBlob({original_name:'الدليل الشامل للأعمال المدنية للبنية التحتية.pdf'},blob,activeAttachmentObjectUrl);
     });
   }catch(error){
-    modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><div class="attachment-original-format field-manual-error"><h3>تعذر عرض ملف PDF الآن</h3><p>'+esc(error.message||'تعذر تحميل الدليل')+'</p><button class="btn secondary" type="button" data-field-local-guide>فتح الدليل التشغيلي المحلي</button></div></section>');
+    modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><div class="attachment-original-format field-manual-error"><h3>تعذر تحميل نسخة PDF الآن</h3><p>'+esc(error.message||'تعذر تحميل الدليل')+'</p><button class="btn secondary" type="button" data-field-local-guide>عرض الدليل التشغيلي المحلي داخل البرنامج</button></div></section>');
     const local=document.querySelector('[data-field-local-guide]');
-    if(local)local.addEventListener('click',function(){window.open('field-test-guide.html','_blank','noopener');});
+    if(local)local.addEventListener('click',function(){
+      modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>نسخة التشغيل المحلية</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><iframe class="field-manual-frame" src="field-test-guide.html" title="دليل الاختبارات الميدانيه"></iframe></section>');
+    });
   }
 }
 
