@@ -58,10 +58,11 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('data-page="dashboard">الرئيسية</button>', html)
         self.assertNotIn('id="documentCenterNav"', html)
         self.assertIn('id="qualityFilesEntry"', html)
-        self.assertIn('data-page-go="documentCenter"', html)
+        self.assertIn('data-inline-smart-import="technicalLibrary"', html)
         self.assertIn('id="documentCenter"', html)
         self.assertIn('QUALITY_ACCESS_ROLES', app)
-        self.assertIn("page === 'quality' || page === 'documentCenter'", app)
+        self.assertIn("if (page === 'documentCenter') page = 'quality';", app)
+        self.assertIn("page === 'quality'", app)
         for group in ('الأسفلت', 'التربة', 'الخرسانة', 'الحقل وNDT'):
             self.assertIn(group, html)
         self.assertIn('technicalLibrary', self.server.SMART_SECTIONS)
@@ -216,7 +217,7 @@ class SchemaMigrationTests(unittest.TestCase):
         scripts = '\n'.join((Path(__file__).parent / name).read_text(encoding='utf-8') for name in (
             'app-password.js','quality-management.js','branch-map.js'))
         delegated = {'page','page-go','open-project','project-view','smart-import','quality-add','quality-template',
-            'quality-import','qm-open','document-group','branch-query','field-guide-filter','profile-action'}
+            'quality-import','qm-open','qm-inline-save','document-group','branch-query','field-guide-filter','profile-action'}
         missing = []
         for tag in re.findall(r'<button\b[^>]*>', html, flags=re.I):
             attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', tag))
@@ -1086,7 +1087,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.2.18-operational-fixes'", server)
+        self.assertIn("APP_VERSION = '10.2.19-quality-control-unified'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1105,7 +1106,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-2-18-operational-fixes', sw)
+        self.assertIn('v10-2-19-quality-control-unified', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1118,6 +1119,38 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertTrue(backup.is_dir())
         self.assertTrue(quality.is_dir())
         self.assertTrue(records.is_dir())
+
+
+
+    def test_v10219_quality_control_is_one_unified_inline_file(self):
+        root = Path(__file__).parent
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        qms = (root / 'quality-management.js').read_text(encoding='utf-8')
+        css = (root / 'style.css').read_text(encoding='utf-8')
+
+        self.assertIn('ضبط الجودة', html)
+        self.assertIn('QUALITY CONTROL', html)
+        self.assertIn('id="qualityInternalHub"', html)
+        ordered = [
+            'qualityDocumentsWindow','qualityFilesEntry','proficiencyWindow','qualityStaffWindow',
+            'procedureWindow','worksheetWindow','adminFormsWindow','swotWindow','riskWindow','kpiWindow',
+            'actionWindow','qualityEquipmentCard','qualityImportLogWindow','managementCycleWindow',
+            'technicalLibraryWindow','companyVaultCard'
+        ]
+        positions = [html.index('id="' + item + '"') for item in ordered]
+        self.assertEqual(positions, sorted(positions))
+        self.assertNotIn('management-cycle-board', html)
+        self.assertIn('data-inline-smart-import="technicalLibrary"', html)
+        self.assertIn('data-inline-smart-import="companyVault"', html)
+        self.assertIn('data-inline-quality-document="procedure"', html)
+        self.assertIn('data-inline-quality-record="proficiency"', html)
+        self.assertIn('data-inline-equipment', html)
+        self.assertIn('data-qm-inline-save="swot"', html)
+        self.assertIn('data-cycle-stage-form', qms)
+        self.assertIn("if (page === 'documentCenter') page = 'quality';", app)
+        self.assertIn('.quality-control-hero', css)
+        self.assertIn('#quality .qc-window-card', css)
 
 
 

@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-2-18-operational-fixes';
-const APP_SHELL = ['./','./index.html','./style.css?v=10-2-18-operational-fixes','./app-password.js?v=10-2-18-operational-fixes','./branch-map.js?v=10-2-18-operational-fixes','./i18n.js?v=10-2-18-operational-fixes','./runtime-config.js?v=10-2-18-operational-fixes','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
+const CACHE_NAME = 'asas-lims-pwa-v10-2-19-quality-control-unified';
+const APP_SHELL = ['./','./index.html','./style.css?v=10-2-19-quality-control-unified','./app-password.js?v=10-2-19-quality-control-unified','./branch-map.js?v=10-2-19-quality-control-unified','./i18n.js?v=10-2-19-quality-control-unified','./runtime-config.js?v=10-2-19-quality-control-unified','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });

@@ -49,7 +49,7 @@ with tempfile.TemporaryDirectory() as tmp:
     ensure("function openAttachmentInViewer" in app_js, "internal original-file viewer missing")
     ensure("id=\"fieldTestSearch\"" in index_html and "openFieldTestPicker" in app_js, "searchable full field catalog missing")
     ensure("equipment-technical-table" in index_html and "function equipmentTone" in app_js, "technical equipment table missing")
-    ensure("QUALITY_ACCESS_ROLES" in app_js and "page === 'quality' || page === 'documentCenter'" in app_js, "quality/document-center UI access guard missing")
+    ensure("QUALITY_ACCESS_ROLES" in app_js and "if (page === 'documentCenter') page = 'quality';" in app_js and "page === 'quality'" in app_js, "unified quality UI access guard missing")
 
     connection = server.db()
     admin = dict(connection.execute("select * from users where username='admin'").fetchone())
