@@ -1537,7 +1537,7 @@ async function openAttachmentInViewer(item){
     const text=await fetched.blob.text();
     content='<pre class="attachment-text-stage cad-text-preview">'+esc(text.slice(0,1200000))+'</pre>';
   }else{
-    content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(item.original_name||'ملف')+'</h3><p>الملف محفوظ في النظام بصيغته الأصلية. هذه الصيغة تحتاج برنامجها الأصلي للعرض الكامل، ويمكن تنزيلها مباشرة دون فقدان النسخة المحفوظة.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
+    content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(item.original_name||'ملف')+'</h3><p>الملف محفوظ في النظام بصيغته الأصلية دون تحويل. هذه الصيغة تحتاج برنامجها الأصلي للعرض الكامل، ويمكن تنزيلها مباشرة دون فقدان النسخة المحفوظة.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
   }
   modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Internal File Viewer</span><h2>'+esc(item.original_name||'ملف')+'</h2><p>نسخة أصلية محفوظة · '+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-viewer-newtab>فتح الأصل في نافذة</button><button class="btn primary" type="button" data-viewer-download>تنزيل الأصل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
   const downloadButton=document.querySelector('[data-viewer-download]');
