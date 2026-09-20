@@ -1078,5 +1078,48 @@ class SchemaMigrationTests(unittest.TestCase):
 
 
 
+    def test_v10218_operational_fixes_are_release_gated(self):
+        root = Path(__file__).parent
+        server = (root / 'server.py').read_text(encoding='utf-8')
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        css = (root / 'style.css').read_text(encoding='utf-8')
+        sw = (root / 'sw.js').read_text(encoding='utf-8')
+
+        self.assertIn("APP_VERSION = '10.2.18-operational-fixes'", server)
+        self.assertIn("MAX_SMART_FILE_BYTES", server)
+        self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
+        self.assertIn("self.send_cors_headers()", server)
+        self.assertIn("for required_dir in (os.path.dirname(os.path.abspath(DB)), BACKUP_DIR, QUALITY_UPLOADS, RECORD_UPLOADS)", server)
+
+        self.assertIn("file.size>100*1024*1024", app)
+        self.assertIn("data-quality-file-ref", app)
+        self.assertIn("mode:'cors'", app)
+        self.assertIn("تم تجاوز '+failed.length+' ملف", app)
+
+        self.assertIn('id="qualityInternalHub"', html)
+        for window_id in ('qualityDocumentsWindow', 'proficiencyWindow', 'qualityStaffWindow'):
+            self.assertIn('id="' + window_id + '"', html)
+        self.assertEqual(html.count('id="qualityDocumentsTable"'), 1)
+        self.assertEqual(html.count('id="proficiencyTable"'), 1)
+        self.assertEqual(html.count('id="qualityStaffTable"'), 1)
+        self.assertIn('الملف الرئيسي الموحد', html)
+        self.assertIn('.internal-window-card', css)
+        self.assertIn('v10-2-18-operational-fixes', sw)
+
+    def test_init_creates_all_production_storage_directories(self):
+        backup = Path(self.temp.name) / 'backups'
+        quality = Path(self.temp.name) / 'quality'
+        records = Path(self.temp.name) / 'records'
+        self.server.BACKUP_DIR = str(backup)
+        self.server.QUALITY_UPLOADS = str(quality)
+        self.server.RECORD_UPLOADS = str(records)
+        self.server.init()
+        self.assertTrue(backup.is_dir())
+        self.assertTrue(quality.is_dir())
+        self.assertTrue(records.is_dir())
+
+
+
 if __name__ == '__main__':
     unittest.main()
