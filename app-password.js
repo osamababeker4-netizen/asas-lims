@@ -561,7 +561,8 @@ function updateBackButton() {
 }
 
 function navigate(page) {
-  if ((page === 'quality' || page === 'documentCenter') && (!currentUser || QUALITY_ACCESS_ROLES.indexOf(currentUser.role) < 0)) {
+  if (page === 'documentCenter') page = 'quality';
+  if (page === 'quality' && (!currentUser || QUALITY_ACCESS_ROLES.indexOf(currentUser.role) < 0)) {
     showToast('هذا القسم متاح فقط للمستخدمين المخولين بالجودة والوثائق.', true);
     page = 'dashboard';
   }
@@ -586,7 +587,7 @@ function navigate(page) {
   closeProfileMenu();
   if (page === 'settings') loadSystemSettings();
   if (page === 'communications') loadCommunicationLinks();
-  if (page === 'documentCenter') loadDocumentCenter();
+  if (page === 'quality') loadDocumentCenter();
   if (page === 'trash') loadTrash();
 }
 
@@ -1060,10 +1061,59 @@ async function renderQuality() {
   try {
     qualityData = await api('/api/quality');
     const categoryNames = {procedure:'إجراء',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
-    setHtml($('qualityDocumentsTable'), qualityData.documents.map(function(item) { const ref = item.document_ref ? (item.document_ref.indexOf('/api/') === 0 ? '<button class="text-btn" type="button" data-quality-file-ref="' + esc(item.document_ref) + '" data-quality-file-name="' + esc(item.code || item.title || 'quality-file') + '">فتح الملف</button>' : esc(item.document_ref)) : '—'; return '<tr><td>' + escUI(categoryNames[item.category] || item.category) + '</td><td>' + esc(item.code) + '</td><td>' + esc(item.title) + '</td><td>' + esc(item.revision || '—') + '</td><td>' + statusChip(item.status) + '</td><td>' + ref + '</td><td><div class="row-actions"><button class="text-btn" data-quality-document-edit="' + item.id + '" type="button">تعديل</button><button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="' + item.id + '" data-record-label="' + esc(item.code) + '" type="button">حذف</button></div></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
-    setHtml($('proficiencyTable'), qualityData.proficiency.map(function(item) { return '<tr><td>' + esc(item.test_name) + '</td><td>' + esc(item.material || '—') + '</td><td>' + esc(item.provider || '—') + '</td><td>' + esc(item.participation_date || '—') + '</td><td>' + esc(item.result || '—') + '</td><td>' + esc(item.z_score || '—') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
-    setHtml($('qualityStaffTable'), qualityData.staff.map(function(item) { return '<tr><td>' + esc(item.full_name) + '</td><td>' + esc(item.job_title || '—') + '</td><td>' + esc(item.specialty || '—') + '</td><td>' + esc(item.experience_years || '—') + '</td><td>' + esc(item.qualification_ref || '—') + '</td><td>' + (item.active ? 'نشط' : 'موقوف') + '</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
-  } catch (error) { ['qualityDocumentsTable','proficiencyTable','qualityStaffTable'].forEach(function(id) { if ($(id)) setHtml($(id), '<tr><td colspan="6" class="empty">تعذر تحميل بيانات الجودة.</td></tr>'); }); }
+    const fileAction=function(item){return item.document_ref&&item.document_ref.indexOf('/api/')===0?'<button class="text-btn" type="button" data-quality-file-ref="'+esc(item.document_ref)+'" data-quality-file-name="'+esc(item.code||item.title||'quality-file')+'">فتح الملف</button>':(item.document_ref?esc(item.document_ref):'—');};
+    const docActions=function(item){return '<div class="row-actions">'+fileAction(item)+'<button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="'+item.id+'" data-record-label="'+esc(item.code)+'" type="button">حذف</button></div>';};
+    const docs=qualityData.documents||[];
+    setHtml($('qualityDocumentsTable'),docs.map(function(item){return '<tr><td>'+escUI(categoryNames[item.category]||item.category)+'</td><td>'+esc(item.code)+'</td><td>'+esc(item.title)+'</td><td>'+esc(item.revision||'—')+'</td><td>'+statusChip(item.status)+'</td><td>'+fileAction(item)+'</td><td>'+docActions(item)+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
+    function renderDocList(id,category){
+      const box=$(id);if(!box)return;
+      const rows=docs.filter(function(item){return item.category===category;});
+      setHtml(box,rows.length?rows.map(function(item){return '<div class="qc-record-row"><div><strong>'+esc(item.code)+' — '+esc(item.title)+'</strong><small>'+esc(item.revision||'بدون إصدار')+' · '+escUI(item.status||'—')+'</small></div>'+docActions(item)+'</div>';}).join(''):'<div class="empty-state">لا توجد سجلات بعد.</div>');
+    }
+    renderDocList('qualityProcedureList','procedure');renderDocList('qualityWorksheetList','worksheet');renderDocList('qualityAdminFormList','admin_form');
+    setHtml($('proficiencyTable'), (qualityData.proficiency||[]).map(function(item){return '<tr><td>'+esc(item.test_name)+'</td><td>'+esc(item.material||'—')+'</td><td>'+esc(item.provider||'—')+'</td><td>'+esc(item.participation_date||'—')+'</td><td>'+esc(item.result||'—')+'</td><td>'+esc(item.z_score||'—')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
+    setHtml($('qualityStaffTable'), (qualityData.staff||[]).map(function(item){return '<tr><td>'+esc(item.full_name)+'</td><td>'+esc(item.job_title||'—')+'</td><td>'+esc(item.specialty||'—')+'</td><td>'+esc(item.experience_years||'—')+'</td><td>'+esc(item.qualification_ref||'—')+'</td><td>'+(item.active?'نشط':'موقوف')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
+    const equipmentRows=dashboard&&dashboard.equipment?dashboard.equipment:[];
+    const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+    if($('qualityEquipmentInlineTable'))setHtml($('qualityEquipmentInlineTable'),equipmentRows.map(function(item){return '<tr><td>'+esc(item.equipment_code||'—')+'</td><td>'+esc(item.name)+'</td><td>'+esc(item.serial_no||'—')+'</td><td>'+esc(item.section||'—')+'</td><td>'+esc(item.verification_status||'—')+'</td><td>'+esc(item.calibrated_to||item.next_calibration||'—')+'</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد أجهزة بعد.</td></tr>');
+  } catch (error) {
+    ['qualityDocumentsTable','proficiencyTable','qualityStaffTable','qualityEquipmentInlineTable'].forEach(function(id){if($(id))setHtml($(id),'<tr><td colspan="7" class="empty">تعذر تحميل بيانات الجودة.</td></tr>');});
+  }
+}
+
+async function inlineFileBase64(file,maxMb){
+  if(!file)return '';
+  if(file.size>maxMb*1024*1024)throw new Error('حجم '+file.name+' يتجاوز '+maxMb+'MB');
+  const bytes=new Uint8Array(await file.arrayBuffer());let binary='';
+  for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+  return btoa(binary);
+}
+async function submitInlineQualityDocument(form){
+  const data={owner:'شركة مختبر أساس'};new FormData(form).forEach(function(value,key){if(key!=='quality_file')data[key]=value;});
+  const fixed=form.dataset.inlineQualityDocument;if(fixed&&fixed!=='document')data.category=fixed;
+  const file=form.elements.quality_file&&form.elements.quality_file.files[0];
+  if(file){data.file_name=file.name;data.file_base64=await inlineFileBase64(file,25);}
+  await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تم الحفظ داخل الجودة والوثائق');
+}
+async function submitInlineQualityRecord(form,kind){
+  const endpoint=kind==='proficiency'?'/api/quality/proficiency':'/api/quality/staff';
+  const fileFields=kind==='proficiency'?['quality_file']:['qualification_file','cv_file'];
+  const data={};
+  for(const element of Array.from(form.elements)){if(!element.name||fileFields.indexOf(element.name)>=0)continue;data[element.name]=element.value;}
+  for(const name of fileFields){const input=form.elements[name],file=input&&input.files[0];if(file){data[name+'_name']=file.name;data[name+'_base64']=await inlineFileBase64(file,25);}}
+  await api(endpoint,{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تم حفظ السجل');
+}
+async function submitInlineEquipment(form){
+  const data={};new FormData(form).forEach(function(value,key){data[key]=value;});
+  await api('/api/equipment',{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تمت إضافة الجهاز');
+}
+async function submitInlineSmartImport(form){
+  const files=Array.from(form.elements.files.files||[]);if(!files.length)throw new Error('اختر ملفًا واحدًا على الأقل');
+  const section=form.elements.section.value,status=form.querySelector('[data-inline-import-status]');form.__uploadTokens=form.__uploadTokens||{};
+  let ok=0,failed=[];
+  for(let i=0;i<files.length;i+=1){if(status)setText(status,'جارٍ رفع '+(i+1)+' من '+files.length);try{const result=await uploadSmartFile(form,section,files[i]);ok+=(result.imported||[]).length;}catch(error){failed.push(files[i].name+': '+error.message);}}
+  if(status)setText(status,failed.length?'نجح '+ok+' · تعذر '+failed.length+': '+failed.join(' | '):'تم رفع وفرز '+ok+' ملف بنجاح');
+  if(!failed.length)form.reset();await loadDocumentCenter();showToast(failed.length?'اكتمل الرفع مع ملفات متعثرة':'تم الرفع والفرز بنجاح',Boolean(failed.length));
 }
 
 function openQualityForm(kind) {
@@ -1269,10 +1319,8 @@ function documentFileTypeIcon(name) {
 }
 
 function renderDocumentCenterFiles() {
-  const box = $('documentLibraryFiles');
-  if (!box) return;
   const query = String(documentLibrarySearchTerm || '').trim().toLowerCase();
-  const rows = documentLibraryRows.filter(function(item) {
+  const filtered = documentLibraryRows.filter(function(item) {
     const group = item.material_group || 'أخرى';
     const groupOk = documentGroupFilter === 'الكل' || group === documentGroupFilter;
     const queryOk = !query || [item.original_name,item.file_category,item.material_group,item.classification_status,item.source_label].join(' ').toLowerCase().indexOf(query) >= 0;
@@ -1281,15 +1329,23 @@ function renderDocumentCenterFiles() {
   document.querySelectorAll('[data-document-group]').forEach(function(button) {
     button.classList.toggle('active', button.dataset.documentGroup === documentGroupFilter);
   });
-  if (!rows.length) {
-    setHtml(box,'<div class="empty-state document-empty"><strong>لا توجد ملفات فعلية مطابقة.</strong><span>ارفع الملفات من زر «رفع ملفات» لتظهر هنا مباشرة.</span></div>');
-    return;
-  }
   window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};
-  rows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});
-  setHtml(box,rows.map(function(item) {
-    return '<article class="document-file-card"><div class="document-file-icon">'+documentFileTypeIcon(item.original_name)+'</div><div class="document-file-info"><span class="pill">'+escUI(item.material_group||'أخرى')+'</span><h4>'+esc(item.original_name)+'</h4><p>'+esc(item.file_category||'ملف')+' · '+esc(item.source_label||'المكتبة الفنية')+'</p><small>'+esc(saudiDisplay(item.created_at))+'</small></div><div class="document-file-actions"><button class="btn primary" type="button" data-smart-open="'+item.id+'">فتح الملف</button><button class="btn secondary" type="button" data-smart-download="'+item.id+'">تنزيل</button></div></article>';
-  }).join(''));
+  documentLibraryRows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});
+
+  function cards(rows,emptyText) {
+    if(!rows.length)return '<div class="empty-state document-empty"><strong>'+esc(emptyText||'لا توجد ملفات فعلية مطابقة.')+'</strong></div>';
+    return rows.map(function(item) {
+      return '<article class="document-file-card compact"><div class="document-file-icon">'+documentFileTypeIcon(item.original_name)+'</div><div class="document-file-info"><span class="pill">'+escUI(item.material_group||'أخرى')+'</span><h4>'+esc(item.original_name)+'</h4><p>'+esc(item.file_category||'ملف')+' · '+esc(item.source_label||'المكتبة الفنية')+'</p><small>'+esc(saudiDisplay(item.created_at))+'</small></div><div class="document-file-actions"><button class="btn primary" type="button" data-smart-open="'+item.id+'">فتح</button><button class="btn secondary" type="button" data-smart-download="'+item.id+'">تنزيل</button></div></article>';
+    }).join('');
+  }
+  const main=$('documentLibraryFiles');if(main)setHtml(main,cards(filtered,'لا توجد ملفات فعلية مطابقة.'));
+  const technical=$('technicalLibraryFiles');if(technical)setHtml(technical,cards(documentLibraryRows.filter(function(x){return x.source_label==='المكتبة الفنية';}),'لا توجد ملفات في المكتبة الفنية بعد.'));
+  const vault=$('companyVaultFiles');if(vault)setHtml(vault,cards(documentLibraryRows.filter(function(x){return x.source_label==='خزنة الشركة';}),'لا توجد ملفات في الخزنة بعد.'));
+  const log=$('qualityImportLog');
+  if(log){
+    const recent=documentLibraryRows.slice().sort(function(a,b){return String(b.created_at||'').localeCompare(String(a.created_at||''));}).slice(0,50);
+    setHtml(log,recent.length?recent.map(function(item){return '<div class="qc-log-row"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.source_label||'')+' · '+esc(item.file_category||'ملف')+'</small></div><span>'+esc(item.material_group||'أخرى')+'</span><time>'+esc(saudiDisplay(item.created_at))+'</time><div><button class="text-btn" data-smart-open="'+item.id+'" type="button">فتح</button><button class="text-btn" data-smart-download="'+item.id+'" type="button">تنزيل</button></div></div>';}).join(''):'<div class="empty-state">لا توجد عمليات استيراد بعد.</div>');
+  }
 }
 
 async function loadDocumentCenter() {
@@ -1311,7 +1367,7 @@ async function loadDocumentCenter() {
 }
 
 const SMART_SECTION_LABELS={dashboard:'لوحة القيادة',projects:'المشاريع',workOrders:'أوامر العمل',field:'البرنامج الميداني',clients:'العملاء',samples:'العينات',tests:'الاختبارات',catalog:'دليل الاختبارات',reports:'التقارير',communications:'قنوات التواصل',quality:'الجودة والوثائق',technicalLibrary:'المكتبة الفنية',companyVault:'خزنة مستندات الشركة',company:'عن مختبر أساس',audit:'سجل التدقيق',trash:'سلة المحذوفات',users:'المستخدمون',equipment:'الأجهزة والمعايرة'};
-function installSmartImportButtons(){document.querySelectorAll('.page').forEach(function(page){const heading=page.querySelector(':scope > .page-heading');if(!heading||heading.querySelector('[data-smart-import]')||!SMART_SECTION_LABELS[page.id])return;let actions=heading.querySelector('.heading-actions');if(!actions){actions=document.createElement('div');actions.className='heading-actions';const existing=Array.from(heading.children).filter(function(x){return x.tagName==='BUTTON'||x.tagName==='A';});existing.forEach(function(x){actions.appendChild(x);});heading.appendChild(actions);}const button=document.createElement('button');button.className='btn secondary smart-import-button smart-import-edge';button.type='button';button.dataset.smartImport=page.id;button.textContent='إرفاق ملف';actions.insertBefore(button,actions.firstChild);});}
+function installSmartImportButtons(){document.querySelectorAll('.page').forEach(function(page){const heading=page.querySelector(':scope > .page-heading');if(page.id==='quality'||!heading||heading.querySelector('[data-smart-import]')||!SMART_SECTION_LABELS[page.id])return;let actions=heading.querySelector('.heading-actions');if(!actions){actions=document.createElement('div');actions.className='heading-actions';const existing=Array.from(heading.children).filter(function(x){return x.tagName==='BUTTON'||x.tagName==='A';});existing.forEach(function(x){actions.appendChild(x);});heading.appendChild(actions);}const button=document.createElement('button');button.className='btn secondary smart-import-button smart-import-edge';button.type='button';button.dataset.smartImport=page.id;button.textContent='إرفاق ملف';actions.insertBefore(button,actions.firstChild);});}
 async function fetchAuthenticatedAttachment(item){
   const headers={};
   if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
@@ -2173,6 +2229,10 @@ function bindEvents() {
   });
   document.addEventListener('submit',async function(event) {
     const form = event.target;
+    if (form.matches('[data-inline-quality-document]')) { event.preventDefault(); try{await submitInlineQualityDocument(form);}catch(error){showToast(error.message,true);} return; }
+    if (form.matches('[data-inline-quality-record]')) { event.preventDefault(); try{await submitInlineQualityRecord(form,form.dataset.inlineQualityRecord);}catch(error){showToast(error.message,true);} return; }
+    if (form.matches('[data-inline-equipment]')) { event.preventDefault(); try{await submitInlineEquipment(form);}catch(error){showToast(error.message,true);} return; }
+    if (form.matches('[data-inline-smart-import]')) { event.preventDefault(); try{await submitInlineSmartImport(form);}catch(error){showToast(error.message,true);} return; }
     if (!form.id) return;
     event.preventDefault();
     try {
