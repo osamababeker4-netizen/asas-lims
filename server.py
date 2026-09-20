@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.2.20-smart-standards-field-guide'
+APP_VERSION = '10.2.21-field-guide-file-actions'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -189,10 +189,32 @@ SMART_SECTIONS = {
 }
 
 SMART_FILE_TYPES = {
-    '.pdf':'PDF', '.doc':'Word', '.docx':'Word', '.xls':'Excel', '.xlsx':'Excel', '.csv':'بيانات CSV',
-    '.txt':'نص', '.jpg':'صورة', '.jpeg':'صورة', '.png':'صورة', '.webp':'صورة', '.heic':'صورة',
-    '.zip':'حزمة مضغوطة', '.dwg':'رسم هندسي', '.dxf':'رسم هندسي'
+    '.pdf':'PDF', '.doc':'Word', '.docx':'Word', '.rtf':'Word', '.xls':'Excel', '.xlsx':'Excel', '.xlsm':'Excel',
+    '.csv':'بيانات CSV', '.txt':'نص', '.json':'JSON', '.xml':'XML', '.log':'سجل نصي',
+    '.jpg':'صورة', '.jpeg':'صورة', '.png':'صورة', '.webp':'صورة', '.heic':'صورة', '.gif':'صورة', '.bmp':'صورة',
+    '.zip':'حزمة مضغوطة', '.rar':'حزمة مضغوطة', '.7z':'حزمة مضغوطة',
+    '.dwg':'رسم هندسي', '.dxf':'رسم هندسي',
+    '.ppt':'PowerPoint', '.pptx':'PowerPoint',
+    '.mp3':'صوت', '.wav':'صوت', '.m4a':'صوت', '.ogg':'صوت',
+    '.mp4':'فيديو', '.webm':'فيديو', '.mov':'فيديو', '.m4v':'فيديو'
 }
+
+FILE_DELETE_ROLES = {'admin','general_manager','manager','quality_manager','laboratory_manager','document_controller'}
+
+
+def safe_file_extension(file_name):
+    extension = os.path.splitext(os.path.basename(str(file_name or '')))[1].lower()
+    if not extension:
+        return ''
+    if len(extension) > 24 or not re.fullmatch(r'\.[a-z0-9][a-z0-9._+\-]*', extension):
+        return ''
+    return extension
+
+
+def smart_file_category(extension):
+    if extension in SMART_FILE_TYPES:
+        return SMART_FILE_TYPES[extension]
+    return ('ملف ' + extension.lstrip('.').upper()) if extension else 'ملف'
 
 MATERIAL_GROUP_KEYWORDS = {
     'خرسانة': ('خرسانة','خرساني','concrete','cement','مكعب','cube','cylinder','اسطوانة','slump','هبوط','compressive','compression','c39','c143','c31','c192','c42','c78','c496'),
@@ -334,9 +356,9 @@ def detect_smart_target(connection, section, file_name, content=b''):
 
 def store_smart_file(connection, user, section, original_name, content):
     original_name = os.path.basename(str(original_name or '')).strip()
-    extension = os.path.splitext(original_name)[1].lower()
-    if not original_name or extension not in SMART_FILE_TYPES:
-        raise ValueError('نوع الملف غير مدعوم: ' + (extension or 'بدون امتداد'))
+    extension = safe_file_extension(original_name)
+    if not original_name:
+        raise ValueError('اسم الملف غير صالح')
     if len(content) > MAX_SMART_FILE_BYTES:
         raise ValueError('حجم الملف يتجاوز الحد التشغيلي {}MB: {}'.format(MAX_SMART_FILE_BYTES // 1024 // 1024, original_name))
     entity_type, entity_id, status = detect_smart_target(connection, section, original_name, content)
@@ -345,9 +367,10 @@ def store_smart_file(connection, user, section, original_name, content):
     stored_name = secrets.token_urlsafe(18) + extension
     with open(os.path.join(RECORD_UPLOADS, stored_name), 'wb') as uploaded:
         uploaded.write(content)
+    category = smart_file_category(extension)
     connection.execute('''insert into record_attachments(entity_type,entity_id,original_name,stored_name,uploaded_by,section,file_category,material_group,classification_status,mime_type)
         values(?,?,?,?,?,?,?,?,?,?)''', (entity_type, entity_id, original_name, stored_name, user['id'], section,
-        SMART_FILE_TYPES[extension], material_group, status, extension.lstrip('.')))
+        category, material_group, status, extension.lstrip('.') or 'bin'))
     attachment_id = connection.execute('select last_insert_rowid()').fetchone()[0]
     resource_type = None
     if section == 'catalog' and entity_id:
@@ -358,13 +381,32 @@ def store_smart_file(connection, user, section, original_name, content):
         status = 'تم الفرز والربط تلقائيًا: ' + status_names[resource_type]
         connection.execute('update record_attachments set classification_status=? where id=?', (status, attachment_id))
     return {'id': attachment_id, 'name': original_name,
-            'category': SMART_FILE_TYPES[extension], 'material_group': material_group, 'status': status,
+            'category': category, 'material_group': material_group, 'status': status,
             'entity_id': entity_id, 'resource_type': resource_type}
 
 
 def record_allowed(user, entity_type):
     item = RECORD_TYPES.get(entity_type)
     return bool(item and (has_perm(user, item[1]) or (entity_type == 'catalog' and has_perm(user, 'quality'))))
+
+
+def attachment_access_allowed(user, row):
+    return bool(row and (record_allowed(user, row['entity_type']) or smart_section_allowed(user, row['section'])))
+
+
+def attachment_delete_allowed(user, row):
+    return bool(row and user and user.get('role') in FILE_DELETE_ROLES and attachment_access_allowed(user, row))
+
+
+def delete_record_attachment(connection, attachment_id):
+    row = connection.execute('select * from record_attachments where id=?', (attachment_id,)).fetchone()
+    if not row:
+        return None
+    connection.execute('update catalog_resources set astm_attachment_id=null where astm_attachment_id=?', (attachment_id,))
+    connection.execute('update catalog_resources set worksheet_attachment_id=null where worksheet_attachment_id=?', (attachment_id,))
+    connection.execute('update catalog_resources set results_attachment_id=null where results_attachment_id=?', (attachment_id,))
+    connection.execute('delete from record_attachments where id=?', (attachment_id,))
+    return dict(row)
 
 
 def save_record_file(connection, user, data):
@@ -375,14 +417,11 @@ def save_record_file(connection, user, data):
     table = RECORD_TYPES[entity_type][0]
     if not entity_id or not connection.execute('select id from ' + table + ' where id=?', (entity_id,)).fetchone():
         raise ValueError('السجل المحدد غير موجود')
-    original_name = os.path.basename(str(data.get('file_name') or ''))
-    extension = os.path.splitext(original_name)[1].lower()
+    original_name = os.path.basename(str(data.get('file_name') or '')).strip()
+    extension = safe_file_extension(original_name)
     encoded = str(data.get('file_base64') or '')
-    allowed = {'.pdf', '.doc', '.docx', '.xls', '.xlsx'}
-    if entity_type == 'field_visit':
-        allowed |= {'.jpg', '.jpeg', '.png', '.webp', '.heic'}
-    if not encoded or extension not in allowed:
-        raise ValueError('نوع الملف غير مدعوم لهذا السجل')
+    if not original_name or not encoded:
+        raise ValueError('الملف المرفوع غير صالح')
     max_encoded = int(MAX_SMART_FILE_BYTES * 1.40) + 4096
     if len(encoded) > max_encoded:
         raise ValueError('حجم الملف يتجاوز الحد التشغيلي {}MB'.format(MAX_SMART_FILE_BYTES // 1024 // 1024))
@@ -1506,8 +1545,14 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json([dict(row) for row in rows])
 
             if path == '/api/catalog':
-                rows = [dict(row) for row in connection.execute('''select tc.*, cr.astm_attachment_id,cr.worksheet_attachment_id,cr.results_attachment_id
-                    from test_catalog tc left join catalog_resources cr on cr.test_catalog_id=tc.id where tc.active=1 order by tc.category,tc.name_ar''').fetchall()]
+                rows = [dict(row) for row in connection.execute('''select tc.*, cr.astm_attachment_id,cr.worksheet_attachment_id,cr.results_attachment_id,
+                    aa.original_name astm_attachment_name, aw.original_name worksheet_attachment_name, ar.original_name results_attachment_name
+                    from test_catalog tc
+                    left join catalog_resources cr on cr.test_catalog_id=tc.id
+                    left join record_attachments aa on aa.id=cr.astm_attachment_id
+                    left join record_attachments aw on aw.id=cr.worksheet_attachment_id
+                    left join record_attachments ar on ar.id=cr.results_attachment_id
+                    where tc.active=1 order by tc.category,tc.name_ar''').fetchall()]
                 return self.send_json(rows)
 
             if path == '/api/attachments':
@@ -1516,27 +1561,27 @@ class H(BaseHTTPRequestHandler):
                 if not record_allowed(user, entity_type):
                     return self.send_json({'error': 'غير مصرح'}, 403)
                 return self.send_json([dict(row) for row in connection.execute(
-                    'select id,original_name,created_at from record_attachments where entity_type=? and entity_id=? order by id desc',
+                    'select id,original_name,file_category,coalesce(material_group,\'أخرى\') material_group,classification_status,section,entity_type,entity_id,created_at from record_attachments where entity_type=? and entity_id=? order by id desc',
                     (entity_type, entity_id)).fetchall()])
 
             if path == '/api/smart-imports':
                 section = str(parse_qs(parsed.query).get('section', [''])[0])
                 if not smart_section_allowed(user, section):
                     return self.send_json({'error': 'غير مصرح'}, 403)
-                rows = connection.execute('''select id,original_name,file_category,coalesce(material_group,'أخرى') material_group,classification_status,entity_type,entity_id,created_at
+                rows = connection.execute('''select id,original_name,file_category,coalesce(material_group,'أخرى') material_group,classification_status,section,entity_type,entity_id,created_at
                     from record_attachments where section=? order by material_group,file_category,original_name,id desc limit 2000''', (section,)).fetchall()
                 return self.send_json([dict(row) for row in rows])
 
             if path.startswith('/api/attachments/files/'):
                 attachment_id = parse_optional_int(path.rsplit('/', 1)[-1])
                 row = connection.execute('select a.*,u.role from record_attachments a left join users u on u.id=a.uploaded_by where a.id=?', (attachment_id,)).fetchone()
-                if not row or not (record_allowed(user, row['entity_type']) or smart_section_allowed(user, row['section'])):
+                if not attachment_access_allowed(user, row):
                     return self.send_json({'error': 'الملف غير موجود أو غير مصرح'}, 404)
                 target = os.path.join(RECORD_UPLOADS, row['stored_name'])
                 if not os.path.isfile(target):
                     return self.send_json({'error': 'الملف غير موجود'}, 404)
                 extension = os.path.splitext(row['stored_name'])[1].lower()
-                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.csv':'text/csv','.txt':'text/plain','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic','.dwg':'application/acad','.dxf':'application/dxf'}
+                types = {'.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.rtf':'application/rtf','.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.xlsm':'application/vnd.ms-excel.sheet.macroEnabled.12','.csv':'text/csv','.txt':'text/plain','.json':'application/json','.xml':'application/xml','.log':'text/plain','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.heic':'image/heic','.gif':'image/gif','.bmp':'image/bmp','.dwg':'application/acad','.dxf':'application/dxf','.ppt':'application/vnd.ms-powerpoint','.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation','.zip':'application/zip','.rar':'application/vnd.rar','.7z':'application/x-7z-compressed','.mp3':'audio/mpeg','.wav':'audio/wav','.m4a':'audio/mp4','.ogg':'audio/ogg','.mp4':'video/mp4','.webm':'video/webm','.mov':'video/quicktime','.m4v':'video/x-m4v'}
                 return self.static(os.path.relpath(target, BASE), types.get(extension, 'application/octet-stream'), {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(row['original_name'])})
 
             if path == '/api/lab-suite':
@@ -2694,6 +2739,25 @@ class H(BaseHTTPRequestHandler):
                 connection.commit()
                 return self.send_json({'ok': True, 'id': attachment_id, 'ref': '/api/attachments/files/' + str(attachment_id), 'stored_name': stored_name})
 
+            if path == '/api/attachments/delete':
+                attachment_id = parse_optional_int(data.get('id'))
+                row = connection.execute('select * from record_attachments where id=?', (attachment_id,)).fetchone() if attachment_id else None
+                if not row:
+                    return self.send_json({'error': 'الملف غير موجود'}, 404)
+                if not attachment_delete_allowed(user, row):
+                    return self.send_json({'error': 'ليس لديك صلاحية حذف هذا الملف'}, 403)
+                deleted = delete_record_attachment(connection, attachment_id)
+                connection.commit()
+                stored_name = os.path.basename(str(deleted.get('stored_name') or ''))
+                target = os.path.join(RECORD_UPLOADS, stored_name)
+                if stored_name and os.path.isfile(target):
+                    try:
+                        os.remove(target)
+                    except OSError:
+                        pass
+                publish_event(deleted.get('section') or deleted.get('entity_type') or 'attachments', 'delete', attachment_id)
+                return self.send_json({'ok': True, 'deleted': attachment_id, 'name': deleted.get('original_name')})
+
             if path == '/api/smart-import':
                 section = str(data.get('section') or '')
                 if not smart_section_allowed(user, section):
@@ -2728,9 +2792,7 @@ class H(BaseHTTPRequestHandler):
                                 raise ValueError('الحزمة كبيرة جدًا بعد الفك؛ الحد التشغيلي {} ملف و{}MB'.format(MAX_ZIP_FILES, MAX_ZIP_EXPANDED_BYTES // 1024 // 1024))
                             for item in members:
                                 member_name = os.path.basename(item.filename)
-                                if not member_name or os.path.splitext(member_name)[1].lower() not in SMART_FILE_TYPES or member_name.lower().endswith('.zip'):
-                                    if member_name:
-                                        skipped.append({'name': member_name, 'reason': 'صيغة غير مدعومة داخل ZIP'})
+                                if not member_name:
                                     continue
                                 try:
                                     imported.append(store_smart_file(connection, user, section, member_name, archive.read(item)))
