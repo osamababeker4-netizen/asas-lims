@@ -1423,6 +1423,16 @@ class H(BaseHTTPRequestHandler):
                     'actions': rows("select a.*,u.full_name owner_name from quality_actions a left join users u on u.id=a.owner_id order by case a.status when 'open' then 0 when 'in_progress' then 1 else 2 end,a.due_date,a.id desc")
                 })
 
+            if path == '/api/quality/cycles':
+                if not self.require_permission(user, 'quality'):
+                    return
+                cycles = [dict(row) for row in connection.execute('''select c.*,u.full_name owner_name,
+                    case when c.target=c.baseline then 0 else round((c.result-c.baseline)*100.0/(c.target-c.baseline),1) end progress
+                    from quality_cycles c left join users u on u.id=c.owner_id order by c.status='active' desc,c.id desc''').fetchall()]
+                steps = [dict(row) for row in connection.execute('''select s.*,u.full_name owner_name from quality_cycle_steps s
+                    left join users u on u.id=s.owner_id order by s.cycle_id,s.stage''').fetchall()]
+                return self.send_json({'cycles': cycles, 'steps': steps})
+
             if path.startswith('/api/quality/files/'):
                 if not self.require_permission(user, 'quality'):
                     return
@@ -1683,7 +1693,7 @@ class H(BaseHTTPRequestHandler):
                     connection.backup(destination)
                 finally:
                     destination.close()
-                operational_tables = ['quotation_items','quotations','contracts','customer_complaints','corrective_actions','nonconformities','chain_of_custody','sample_result_entries','order_requests','inventory_items','maintenance_records','calibration_records','environmental_monitoring','training_records','field_visits','report_files','reports','proctor_points','proctor_results','test_data','tests','samples','work_orders','projects','clients','equipment','quality_documents','proficiency_tests','quality_staff','quality_swot','quality_risks','quality_kpis','quality_actions','record_attachments','catalog_resources','whatsapp_drafts','upload_receipts','trash_items','audit_log','sync_queue','suppliers']
+                operational_tables = ['quotation_items','quotations','contracts','customer_complaints','corrective_actions','nonconformities','chain_of_custody','sample_result_entries','order_requests','inventory_items','maintenance_records','calibration_records','environmental_monitoring','training_records','field_visits','report_files','reports','proctor_points','proctor_results','test_data','tests','samples','work_orders','projects','clients','equipment','quality_documents','proficiency_tests','quality_staff','quality_swot','quality_risks','quality_kpis','quality_actions','quality_cycle_steps','quality_cycles','record_attachments','catalog_resources','whatsapp_drafts','upload_receipts','trash_items','audit_log','sync_queue','suppliers']
                 connection.execute('PRAGMA foreign_keys=OFF')
                 try:
                     connection.execute('BEGIN IMMEDIATE')
@@ -1733,6 +1743,56 @@ class H(BaseHTTPRequestHandler):
                 audit(connection,user['id'],'إضافة سجل جودة تشغيلي','quality_'+kind,entity_id,title)
                 connection.commit(); publish_event('quality_'+kind,'create',entity_id)
                 return self.send_json({'ok':True,'id':entity_id})
+
+            if path == '/api/quality/cycles':
+                if not self.require_permission(user, 'quality'):
+                    return
+                action = str(data.get('action') or 'create')
+                stage_titles = ['مراجعة واعتماد التقارير','تحليل الانحرافات','اجتماع الإدارة العليا','اتخاذ القرارات','إعداد خطة العمل','تنفيذ الإجراءات','المتابعة والرقابة','قياس النتائج','التحسين المستمر']
+                if action == 'create':
+                    title = str(data.get('title') or '').strip()
+                    if not title:
+                        return self.send_json({'error':'عنوان دورة الإدارة مطلوب'},400)
+                    owner_id = parse_optional_int(data.get('owner_id')) or user['id']
+                    if not connection.execute('select id from users where id=? and active=1',(owner_id,)).fetchone():
+                        return self.send_json({'error':'المسؤول المحدد غير موجود'},400)
+                    cursor = connection.execute('''insert into quality_cycles(title,objective,owner_id,start_date,due_date,baseline,target,result,created_by)
+                        values(?,?,?,?,?,?,?,?,?)''',(title,data.get('objective'),owner_id,data.get('start_date'),data.get('due_date'),float(data.get('baseline') or 0),float(data.get('target') or 0),float(data.get('baseline') or 0),user['id']))
+                    cycle_id = cursor.lastrowid
+                    for stage,title_text in enumerate(stage_titles,1):
+                        connection.execute('insert into quality_cycle_steps(cycle_id,stage,title,status,owner_id,due_date) values(?,?,?,?,?,?)',(cycle_id,stage,title_text,'active' if stage==1 else 'pending',owner_id,data.get('due_date')))
+                    audit(connection,user['id'],'إنشاء دورة إدارة وتحسين','quality_cycle',cycle_id,title)
+                    connection.commit(); publish_event('quality_cycle','create',cycle_id)
+                    return self.send_json({'ok':True,'id':cycle_id,'current_stage':1})
+                cycle_id = parse_optional_int(data.get('cycle_id'))
+                cycle = connection.execute('select * from quality_cycles where id=?',(cycle_id,)).fetchone() if cycle_id else None
+                if not cycle:
+                    return self.send_json({'error':'دورة الإدارة غير موجودة'},404)
+                if action == 'update_result':
+                    result = float(data.get('result') or 0)
+                    connection.execute('update quality_cycles set result=? where id=?',(result,cycle_id))
+                    audit(connection,user['id'],'تحديث نتيجة دورة التحسين','quality_cycle',cycle_id,str(result))
+                    connection.commit(); publish_event('quality_cycle','update',cycle_id)
+                    return self.send_json({'ok':True})
+                if action != 'complete_stage' or cycle['status'] != 'active':
+                    return self.send_json({'error':'العملية أو حالة الدورة غير صحيحة'},400)
+                stage = int(data.get('stage') or 0)
+                if stage != cycle['current_stage']:
+                    return self.send_json({'error':'يجب إكمال المرحلة الحالية بالترتيب'},409)
+                notes = str(data.get('notes') or '').strip()
+                if not notes:
+                    return self.send_json({'error':'ملخص تنفيذ المرحلة مطلوب'},400)
+                decision = str(data.get('decision') or '').strip()
+                connection.execute('''update quality_cycle_steps set notes=?,decision=?,status='completed',completed_by=?,completed_at=CURRENT_TIMESTAMP
+                    where cycle_id=? and stage=?''',(notes,decision,user['id'],cycle_id,stage))
+                if stage == 9:
+                    connection.execute("update quality_cycles set status='completed',completed_at=CURRENT_TIMESTAMP,current_stage=9 where id=?",(cycle_id,))
+                else:
+                    connection.execute('update quality_cycles set current_stage=? where id=?',(stage+1,cycle_id))
+                    connection.execute("update quality_cycle_steps set status='active' where cycle_id=? and stage=?",(cycle_id,stage+1))
+                audit(connection,user['id'],'إكمال مرحلة دورة الإدارة','quality_cycle',cycle_id,stage_titles[stage-1])
+                connection.commit(); publish_event('quality_cycle','stage_complete',cycle_id)
+                return self.send_json({'ok':True,'next_stage':min(9,stage+1),'completed':stage==9})
 
             if path == '/api/quality/management/delete':
                 if not self.require_permission(user, 'quality'): return
