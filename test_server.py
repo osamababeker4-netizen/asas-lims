@@ -199,9 +199,15 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(steps[0]['status'], 'active')
             status, _ = post({'action':'complete_stage','cycle_id':created['id'],'stage':2,'notes':'محاولة تخطي'})
             self.assertEqual(status, 409)
-            status, completed = post({'action':'complete_stage','cycle_id':created['id'],'stage':1,'notes':'تمت مراجعة التقارير','decision':'اعتماد النتائج'})
+            status, completed = post({'action':'complete_stage','cycle_id':created['id'],'stage':1,'notes':'تمت مراجعة التقارير','decision':'اعتماد النتائج','details':{'report_refs':'RPT-001,RPT-002','approval':'معتمد'}})
             self.assertEqual(status, 200)
             self.assertEqual(completed['next_stage'], 2)
+            connection = self.server.db()
+            saved_step = connection.execute('select details_json from quality_cycle_steps where cycle_id=? and stage=1',(created['id'],)).fetchone()
+            connection.close()
+            saved_details = json.loads(saved_step['details_json'])
+            self.assertEqual(saved_details['report_refs'], 'RPT-001,RPT-002')
+            self.assertEqual(saved_details['approval'], 'معتمد')
         finally:
             httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
 
