@@ -64,19 +64,37 @@ PRIORITIES = {'منخفضة', 'متوسطة', 'عالية', 'حرجة'}
 
 ROLE_PERMS = {
     'admin': {'*'},
-    'general_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'trash', 'users', 'sync', 'settings'},
-    'technical_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
-    'laboratory_manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
+    'general_manager': {'dashboard', 'attendance', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'trash', 'users', 'sync', 'settings'},
+    'technical_manager': {'dashboard', 'attendance', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
+    'laboratory_manager': {'dashboard', 'attendance', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'audit', 'sync', 'settings'},
     # مدير الجودة مخوّل كمدير شامل: إضافة وتعديل واعتماد وإدارة المستخدمين والإعدادات.
     'quality_manager': {'*'},
     'quality_officer': {'dashboard', 'quality'},
     'calibration_officer': {'dashboard', 'quality'},
     'document_controller': {'dashboard', 'quality'},
-    'manager': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'trash', 'users', 'sync', 'settings'},
+    'manager': {'dashboard', 'attendance', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports', 'equipment', 'quality', 'audit', 'trash', 'users', 'sync', 'settings'},
     'quality': {'dashboard', 'quality'},
-    'technician': {'dashboard', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports'},
-    'field': {'dashboard', 'field', 'clients', 'projects', 'samples'}
+    'technician': {'dashboard', 'attendance', 'field', 'clients', 'projects', 'samples', 'tests', 'catalog', 'reports'},
+    'field': {'dashboard', 'attendance', 'field', 'clients', 'projects', 'samples'}
 }
+
+ATTENDANCE_MANAGER_ROLES = {'admin', 'general_manager', 'technical_manager', 'laboratory_manager', 'quality_manager', 'manager'}
+
+
+def saudi_work_date():
+    return datetime.now(timezone(timedelta(hours=3))).strftime('%Y-%m-%d')
+
+
+def valid_location(data):
+    try:
+        latitude = float(data.get('latitude'))
+        longitude = float(data.get('longitude'))
+        accuracy = float(data.get('accuracy') or 0)
+    except (TypeError, ValueError):
+        return None
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180 and 0 <= accuracy <= 100000):
+        return None
+    return latitude, longitude, accuracy
 
 
 def db():
@@ -1599,6 +1617,35 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'الحساب غير متاح'}, 401)
                 return self.send_json(dict(row))
 
+            if path == '/api/attendance/me':
+                query = parse_qs(parsed.query)
+                work_date = str(query.get('date', [saudi_work_date()])[0])
+                row = connection.execute('''select a.*,u.full_name,u.username,u.role from attendance_records a
+                    join users u on u.id=a.user_id where a.user_id=? and a.work_date=?''', (user['id'], work_date)).fetchone()
+                events = [] if not row else [dict(item) for item in connection.execute(
+                    'select event_type,latitude,longitude,accuracy,captured_at,note from personnel_location_events where attendance_id=? order by id desc limit 50',
+                    (row['id'],)).fetchall()]
+                return self.send_json({'record': rowdict(row), 'events': events, 'work_date': work_date})
+
+            if path == '/api/attendance':
+                if user.get('role') not in ATTENDANCE_MANAGER_ROLES:
+                    return self.send_json({'error': 'غير مخول بعرض سجلات جميع الموظفين'}, 403)
+                query = parse_qs(parsed.query)
+                work_date = str(query.get('date', [saudi_work_date()])[0])
+                rows = connection.execute('''select a.*,u.full_name,u.username,u.role from attendance_records a
+                    join users u on u.id=a.user_id where a.work_date=? order by a.check_in_at desc''', (work_date,)).fetchall()
+                return self.send_json({'records': [dict(row) for row in rows], 'work_date': work_date})
+
+            if path == '/api/personnel/locations':
+                if user.get('role') not in ATTENDANCE_MANAGER_ROLES:
+                    return self.send_json({'error': 'غير مخول بتتبع أفراد المختبر'}, 403)
+                rows = connection.execute('''select u.id user_id,u.full_name,u.username,u.role,
+                    a.id attendance_id,a.work_date,a.check_in_at,a.check_out_at,a.status,
+                    a.last_latitude,a.last_longitude,a.last_accuracy,a.last_location_at
+                    from users u left join attendance_records a on a.user_id=u.id and a.work_date=?
+                    where u.active=1 order by (a.check_in_at is not null) desc,u.full_name''', (saudi_work_date(),)).fetchall()
+                return self.send_json([dict(row) for row in rows])
+
             if path == '/api/settings':
                 if not self.require_permission(user, 'settings'):
                     return
@@ -1983,6 +2030,44 @@ class H(BaseHTTPRequestHandler):
 
         connection = db()
         try:
+            if path in ('/api/attendance/check-in', '/api/attendance/check-out', '/api/attendance/location'):
+                location = valid_location(data)
+                if not location:
+                    return self.send_json({'error': 'تعذر اعتماد الموقع. فعّل GPS واسمح للموقع ثم أعد المحاولة.'}, 400)
+                latitude, longitude, accuracy = location
+                work_date = saudi_work_date()
+                note = str(data.get('note') or '').strip()[:500]
+                existing = connection.execute('select * from attendance_records where user_id=? and work_date=?', (user['id'], work_date)).fetchone()
+                if path == '/api/attendance/check-in':
+                    if existing and existing['check_in_at']:
+                        return self.send_json({'error': 'تم تسجيل الحضور لهذا اليوم بالفعل'}, 409)
+                    connection.execute('''insert into attendance_records(user_id,work_date,check_in_at,check_in_latitude,check_in_longitude,check_in_accuracy,last_latitude,last_longitude,last_accuracy,last_location_at,status,note,updated_at)
+                        values(?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,CURRENT_TIMESTAMP,'present',?,CURRENT_TIMESTAMP)''',
+                        (user['id'], work_date, latitude, longitude, accuracy, latitude, longitude, accuracy, note))
+                    attendance_id = connection.execute('select id from attendance_records where user_id=? and work_date=?', (user['id'], work_date)).fetchone()['id']
+                    event_type = 'check_in'
+                    audit(connection, user['id'], 'ATTENDANCE_CHECK_IN', 'attendance', attendance_id, 'GPS accuracy %.1fm' % accuracy)
+                else:
+                    if not existing or not existing['check_in_at']:
+                        return self.send_json({'error': 'يجب تسجيل الحضور أولًا'}, 409)
+                    if existing['check_out_at']:
+                        return self.send_json({'error': 'تم تسجيل الانصراف لهذا اليوم بالفعل'}, 409)
+                    attendance_id = existing['id']
+                    event_type = 'check_out' if path.endswith('check-out') else 'heartbeat'
+                    if event_type == 'check_out':
+                        connection.execute('''update attendance_records set check_out_at=CURRENT_TIMESTAMP,check_out_latitude=?,check_out_longitude=?,check_out_accuracy=?,last_latitude=?,last_longitude=?,last_accuracy=?,last_location_at=CURRENT_TIMESTAMP,status='completed',note=case when ?='' then note else ? end,updated_at=CURRENT_TIMESTAMP where id=?''',
+                            (latitude, longitude, accuracy, latitude, longitude, accuracy, note, note, attendance_id))
+                        audit(connection, user['id'], 'ATTENDANCE_CHECK_OUT', 'attendance', attendance_id, 'GPS accuracy %.1fm' % accuracy)
+                    else:
+                        connection.execute('''update attendance_records set last_latitude=?,last_longitude=?,last_accuracy=?,last_location_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP where id=?''',
+                            (latitude, longitude, accuracy, attendance_id))
+                connection.execute('''insert into personnel_location_events(user_id,attendance_id,event_type,latitude,longitude,accuracy,note)
+                    values(?,?,?,?,?,?,?)''', (user['id'], attendance_id, event_type, latitude, longitude, accuracy, note))
+                connection.commit()
+                publish_event('attendance', event_type, attendance_id)
+                record = connection.execute('''select a.*,u.full_name,u.username,u.role from attendance_records a join users u on u.id=a.user_id where a.id=?''', (attendance_id,)).fetchone()
+                return self.send_json({'ok': True, 'record': dict(record)})
+
             if path == '/api/system/backup':
                 if user.get('role') not in {'admin', 'quality_manager'}:
                     return self.send_json({'error': 'النسخ الاحتياطي متاح لمدير النظام ومدير الجودة فقط'}, 403)
