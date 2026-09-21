@@ -447,7 +447,14 @@ function staticApi(path, options) {
     item.status=body.status; item.reviewed_by=currentUser.id; item.reviewed_at=saudiNow(); localAudit(data,'تغيير حالة طلب','order_request',String(item.id)+' → '+item.status); saveLocal(data); return {ok:true};
   }
   if (path === '/api/equipment') {
+    if(body.action==='update'){
+      const item=data.equipment.find(function(x){return x.id===Number(body.id);});if(!item)throw new Error('الجهاز غير موجود');
+      Object.keys(body).forEach(function(key){if(['action','id'].indexOf(key)<0)item[key]=body[key];});localAudit(data,'تحديث جهاز','equipment',item.name);saveLocal(data);return {ok:true,id:item.id,updated:true};
+    }
     const id = localId(data.equipment); data.equipment.push(Object.assign({id:id,status:'ساري'},body)); localAudit(data,'إضافة جهاز','equipment',body.name); saveLocal(data); return {ok:true,id:id};
+  }
+  if(path==='/api/sync/run'){
+    const count=data.syncQueue.length;data.syncQueue=[];localAudit(data,'تنفيذ المزامنة','sync',String(count));saveLocal(data);return {ok:true,synced:count,failed:0};
   }
   if (path === '/api/tests/generic' || path === '/api/tests/proctor') {
     const id = localId(data.tests); const code = body.standard_code || (data.catalog.find(function(item) { return item.id === Number(body.catalog_id); }) || {}).code; const cat = data.catalog.find(function(item) { return item.code === code; }) || {};
@@ -932,14 +939,14 @@ function decisionIntelligenceModel(){
   }).sort(function(a,b){return b.score-a.score||a.progress-b.progress;});
 
   const recommendations=[];
-  const addRec=function(priority,title,detail,page){recommendations.push({priority:priority,title:title,detail:detail,page:page||''});};
-  if(overdueOrders.length)addRec('عاجل','معالجة أوامر العمل المتأخرة',overdueOrders.length+' أمر عمل تجاوز موعده ويحتاج تحديث حالة أو إجراء تصحيحي.','workOrders');
-  if(expiredCalibration.length)addRec('عاجل','معالجة الأجهزة المتجاوزة للمعايرة',expiredCalibration.length+' جهاز تجاوز تاريخ المعايرة المسجل.','quality');
+  const addRec=function(priority,title,detail,page,action){recommendations.push({priority:priority,title:title,detail:detail,page:page||'',action:action||''});};
+  if(overdueOrders.length)addRec('عاجل','معالجة أوامر العمل المتأخرة',overdueOrders.length+' أمر عمل تجاوز موعده ويحتاج تحديث حالة أو إجراء تصحيحي.','workOrders','overdue_orders');
+  if(expiredCalibration.length)addRec('عاجل','معالجة الأجهزة المتجاوزة للمعايرة',expiredCalibration.length+' جهاز تجاوز تاريخ المعايرة المسجل.','equipment','equipment_expired');
   if(awaitingReview.length)addRec('عالي','إنهاء المراجعات المعلقة',awaitingReview.length+' عنصر ينتظر المراجعة أو الاعتماد.','quality');
   const unassigned=orders.filter(function(item){return item.status!=='مكتمل'&&!item.assigned_to&&!item.assignee_name;}).length;
-  if(unassigned)addRec('عالي','إسناد المسؤوليات',unassigned+' أمر عمل مفتوح بدون مسؤول محدد.','workOrders');
-  if(issues.length)addRec('متوسط','تنظيف البيانات قبل التحليل',issues.reduce(function(sum,item){return sum+item.count;},0)+' ملاحظة جودة بيانات تؤثر على دقة المؤشرات.','dashboard');
-  if((d.counts&&d.counts.sync_queue)||0)addRec('متوسط','تنفيذ المزامنة',String(d.counts.sync_queue)+' عملية في طابور المزامنة.','sync');
+  if(unassigned)addRec('عالي','إسناد المسؤوليات',unassigned+' أمر عمل مفتوح بدون مسؤول محدد.','workOrders','order_assignee');
+  if(issues.length)addRec('متوسط','تنظيف البيانات قبل التحليل',issues.reduce(function(sum,item){return sum+item.count;},0)+' ملاحظة جودة بيانات تؤثر على دقة المؤشرات.','dashboard','data_cleaning');
+  if((d.counts&&d.counts.sync_queue)||0)addRec('متوسط','تنفيذ المزامنة',String(d.counts.sync_queue)+' عملية في طابور المزامنة.','dashboard','sync_queue');
   if(!recommendations.length)addRec('مستقر','لا توجد إجراءات حرجة حالياً','استمر في متابعة المؤشرات والمراجعات الدورية.','dashboard');
 
   const statusCounts={};
@@ -981,7 +988,7 @@ function renderDecisionIntelligence(){
 
   setHtml($('decisionExecutiveSummary'),model.summary.map(function(line){return '<p>'+esc(line)+'</p>';}).join(''));
   setHtml($('decisionDataQuality'),model.issues.length?model.issues.map(function(item){
-    return '<article class="decision-list-row '+item.severity+'"><span class="decision-count">'+esc(item.count)+'</span><div><strong>'+esc(item.label)+'</strong><small>'+esc(item.detail)+'</small></div><b>'+esc(decisionToneLabel(item.severity))+'</b></article>';
+    return '<article class="decision-list-row '+item.severity+'"><span class="decision-count">'+esc(item.count)+'</span><div><strong>'+esc(item.label)+'</strong><small>'+esc(item.detail)+'</small></div><div><b>'+esc(decisionToneLabel(item.severity))+'</b><button class="text-btn" type="button" data-decision-issue="'+esc(item.key)+'">عرض السجلات ومعالجتها</button></div></article>';
   }).join(''):'<div class="decision-empty success">لا توجد ملاحظات جودة بيانات ضمن الفحوص الحالية.</div>');
 
   const healthRows=model.project_health.slice(0,6);
@@ -990,9 +997,43 @@ function renderDecisionIntelligence(){
   }).join(''):'<div class="decision-empty">لا توجد مشاريع مسجلة بعد.</div>');
 
   setHtml($('decisionRecommendations'),model.recommendations.map(function(item,index){
-    return '<article class="decision-list-row recommendation"><span class="decision-step">'+(index+1)+'</span><div><strong>'+esc(item.title)+'</strong><small>'+esc(item.detail)+'</small></div><b>'+esc(item.priority)+'</b><div class="recommendation-actions"><button class="text-btn" type="button" data-decision-go="'+esc(item.page||'dashboard')+'">فتح القسم</button><button class="text-btn" type="button" data-recommendation-task="'+index+'">تحويل إلى مهمة</button></div></article>';
+    return '<article class="decision-list-row recommendation"><span class="decision-step">'+(index+1)+'</span><div><strong>'+esc(item.title)+'</strong><small>'+esc(item.detail)+'</small></div><b>'+esc(item.priority)+'</b><div class="recommendation-actions"><button class="text-btn" type="button" data-decision-action="'+esc(item.action||'')+'" data-decision-page="'+esc(item.page||'dashboard')+'">فتح القسم</button><button class="text-btn" type="button" data-recommendation-task="'+index+'">تحويل إلى مهمة</button></div></article>';
   }).join(''));
 }
+
+function decisionIssueRecords(key){
+  const d=dashboard||{},day=today(),rows=[];
+  const add=function(items,type,label,problem,solution){items.forEach(function(item){rows.push({id:item.id,type:type,label:label(item),problem:problem(item),solution:solution});});};
+  if(key==='equipment_calibration')add((d.equipment||[]).filter(function(x){return !(x.calibrated_to||x.next_calibration||x.last_calibration);}), 'equipment', function(x){return (x.equipment_code||'جهاز #'+x.id)+' — '+x.name;}, function(x){return 'الرقم التسلسلي: '+(x.serial_no||'غير مسجل')+' · القسم: '+(x.section||'غير محدد');}, 'أدخل تاريخ آخر معايرة وتاريخ المعايرة القادمة ثم احفظ السجل.');
+  if(key==='equipment_expired')add((d.equipment||[]).filter(function(x){const date=x.calibrated_to||x.next_calibration||'';return date&&date<day;}), 'equipment', function(x){return (x.equipment_code||'جهاز #'+x.id)+' — '+x.name;}, function(x){return 'انتهت المعايرة في '+(x.calibrated_to||x.next_calibration);}, 'أوقف استخدام الجهاز، وجدول المعايرة، ثم حدّث تاريخ المعايرة القادمة.');
+  if(key==='project_due')add((d.projects||[]).filter(function(x){return x.status!=='مكتمل'&&!x.due_date;}),'project',function(x){return x.code+' — '+x.name;},function(){return 'مشروع نشط بلا تاريخ استحقاق.';},'افتح المشروع وأضف تاريخ الاستحقاق.');
+  if(key==='order_assignee')add((d.work_orders||[]).filter(function(x){return x.status!=='مكتمل'&&!x.assigned_to&&!x.assignee_name;}),'workOrder',function(x){return x.order_no||'أمر #'+x.id;},function(x){return (x.project_code||'')+' · بلا مسؤول';},'افتح أمر العمل وحدد المسؤول.');
+  if(key==='order_due')add((d.work_orders||[]).filter(function(x){return x.status!=='مكتمل'&&!x.due_date;}),'workOrder',function(x){return x.order_no||'أمر #'+x.id;},function(){return 'أمر مفتوح بلا موعد.';},'افتح أمر العمل وحدد موعد الاستحقاق.');
+  if(key==='overdue_orders')add((d.work_orders||[]).filter(function(x){return x.due_date&&x.due_date<day&&x.status!=='مكتمل';}),'workOrder',function(x){return x.order_no||'أمر #'+x.id;},function(x){return 'متأخر منذ '+x.due_date;},'حدّث الحالة أو الموعد وسجّل الإجراء التصحيحي.');
+  if(key==='sample_project')add((d.samples||[]).filter(function(x){return !x.project_id;}),'samples',function(x){return x.sample_no||'عينة #'+x.id;},function(){return 'العينة غير مرتبطة بمشروع.';},'افتح العينات واربطها بالمشروع الصحيح.');
+  if(key==='test_technician')add((d.tests||[]).filter(function(x){return !x.technician_id&&!x.technician_name&&x.status!=='مكتمل'&&x.status!=='معتمد';}),'tests',function(x){return x.test_no||'اختبار #'+x.id;},function(){return 'لا يوجد فني مسؤول.';},'افتح الاختبار وحدد الفني المسؤول.');
+  if(key==='report_date')add((d.reports||[]).filter(function(x){return !x.issued_at;}),'reports',function(x){return x.report_no||'تقرير #'+x.id;},function(){return 'تاريخ الإصدار غير مسجل.';},'افتح التقرير وأكمل دورة الإصدار.');
+  if(key==='duplicate_clients'){
+    const groups={};(d.clients||[]).forEach(function(x){const name=decisionNormalize(x.name);if(name)(groups[name]||(groups[name]=[])).push(x);});
+    Object.keys(groups).forEach(function(name){if(groups[name].length>1)add(groups[name].slice(1),'clients',function(x){return x.name+' — عميل #'+x.id;},function(){return 'اسم مكرر مع سجل عميل آخر.';},'راجع الارتباطات ثم وحّد بيانات العميل من قسم العملاء.');});
+  }
+  if(key==='status_consistency'){
+    add((d.projects||[]).filter(function(x){return PROJECT_STATUSES.indexOf(x.status)<0;}),'project',function(x){return x.code+' — '+x.name;},function(x){return 'حالة مشروع غير معتمدة: '+x.status;},'اختر حالة معتمدة من نموذج المشروع.');
+    add((d.work_orders||[]).filter(function(x){return WORK_ORDER_STATUSES.indexOf(x.status)<0;}),'workOrder',function(x){return x.order_no||'أمر #'+x.id;},function(x){return 'حالة أمر غير معتمدة: '+x.status;},'اختر حالة معتمدة من أمر العمل.');
+  }
+  return rows;
+}
+
+function openDecisionIssue(key){
+  if(key==='data_cleaning'){const model=decisionIntelligenceModel();return modal('<h2>مركز تنظيف البيانات</h2><p>اختر نوع المشكلة لعرض السجلات الفعلية وتصحيحها من مصدرها.</p><div class="decision-drill-list">'+model.issues.map(function(x){return '<button class="decision-list-row '+x.severity+'" type="button" data-decision-issue="'+esc(x.key)+'"><span class="decision-count">'+x.count+'</span><div><strong>'+esc(x.label)+'</strong><small>'+esc(x.detail)+'</small></div></button>';}).join('')+'</div>');}
+  if(key==='sync_queue')return openSyncWorkQueue();
+  const rows=decisionIssueRecords(key),issue=(decisionIntelligenceModel().issues||[]).find(function(x){return x.key===key;});
+  if(!rows.length){navigate((key.indexOf('equipment')===0)?'equipment':'dashboard');return showToast('لا توجد سجلات متأثرة حالياً');}
+  modal('<h2>'+(issue?esc(issue.label):'السجلات المتأثرة')+'</h2><p>'+(issue?esc(issue.detail):'افتح السجل لمعالجة السبب الفعلي.')+'</p><div class="decision-drill-list">'+rows.map(function(row){return '<article class="decision-drill-row"><div><strong>'+esc(row.label)+'</strong><small>'+esc(row.problem)+'</small><p>'+esc(row.solution)+'</p></div><button class="btn primary" type="button" data-decision-record="'+esc(row.type)+'" data-record-id="'+row.id+'">فتح ومعالجة</button></article>';}).join('')+'</div>');
+}
+
+function openSyncWorkQueue(){const rows=(dashboard&&dashboard.sync)||[];modal('<h2>طابور المزامنة الفعلي</h2><p>راجع العمليات المسجلة ثم نفّذها بالترتيب. لا تُحذف السجلات المتعثرة.</p><div class="decision-drill-list">'+(rows.map(function(x){return '<article class="decision-drill-row"><div><strong>'+esc(x.entity)+' #'+esc(x.entity_id)+' · '+esc(x.operation)+'</strong><small>الحالة: '+esc(x.status)+' · المحاولات: '+esc(x.attempts||0)+'</small>'+(x.last_error?'<p>'+esc(x.last_error)+'</p>':'')+'</div></article>';}).join('')||'<div class="decision-empty success">لا توجد عمليات معلقة.</div>')+'</div>'+(rows.length?'<div class="modal-actions"><button class="btn primary" type="button" data-sync-run>تنفيذ المزامنة الآن</button></div>':''));}
+async function runSyncQueue(){const result=await api('/api/sync/run',{method:'POST',body:'{}'});closeModal();await refresh();showToast('اكتملت '+result.synced+' عملية'+(result.failed?'، وتعذرت '+result.failed:''),Boolean(result.failed));if(result.failed)openSyncWorkQueue();}
 
 function decisionReportMarkup(model){
   const issues=model.issues.length?model.issues.map(function(item){return '<tr><td>'+esc(item.label)+'</td><td>'+esc(item.count)+'</td><td>'+esc(decisionToneLabel(item.severity))+'</td><td>'+esc(item.detail)+'</td></tr>';}).join(''):'<tr><td colspan="4">لا توجد ملاحظات ضمن الفحوص الحالية.</td></tr>';
@@ -1468,8 +1509,9 @@ function openSampleForm() {
   modal('<h2>تسجيل عينة</h2><form id="sampleForm"><div class="modal-grid"><label>رقم العينة<input name="sample_no" required></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material"><option>تربة</option><option>خرسانة</option><option>أسفلت</option><option>الحقل وNDT</option></select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + today() + '" required></label><label>المصدر<input name="source"></label><label>ملاحظات<textarea name="notes"></textarea></label></div><p class="form-message">سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.</p>'+modalAttachFileField('samples')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العينة والخطة</button></div></form>');
 }
 
-function openEquipmentForm() {
-  modal('<h2>إضافة جهاز</h2><form id="equipmentForm"><div class="modal-grid"><label>اسم الجهاز<input name="name" required></label><label>الرقم التسلسلي<input name="serial_no"></label><label>الشركة المصنعة<input name="manufacturer"></label><label>الموديل<input name="model"></label><label>آخر معايرة<input name="last_calibration" type="date"></label><label>المعايرة القادمة<input name="next_calibration" type="date"></label><label>رقم الشهادة<input name="certificate_no"></label><label>ملاحظات<textarea name="notes"></textarea></label></div>'+modalAttachFileField('equipment')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الجهاز</button></div></form>');
+function openEquipmentForm(record) {
+  record=record||{};const edit=Boolean(record.id);
+  modal('<h2>'+(edit?'تحديث الجهاز ومعالجة بياناته':'إضافة جهاز')+'</h2><form id="equipmentForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>اسم الجهاز<input name="name" required value="'+esc(record.name||'')+'"></label><label>الرقم التسلسلي<input name="serial_no" value="'+esc(record.serial_no||'')+'"></label><label>الشركة المصنعة<input name="manufacturer" value="'+esc(record.manufacturer||'')+'"></label><label>الموديل<input name="model" value="'+esc(record.model||'')+'"></label><label>آخر معايرة<input name="last_calibration" type="date" value="'+esc((record.last_calibration||'').slice(0,10))+'"></label><label>المعايرة القادمة<input name="next_calibration" type="date" value="'+esc((record.next_calibration||record.calibrated_to||'').slice(0,10))+'"></label><label>رقم الشهادة<input name="certificate_no" value="'+esc(record.certificate_no||'')+'"></label><label>ملاحظات<textarea name="notes">'+esc(record.notes||'')+'</textarea></label></div>'+modalAttachFileField('equipment')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">'+(edit?'حفظ التصحيح':'حفظ الجهاز')+'</button></div></form>');
 }
 
 function genericFields(testCatalog) {
@@ -2562,7 +2604,10 @@ function bindEvents() {
   });
   document.addEventListener('click',async function(event) {
     const recommendationTask=event.target.closest('[data-recommendation-task]');if(recommendationTask){event.preventDefault();const model=window.__ASAS_DECISION_INTELLIGENCE||decisionIntelligenceModel();const item=model.recommendations[Number(recommendationTask.dataset.recommendationTask)];if(item)openOperationalTaskForm({title:item.title,detail:item.detail,priority:item.priority,source_type:'decision_recommendation'});return;}
-    const decisionGo=event.target.closest('[data-decision-go]');if(decisionGo){event.preventDefault();navigate(decisionGo.dataset.decisionGo||'dashboard');return;}
+    const decisionIssue=event.target.closest('[data-decision-issue]');if(decisionIssue){event.preventDefault();openDecisionIssue(decisionIssue.dataset.decisionIssue);return;}
+    const decisionAction=event.target.closest('[data-decision-action]');if(decisionAction){event.preventDefault();if(decisionAction.dataset.decisionAction)openDecisionIssue(decisionAction.dataset.decisionAction);else navigate(decisionAction.dataset.decisionPage||'dashboard');return;}
+    const decisionRecord=event.target.closest('[data-decision-record]');if(decisionRecord){event.preventDefault();const type=decisionRecord.dataset.decisionRecord,id=Number(decisionRecord.dataset.recordId);closeModal();if(type==='equipment'){const item=(dashboard.equipment||[]).find(function(x){return x.id===id;});navigate('equipment');if(item)openEquipmentForm(item);}else if(type==='project'){navigate('projects');openProjectForm(id);}else{navigate(type==='workOrder'?'workOrders':type);}return;}
+    const syncRun=event.target.closest('[data-sync-run]');if(syncRun){event.preventDefault();try{await runSyncQueue();}catch(error){showToast(error.message,true);}return;}
     const decisionExport=event.target.closest('[data-decision-report-export]');if(decisionExport){event.preventDefault();try{exportDecisionIntelligence();}catch(error){showToast(error.message,true);}return;}
     const decisionPrint=event.target.closest('[data-decision-report-print]');if(decisionPrint){event.preventDefault();printDecisionIntelligenceReport();return;}
     const documentGroup=event.target.closest('[data-document-group]');if(documentGroup){event.preventDefault();documentGroupFilter=documentGroup.dataset.documentGroup;renderDocumentCenterFiles();const panel=$('documentLibraryFiles');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});return;}

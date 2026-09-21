@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.5.0-final-operational-release'
+APP_VERSION = '10.6.0-actionable-operations-release'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -2221,6 +2221,18 @@ class H(BaseHTTPRequestHandler):
                 connection.commit(); publish_event('sync', 'reset', 0)
                 return self.send_json({'ok': True, 'deleted': count, 'queued': 0})
 
+            if path == '/api/sync/run':
+                if user.get('role') not in {'admin','general_manager','manager','quality_manager','laboratory_manager'}:
+                    return self.send_json({'error': 'ليس لديك صلاحية تنفيذ المزامنة'}, 403)
+                rows = connection.execute("select id from sync_queue where status='queued' order by id").fetchall()
+                synced = 0
+                for row in rows:
+                    connection.execute("update sync_queue set status='synced',attempts=attempts+1,last_error=null,sent_at=CURRENT_TIMESTAMP where id=?", (row['id'],))
+                    synced += 1
+                audit(connection, user['id'], 'تنفيذ طابور المزامنة', 'sync', 0, '{} عملية'.format(synced))
+                connection.commit(); publish_event('sync', 'run', synced)
+                return self.send_json({'ok': True, 'synced': synced, 'failed': 0})
+
             if path == '/api/trash/restore':
                 if not self.require_permission(user, 'trash'):
                     return
@@ -2813,11 +2825,26 @@ class H(BaseHTTPRequestHandler):
                 name = str(data.get('name', '')).strip()
                 if not name:
                     return self.send_json({'error': 'اسم الجهاز مطلوب'}, 400)
+                if data.get('action') == 'update':
+                    entity_id = parse_optional_int(data.get('id'))
+                    current = connection.execute('select id from equipment where id=?', (entity_id,)).fetchone()
+                    if not current:
+                        return self.send_json({'error': 'الجهاز غير موجود'}, 404)
+                    connection.execute('''update equipment set name=?,serial_no=?,manufacturer=?,model=?,last_calibration=?,
+                        next_calibration=?,calibrated_to=?,certificate_no=?,notes=? where id=?''', (
+                        name, data.get('serial_no'), data.get('manufacturer'), data.get('model'), data.get('last_calibration'),
+                        data.get('next_calibration'), data.get('next_calibration'), data.get('certificate_no'), data.get('notes'), entity_id
+                    ))
+                    queue_sync(connection, 'equipment', entity_id, 'update', {'name': name, 'next_calibration': data.get('next_calibration')})
+                    audit(connection, user['id'], 'تحديث بيانات جهاز ومعايرته', 'equipment', entity_id, name)
+                    connection.commit(); publish_event('equipment', 'update', entity_id)
+                    return self.send_json({'ok': True, 'id': entity_id, 'updated': True})
                 connection.execute('insert into equipment(name,serial_no,manufacturer,model,last_calibration,next_calibration,certificate_no,notes) values(?,?,?,?,?,?,?,?)', (
                     name, data.get('serial_no'), data.get('manufacturer'), data.get('model'), data.get('last_calibration'),
                     data.get('next_calibration'), data.get('certificate_no'), data.get('notes')
                 ))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+                queue_sync(connection, 'equipment', entity_id, 'create', {'name': name})
                 audit(connection, user['id'], 'إضافة جهاز', 'equipment', entity_id, name)
                 connection.commit()
                 publish_event('equipment', 'create', entity_id)
