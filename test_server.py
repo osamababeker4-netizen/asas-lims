@@ -1110,7 +1110,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-4-0-operational-workspace', sw)
+        self.assertIn('v10-4-1-login-label', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1410,7 +1410,10 @@ class SchemaMigrationTests(unittest.TestCase):
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
         self.assertIn("APP_VERSION = '10.4.0-operational-workspace'", server)
-        self.assertIn('v10-4-0-operational-workspace', sw)
+        self.assertIn('v10-4-1-login-label', sw)
+        self.assertIn('ASAS LIMS · V10.4.0 Operational Workspace', html)
+        self.assertIn('V10.4.0 · Operational Workspace', html)
+        self.assertNotIn('V10.3.0 Decision Intelligence', html)
         self.assertIn('id="decisionIntelligenceCenter"', html)
         self.assertIn('id="refreshDecisionIntelligence"', html)
         self.assertIn('id="exportDecisionIntelligence"', html)
