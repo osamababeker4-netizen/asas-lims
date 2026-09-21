@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.6.0-actionable-operations-release'
+APP_VERSION = '10.7.0-live-notifications-final-release'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -2615,6 +2615,17 @@ class H(BaseHTTPRequestHandler):
                 status = data.get('status', 'مفتوح')
                 if status not in WORK_ORDER_STATUSES:
                     return self.send_json({'error': 'حالة أمر العمل غير صالحة'}, 400)
+                if data.get('action') == 'update':
+                    entity_id = parse_optional_int(data.get('id'))
+                    current = connection.execute('select * from work_orders where id=?', (entity_id,)).fetchone()
+                    if not current:
+                        return self.send_json({'error': 'أمر العمل غير موجود'}, 404)
+                    connection.execute('''update work_orders set project_id=?,title=?,description=?,status=?,priority=?,scheduled_date=?,due_date=?,assigned_to=?,updated_at=CURRENT_TIMESTAMP where id=?''',
+                        (project_id,title,data.get('description'),status,normalize_priority(data.get('priority')),data.get('scheduled_date') or None,data.get('due_date') or None,parse_optional_int(data.get('assigned_to')),entity_id))
+                    queue_sync(connection,'work_order',entity_id,'update',{'order_no':current['order_no'],'status':status,'assigned_to':parse_optional_int(data.get('assigned_to'))})
+                    audit(connection,user['id'],'تحديث أمر عمل','work_order',entity_id,current['order_no'])
+                    connection.commit();publish_event('work_order','update',entity_id)
+                    return self.send_json({'ok':True,'id':entity_id,'updated':True})
                 order_no = nextno(connection, 'WO-', 'work_orders')
                 connection.execute('''
                     insert into work_orders(order_no,project_id,title,description,status,priority,scheduled_date,due_date,assigned_to,created_by,updated_at)
@@ -2750,6 +2761,15 @@ class H(BaseHTTPRequestHandler):
                 name = str(data.get('name', '')).strip()
                 if not name:
                     return self.send_json({'error': 'اسم العميل مطلوب'}, 400)
+                if data.get('action') == 'update':
+                    entity_id=parse_optional_int(data.get('id'))
+                    if not connection.execute('select id from clients where id=?',(entity_id,)).fetchone():
+                        return self.send_json({'error':'العميل غير موجود'},404)
+                    connection.execute('update clients set name=?,phone=?,email=? where id=?',(name,data.get('phone'),data.get('email'),entity_id))
+                    queue_sync(connection,'client',entity_id,'update',{'name':name})
+                    audit(connection,user['id'],'تحديث عميل','client',entity_id,name)
+                    connection.commit();publish_event('client','update',entity_id)
+                    return self.send_json({'ok':True,'id':entity_id,'updated':True})
                 connection.execute('insert into clients(name,phone,email) values(?,?,?)', (name, data.get('phone'), data.get('email')))
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 audit(connection, user['id'], 'إضافة عميل', 'client', entity_id, name)
@@ -2764,6 +2784,15 @@ class H(BaseHTTPRequestHandler):
                 material = str(data.get('material', '')).strip()
                 if not sample_no or not material or not data.get('received_date'):
                     return self.send_json({'error': 'بيانات العينة غير مكتملة'}, 400)
+                if data.get('action') == 'update':
+                    entity_id=parse_optional_int(data.get('id'));current=connection.execute('select * from samples where id=?',(entity_id,)).fetchone()
+                    if not current:
+                        return self.send_json({'error':'العينة غير موجودة'},404)
+                    connection.execute('update samples set project_id=?,material=?,received_date=?,source=?,notes=? where id=?',(parse_optional_int(data.get('project_id')),material,data.get('received_date'),data.get('source'),data.get('notes'),entity_id))
+                    queue_sync(connection,'sample',entity_id,'update',{'sample_no':current['sample_no'],'project_id':parse_optional_int(data.get('project_id'))})
+                    audit(connection,user['id'],'تحديث وربط عينة','sample',entity_id,current['sample_no'])
+                    connection.commit();publish_event('sample','update',entity_id)
+                    return self.send_json({'ok':True,'id':entity_id,'updated':True})
                 connection.execute('insert into samples(sample_no,project_id,material,source,received_date,notes) values(?,?,?,?,?,?)', (
                     sample_no, parse_optional_int(data.get('project_id')), material, data.get('source'), data.get('received_date'), data.get('notes')
                 ))

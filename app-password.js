@@ -86,6 +86,7 @@ let dashboard = null;
 let qualityData = {documents:[],proficiency:[],staff:[]};
 let currentUser = null;
 let centralAccessToken = sessionStorage.getItem('asas_lims_access_token') || '';
+let notificationItems = [];
 let pendingOtpLogin = null;
 let projectView = 'table';
 let fieldTests = [];
@@ -397,14 +398,20 @@ function staticApi(path, options) {
   }
   if (path === '/api/work-orders') {
     if (!options || !options.method || options.method === 'GET') return data.workOrders;
+    if(body.action==='update'){
+      const order=data.workOrders.find(function(x){return x.id===Number(body.id);});if(!order)throw new Error('أمر العمل غير موجود');
+      Object.keys(body).forEach(function(key){if(['action','id'].indexOf(key)<0)order[key]=body[key];});order.project_id=Number(order.project_id);order.assigned_to=order.assigned_to?Number(order.assigned_to):null;localQueue(data,'work_order',order.id,'update');localAudit(data,'تحديث أمر عمل','work_order',order.order_no);saveLocal(data);return {ok:true,id:order.id,updated:true};
+    }
     const id = localId(data.workOrders);
     const order = Object.assign({id:id,order_no:'WO-' + String(id).padStart(6,'0'),status:'مفتوح',priority:'متوسطة',created_at:saudiNow()}, body, {project_id:Number(body.project_id)});
     data.workOrders.push(order); localQueue(data,'work_order',id,'create'); localAudit(data,'إضافة أمر عمل','work_order',order.order_no + ' - ' + order.title); saveLocal(data); return {ok:true,id:id,order_no:order.order_no};
   }
   if (path === '/api/clients') {
+    if(body.action==='update'){const item=data.clients.find(function(x){return x.id===Number(body.id);});if(!item)throw new Error('العميل غير موجود');Object.assign(item,{name:body.name,phone:body.phone,email:body.email});localQueue(data,'client',item.id,'update');localAudit(data,'تحديث عميل','client',item.name);saveLocal(data);return {ok:true,id:item.id,updated:true};}
     const id = localId(data.clients); data.clients.push(Object.assign({id:id},body)); localAudit(data,'إضافة عميل','client',body.name); saveLocal(data); return {ok:true,id:id};
   }
   if (path === '/api/samples') {
+    if(body.action==='update'){const item=data.samples.find(function(x){return x.id===Number(body.id);});if(!item)throw new Error('العينة غير موجودة');Object.assign(item,{project_id:body.project_id?Number(body.project_id):null,material:body.material,received_date:body.received_date,source:body.source,notes:body.notes});localQueue(data,'sample',item.id,'update');localAudit(data,'تحديث عينة','sample',item.sample_no);saveLocal(data);return {ok:true,id:item.id,updated:true};}
     const id = localId(data.samples); const sample = Object.assign({id:id,status:'قيد الاختبار',project_id:body.project_id ? Number(body.project_id) : null},body);
     sample.test_plan = data.catalog.filter(function(item) { return item.category === sample.material; }).map(function(item) { return {catalog_id:item.id,code:item.code,name_ar:item.name_ar,status:'مخطط'}; });
     data.samples.push(sample); localQueue(data,'sample',id,'create'); localAudit(data,'إضافة عينة وخطة اختبارات تلقائية','sample',body.sample_no + ' (' + sample.test_plan.length + ' اختباراً)'); saveLocal(data); return {ok:true,id:id,planned_count:sample.test_plan.length};
@@ -761,6 +768,7 @@ async function refresh() {
     renderReports();
     renderEquipment();
     renderAudit();
+    renderSystemNotifications();
     if (currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(currentUser.role) >= 0) {
       await renderQuality();
       if (activePageId === 'quality') {
@@ -828,6 +836,30 @@ function startLiveUpdates() {
 }
 
 async function syncNow(showMessage) { const button=$('syncNow');if(button){button.disabled=true;setText(button,'جارٍ المزامنة…');}try{await loadCatalog();await refresh();if(showMessage!==false)showToast('اكتملت المزامنة الآن');}finally{if(button){button.disabled=false;setText(button,'مزامنة الآن');}} }
+
+function buildSystemNotifications(){
+  if(!dashboard)return [];
+  const d=dashboard,items=[],day=today(),push=function(item){items.push(Object.assign({tone:'warning',route:'dashboard',solution:'فتح السجل ومعالجة السبب ثم حفظ التعديل.'},item));};
+  (d.alerts.overdue_work_orders||[]).forEach(function(x){push({key:'order-'+x.id,type:'workOrder',id:x.id,tone:'danger',title:'أمر عمل متأخر: '+x.order_no,detail:(x.title||'')+' · الاستحقاق '+(x.due_date||'غير محدد'),route:'workOrders',solution:'حدّث المسؤول أو الموعد أو الحالة وسجّل الإجراء.'});});
+  (d.alerts.blocked_projects||[]).forEach(function(x){push({key:'project-'+x.id,type:'project',id:x.id,tone:'danger',title:'مشروع متوقف: '+x.code,detail:x.name||'',route:'projects',solution:'راجع سبب التوقف وحدّث الحالة وخطة التنفيذ.'});});
+  (d.alerts.awaiting_review||[]).forEach(function(x){push({key:'review-'+(x.entity||'item')+'-'+(x.id||x.code),type:x.entity==='report'?'reports':'project',id:x.id,tone:'warning',title:'عنصر ينتظر المراجعة',detail:(x.code||x.name||x.entity||'')+' · يحتاج قرار اعتماد',route:x.entity==='report'?'reports':'projects',solution:'افتح دورة المراجعة واتخذ الإجراء المخوّل.'});});
+  (d.equipment||[]).forEach(function(x){const due=x.calibrated_to||x.next_calibration||'';if(!due&&!x.last_calibration)push({key:'equipment-missing-'+x.id,type:'equipment',id:x.id,tone:'danger',title:'جهاز بلا تاريخ معايرة',detail:(x.equipment_code||'جهاز #'+x.id)+' — '+x.name,route:'equipment',solution:'أدخل آخر معايرة والمعايرة القادمة.'});else if(due&&due<day)push({key:'equipment-expired-'+x.id,type:'equipment',id:x.id,tone:'danger',title:'جهاز تجاوز المعايرة',detail:(x.equipment_code||'جهاز #'+x.id)+' — انتهت '+due,route:'equipment',solution:'أوقف الاستخدام وحدّث المعايرة والشهادة.'});});
+  (d.work_orders||[]).filter(function(x){return x.status!=='مكتمل'&&!x.assigned_to&&!x.assignee_name;}).forEach(function(x){push({key:'unassigned-'+x.id,type:'workOrder',id:x.id,title:'أمر عمل بلا مسؤول',detail:x.order_no+' — '+x.title,route:'workOrders',solution:'عيّن الفني المسؤول وموعد الاستحقاق.'});});
+  (d.sync||[]).forEach(function(x){push({key:'sync-'+x.id,type:'sync_queue',id:x.id,tone:x.last_error?'danger':'warning',title:x.last_error?'تعثر في المزامنة':'عملية تنتظر المزامنة',detail:x.entity+' #'+x.entity_id+' · '+x.operation,route:'dashboard',solution:x.last_error?'راجع الخطأ ثم أعد المحاولة.':'نفّذ طابور المزامنة بالترتيب.'});});
+  return items;
+}
+
+function renderSystemNotifications(){
+  const list=$('notificationList'),count=$('notificationCount');if(!list||!count)return;
+  notificationItems=buildSystemNotifications();const readAt=Number(localStorage.getItem(STORAGE_KEY+'_notifications_read')||0),stamp=Number(localStorage.getItem(STORAGE_KEY+'_notifications_stamp')||0);const fingerprint=notificationItems.map(function(x){return x.key;}).join('|');let currentStamp=stamp;
+  if(localStorage.getItem(STORAGE_KEY+'_notifications_fingerprint')!==fingerprint){currentStamp=Date.now();localStorage.setItem(STORAGE_KEY+'_notifications_fingerprint',fingerprint);localStorage.setItem(STORAGE_KEY+'_notifications_stamp',String(currentStamp));}
+  const unread=currentStamp>readAt?notificationItems.length:0;setText(count,unread>99?'99+':unread);count.classList.toggle('hidden',!unread);
+  setHtml(list,notificationItems.length?notificationItems.map(function(x,index){return '<button class="notification-item '+esc(x.tone)+'" type="button" data-notification-index="'+index+'"><i></i><span><strong>'+esc(x.title)+'</strong><small>'+esc(x.detail)+'</small><em>المسار: '+escUI(x.route)+' · الحل: '+esc(x.solution)+'</em></span></button>';}).join(''):'<div class="decision-empty success">النظام سليم ولا توجد تنبيهات تشغيلية.</div>');
+}
+
+function toggleNotificationPanel(force){const panel=$('notificationPanel'),button=$('notificationToggle');if(!panel||!button)return;const open=typeof force==='boolean'?force:panel.classList.contains('hidden');panel.classList.toggle('hidden',!open);button.setAttribute('aria-expanded',open?'true':'false');if(open)renderSystemNotifications();}
+function markNotificationsRead(){localStorage.setItem(STORAGE_KEY+'_notifications_read',String(Date.now()));renderSystemNotifications();}
+function openNotificationItem(index){const item=notificationItems[Number(index)];if(!item)return;toggleNotificationPanel(false);markNotificationsRead();const id=Number(item.id);if(item.type==='sync_queue')return openSyncWorkQueue();if(item.type==='equipment'){const row=(dashboard.equipment||[]).find(function(x){return x.id===id;});navigate('equipment');if(row)openEquipmentForm(row);return;}if(item.type==='workOrder'){const row=(dashboard.work_orders||[]).find(function(x){return x.id===id;});navigate('workOrders');if(row)openWorkOrderForm(row.project_id,row);return;}if(item.type==='project'){navigate('projects');return openProjectForm(id);}if(item.type==='reports'){navigate('reports');return reviewReport(id);}navigate(item.route||'dashboard');}
 
 function renderDashboard() {
   if (!dashboard) return;
@@ -1133,18 +1165,18 @@ function setProjectView(view) {
 function renderWorkOrders() {
   const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
   setHtml($('workOrdersTable'), (dashboard ? dashboard.work_orders : []).map(function(order) {
-    return '<tr><td><strong>' + esc(order.order_no) + '</strong></td><td>' + esc(order.title) + '<small>' + esc(order.description || '') + '</small></td><td>' + esc(order.project_code) + '<small>' + esc(order.project_name) + '</small></td><td>' + (order.assignee_name ? esc(order.assignee_name) : escUI('غير محدد')) + '</td><td>' + priorityChip(order.priority) + '</td><td>' + esc(order.due_date || '—') + '</td><td>' + statusChip(order.status) + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="work_order" data-record-id="'+order.id+'" data-record-label="'+esc(order.order_no)+'" type="button">حذف</button>':'')+'</td></tr>';
+    return '<tr><td><strong>' + esc(order.order_no) + '</strong></td><td>' + esc(order.title) + '<small>' + esc(order.description || '') + '</small></td><td>' + esc(order.project_code) + '<small>' + esc(order.project_name) + '</small></td><td>' + (order.assignee_name ? esc(order.assignee_name) : escUI('غير محدد')) + '</td><td>' + priorityChip(order.priority) + '</td><td>' + esc(order.due_date || '—') + '</td><td>' + statusChip(order.status) + '</td><td><div class="row-actions"><button class="text-btn" data-work-order-edit="'+order.id+'" type="button">تعديل ومعالجة</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="work_order" data-record-id="'+order.id+'" data-record-label="'+esc(order.order_no)+'" type="button">حذف</button>':'')+'</div></td></tr>';
   }).join('') || '<tr><td colspan="8" class="empty">لا توجد أوامر عمل.</td></tr>');
 }
 
 function renderClients() {
   const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
-  setHtml($('clientsTable'), (dashboard ? dashboard.clients : []).map(function(client) { return '<tr><td>' + esc(client.name) + '</td><td>' + esc(client.phone || '') + '</td><td>' + esc(client.email || '') + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="client" data-record-id="'+client.id+'" data-record-label="'+esc(client.name)+'" type="button">حذف</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="4" class="empty">لا يوجد عملاء.</td></tr>');
+  setHtml($('clientsTable'), (dashboard ? dashboard.clients : []).map(function(client) { return '<tr><td>' + esc(client.name) + '</td><td>' + esc(client.phone || '') + '</td><td>' + esc(client.email || '') + '</td><td><div class="row-actions"><button class="text-btn" data-client-edit="'+client.id+'" type="button">تعديل</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="client" data-record-id="'+client.id+'" data-record-label="'+esc(client.name)+'" type="button">حذف</button>':'')+'</div></td></tr>'; }).join('') || '<tr><td colspan="4" class="empty">لا يوجد عملاء.</td></tr>');
 }
 
 function renderSamples() {
   const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
-  setHtml($('samplesTable'), (dashboard ? dashboard.samples : []).map(function(sample) { return '<tr><td><strong>' + esc(sample.sample_no) + '</strong></td><td>' + esc(sample.project_code || '—') + '<small>' + esc(sample.project_name || '') + '</small></td><td>' + escUI(sample.material) + '</td><td>' + esc(sample.planned_tests_count || 0) + ' اختباراً تلقائياً</td><td>' + esc(sample.received_date) + '</td><td>' + statusChip(sample.status) + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="sample" data-record-id="'+sample.id+'" data-record-label="'+esc(sample.sample_no)+'" type="button">حذف</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد عينات.</td></tr>');
+  setHtml($('samplesTable'), (dashboard ? dashboard.samples : []).map(function(sample) { return '<tr><td><strong>' + esc(sample.sample_no) + '</strong></td><td>' + esc(sample.project_code || '—') + '<small>' + esc(sample.project_name || '') + '</small></td><td>' + escUI(sample.material) + '</td><td>' + esc(sample.planned_tests_count || 0) + ' اختباراً تلقائياً</td><td>' + esc(sample.received_date) + '</td><td>' + statusChip(sample.status) + '</td><td><div class="row-actions"><button class="text-btn" data-sample-edit="'+sample.id+'" type="button">تعديل وربط</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="sample" data-record-id="'+sample.id+'" data-record-label="'+esc(sample.sample_no)+'" type="button">حذف</button>':'')+'</div></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد عينات.</td></tr>');
 }
 
 function renderTests() {
@@ -1393,10 +1425,11 @@ async function openProjectWorkspace(id) {
   $('modalBody').dataset.workspace = JSON.stringify({tabs:tabs});
 }
 
-function openWorkOrderForm(projectId) {
+function openWorkOrderForm(projectId,record) {
+  record=record||{};const edit=Boolean(record.id);projectId=record.project_id||projectId;
   const projects = dashboard ? dashboard.projects : [];
   const technicians = dashboard ? (dashboard.technicians || []) : [];
-  modal('<h2>أمر عمل جديد</h2><p>ينشئ أمراً مرتبطاً بمشروع، مع مسودة واتساب للمكلّف عند اختياره.</p><form id="workOrderForm"><div class="modal-grid"><label>المشروع<select name="project_id" required><option value="">— اختر المشروع —</option>' + optionList(projects,projectId,function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>عنوان أمر العمل<input name="title" required></label><label>الأولوية<select name="priority">' + optionList(PRIORITIES,'متوسطة',function(item){return item;},function(item){return item;}) + '</select></label><label>الحالة<select name="status">' + optionList(WORK_ORDER_STATUSES,'مفتوح',function(item){return item;},function(item){return item;}) + '</select></label><label>تاريخ التنفيذ<input name="scheduled_date" type="date"></label><label>تاريخ الاستحقاق<input name="due_date" type="date"></label><label>الفني المكلّف<select name="assigned_to"><option value="">— غير محدد —</option>' + optionList(technicians,'',function(item){return item.full_name + ' — ' + item.username;},function(item){return item.id;}) + '</select></label><label style="grid-column:1/-1">الوصف<textarea name="description"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ أمر العمل</button></div></form>');
+  modal('<h2>'+(edit?'تحديث أمر العمل':'أمر عمل جديد')+'</h2><p>كل تعديل يُحفظ في التدقيق ويُضاف للمزامنة.</p><form id="workOrderForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>المشروع<select name="project_id" required><option value="">— اختر المشروع —</option>' + optionList(projects,projectId,function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>عنوان أمر العمل<input name="title" required value="'+esc(record.title||'')+'"></label><label>الأولوية<select name="priority">' + optionList(PRIORITIES,record.priority||'متوسطة',function(item){return item;},function(item){return item;}) + '</select></label><label>الحالة<select name="status">' + optionList(WORK_ORDER_STATUSES,record.status||'مفتوح',function(item){return item;},function(item){return item;}) + '</select></label><label>تاريخ التنفيذ<input name="scheduled_date" type="date" value="'+esc(record.scheduled_date||'')+'"></label><label>تاريخ الاستحقاق<input name="due_date" type="date" value="'+esc(record.due_date||'')+'"></label><label>الفني المكلّف<select name="assigned_to"><option value="">— غير محدد —</option>' + optionList(technicians,record.assigned_to||'',function(item){return item.full_name + ' — ' + item.username;},function(item){return item.id;}) + '</select></label><label style="grid-column:1/-1">الوصف<textarea name="description">'+esc(record.description||'')+'</textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">'+(edit?'حفظ المعالجة':'حفظ أمر العمل')+'</button></div></form>');
 }
 
 async function renderQuality() {
@@ -1494,19 +1527,20 @@ async function submitTestAssignment(form) {
 
 async function submitWorkOrder(form) {
   const payload = {};
-  ['project_id','title','priority','status','scheduled_date','due_date','assigned_to','description'].forEach(function(key) { payload[key] = fieldValue(form,key); });
+  ['action','id','project_id','title','priority','status','scheduled_date','due_date','assigned_to','description'].forEach(function(key) { if(form.elements[key])payload[key] = fieldValue(form,key); });
   await api('/api/work-orders',{method:'POST',body:JSON.stringify(payload)});
   closeModal(); await refresh(); showToast('تم إنشاء أمر العمل');
 }
 
 function modalAttachFileField(section){return '<div class="modal-attach-file"><label>إرفاق ملف<select data-modal-file-type><option value="all">جميع الملفات المدعومة</option><option value=".xls,.xlsx,.csv">Excel / CSV</option><option value=".pdf">PDF</option><option value=".doc,.docx">Word</option><option value=".jpg,.jpeg,.png,.webp,.heic">صور</option><option value=".txt">TXT</option><option value=".zip">ZIP</option><option value=".dwg,.dxf">DWG / DXF</option></select><input type="file" data-modal-files multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.zip,.dwg,.dxf"></label><small class="muted">يتم التعرف على الملف وتحميله داخل البرنامج.</small></div>';}
-function openClientForm() {
-  modal('<h2>عميل جديد</h2><form id="clientForm"><div class="modal-grid"><label>اسم العميل<input name="name" required></label><label>الهاتف<input name="phone"></label><label style="grid-column:1/-1">البريد الإلكتروني<input name="email" type="email"></label></div>'+modalAttachFileField('clients')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العميل</button></div></form>');
+function openClientForm(record) {
+  record=record||{};const edit=Boolean(record.id);modal('<h2>'+(edit?'تحديث العميل':'عميل جديد')+'</h2><form id="clientForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>اسم العميل<input name="name" required value="'+esc(record.name||'')+'"></label><label>الهاتف<input name="phone" value="'+esc(record.phone||'')+'"></label><label style="grid-column:1/-1">البريد الإلكتروني<input name="email" type="email" value="'+esc(record.email||'')+'"></label></div>'+modalAttachFileField('clients')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">'+(edit?'حفظ التصحيح':'حفظ العميل')+'</button></div></form>');
 }
 
-function openSampleForm() {
+function openSampleForm(record) {
+  record=record||{};const edit=Boolean(record.id);
   const projects = dashboard ? dashboard.projects : [];
-  modal('<h2>تسجيل عينة</h2><form id="sampleForm"><div class="modal-grid"><label>رقم العينة<input name="sample_no" required></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material"><option>تربة</option><option>خرسانة</option><option>أسفلت</option><option>الحقل وNDT</option></select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + today() + '" required></label><label>المصدر<input name="source"></label><label>ملاحظات<textarea name="notes"></textarea></label></div><p class="form-message">سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.</p>'+modalAttachFileField('samples')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ العينة والخطة</button></div></form>');
+  modal('<h2>'+(edit?'تحديث وربط العينة':'تسجيل عينة')+'</h2><form id="sampleForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>رقم العينة<input name="sample_no" required '+(edit?'readonly ':'')+'value="'+esc(record.sample_no||'')+'"></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,record.project_id||'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material">'+optionList(['تربة','خرسانة','أسفلت','الحقل وNDT'],record.material||'تربة',function(x){return x;},function(x){return x;})+'</select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + esc(record.received_date||today()) + '" required></label><label>المصدر<input name="source" value="'+esc(record.source||'')+'"></label><label>ملاحظات<textarea name="notes">'+esc(record.notes||'')+'</textarea></label></div><p class="form-message">'+(edit?'سيُحفظ الربط الجديد ويعاد احتساب جودة البيانات.':'سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.')+'</p>'+modalAttachFileField('samples')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">'+(edit?'حفظ المعالجة':'حفظ العينة والخطة')+'</button></div></form>');
 }
 
 function openEquipmentForm(record) {
@@ -2545,6 +2579,9 @@ function bindEvents() {
   $('loginForm').addEventListener('submit',login);
   $('logoutBtn').addEventListener('click',logout);
   $('profileMenuToggle').addEventListener('click',function(event){event.stopPropagation();toggleProfileMenu();});
+  $('notificationToggle').addEventListener('click',function(event){event.stopPropagation();closeProfileMenu();toggleNotificationPanel();});
+  $('markNotificationsRead').addEventListener('click',function(event){event.stopPropagation();markNotificationsRead();});
+  $('notificationList').addEventListener('click',function(event){const item=event.target.closest('[data-notification-index]');if(item)openNotificationItem(item.dataset.notificationIndex);});
   $('profileMenu').addEventListener('click',function(event){const button=event.target.closest('[data-profile-action]');if(button)handleProfileAction(button.dataset.profileAction);});
   $('pageBack').addEventListener('click',goBackPage);
   $('staticSetup').addEventListener('click',bootstrapStaticAdmin);
@@ -2552,7 +2589,7 @@ function bindEvents() {
   $('menuBtn').addEventListener('click',function() { $('sidebar').classList.toggle('open'); });
   $('closeModal').addEventListener('click',closeModal);
   $('modal').addEventListener('click',function(event) { if (event.target === $('modal')) closeModal(); });
-  document.addEventListener('click',function(event){if(!event.target.closest('.profile-menu-wrap'))closeProfileMenu();});
+  document.addEventListener('click',function(event){if(!event.target.closest('.profile-menu-wrap'))closeProfileMenu();if(!event.target.closest('.notification-wrap'))toggleNotificationPanel(false);});
   document.addEventListener('keydown',function(event){if(event.key==='Escape')closeProfileMenu();});
   document.querySelectorAll('.nav-link[data-page]').forEach(function(button) { button.addEventListener('click',function() { navigate(button.dataset.page); }); });
   document.querySelectorAll('[data-open-project]').forEach(function(button) { button.addEventListener('click',function() { openProjectForm(); }); });
@@ -2606,7 +2643,7 @@ function bindEvents() {
     const recommendationTask=event.target.closest('[data-recommendation-task]');if(recommendationTask){event.preventDefault();const model=window.__ASAS_DECISION_INTELLIGENCE||decisionIntelligenceModel();const item=model.recommendations[Number(recommendationTask.dataset.recommendationTask)];if(item)openOperationalTaskForm({title:item.title,detail:item.detail,priority:item.priority,source_type:'decision_recommendation'});return;}
     const decisionIssue=event.target.closest('[data-decision-issue]');if(decisionIssue){event.preventDefault();openDecisionIssue(decisionIssue.dataset.decisionIssue);return;}
     const decisionAction=event.target.closest('[data-decision-action]');if(decisionAction){event.preventDefault();if(decisionAction.dataset.decisionAction)openDecisionIssue(decisionAction.dataset.decisionAction);else navigate(decisionAction.dataset.decisionPage||'dashboard');return;}
-    const decisionRecord=event.target.closest('[data-decision-record]');if(decisionRecord){event.preventDefault();const type=decisionRecord.dataset.decisionRecord,id=Number(decisionRecord.dataset.recordId);closeModal();if(type==='equipment'){const item=(dashboard.equipment||[]).find(function(x){return x.id===id;});navigate('equipment');if(item)openEquipmentForm(item);}else if(type==='project'){navigate('projects');openProjectForm(id);}else{navigate(type==='workOrder'?'workOrders':type);}return;}
+    const decisionRecord=event.target.closest('[data-decision-record]');if(decisionRecord){event.preventDefault();const type=decisionRecord.dataset.decisionRecord,id=Number(decisionRecord.dataset.recordId);closeModal();if(type==='equipment'){const item=(dashboard.equipment||[]).find(function(x){return x.id===id;});navigate('equipment');if(item)openEquipmentForm(item);}else if(type==='project'){navigate('projects');openProjectForm(id);}else if(type==='workOrder'){const item=(dashboard.work_orders||[]).find(function(x){return x.id===id;});navigate('workOrders');if(item)openWorkOrderForm(item.project_id,item);}else if(type==='samples'){const item=(dashboard.samples||[]).find(function(x){return x.id===id;});navigate('samples');if(item)openSampleForm(item);}else if(type==='tests'){navigate('tests');openTestAssignment(id);}else if(type==='reports'){navigate('reports');reviewReport(id);}else if(type==='clients'){const item=(dashboard.clients||[]).find(function(x){return x.id===id;});navigate('clients');if(item)openClientForm(item);}return;}
     const syncRun=event.target.closest('[data-sync-run]');if(syncRun){event.preventDefault();try{await runSyncQueue();}catch(error){showToast(error.message,true);}return;}
     const decisionExport=event.target.closest('[data-decision-report-export]');if(decisionExport){event.preventDefault();try{exportDecisionIntelligence();}catch(error){showToast(error.message,true);}return;}
     const decisionPrint=event.target.closest('[data-decision-report-print]');if(decisionPrint){event.preventDefault();printDecisionIntelligenceReport();return;}
@@ -2634,6 +2671,9 @@ function bindEvents() {
       return;
     }
     if (button.dataset.workOrderFor) return openWorkOrderForm(button.dataset.workOrderFor);
+    if (button.dataset.workOrderEdit) {const item=(dashboard.work_orders||[]).find(function(x){return x.id===Number(button.dataset.workOrderEdit);});if(item)return openWorkOrderForm(item.project_id,item);}
+    if (button.dataset.clientEdit) {const item=(dashboard.clients||[]).find(function(x){return x.id===Number(button.dataset.clientEdit);});if(item)return openClientForm(item);}
+    if (button.dataset.sampleEdit) {const item=(dashboard.samples||[]).find(function(x){return x.id===Number(button.dataset.sampleEdit);});if(item)return openSampleForm(item);}
     if (button.dataset.workspaceTab) {
       const stored = JSON.parse($('modalBody').dataset.workspace || '{"tabs":[]}');
       const tab = stored.tabs.find(function(item) { return item[0] === button.dataset.workspaceTab; });
