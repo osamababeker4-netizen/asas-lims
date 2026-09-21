@@ -753,3 +753,23 @@ CREATE TABLE IF NOT EXISTS operational_tasks(
   FOREIGN KEY(project_id) REFERENCES projects(id),FOREIGN KEY(assigned_to) REFERENCES users(id),FOREIGN KEY(created_by) REFERENCES users(id)
 );
 CREATE INDEX IF NOT EXISTS idx_operational_tasks_status ON operational_tasks(status,due_date,priority);
+
+-- V10.8.2 attendance and consent-based personnel location tracking.
+CREATE TABLE IF NOT EXISTS attendance_records(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,work_date TEXT NOT NULL,
+  check_in_at TEXT,check_out_at TEXT,
+  check_in_latitude REAL,check_in_longitude REAL,check_in_accuracy REAL,
+  check_out_latitude REAL,check_out_longitude REAL,check_out_accuracy REAL,
+  last_latitude REAL,last_longitude REAL,last_accuracy REAL,last_location_at TEXT,
+  status TEXT NOT NULL DEFAULT 'present' CHECK(status IN ('present','completed')),
+  note TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id,work_date),FOREIGN KEY(user_id) REFERENCES users(id)
+);
+CREATE TABLE IF NOT EXISTS personnel_location_events(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,attendance_id INTEGER NOT NULL,
+  event_type TEXT NOT NULL CHECK(event_type IN ('check_in','heartbeat','check_out')),
+  latitude REAL NOT NULL,longitude REAL NOT NULL,accuracy REAL,captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,note TEXT,
+  FOREIGN KEY(user_id) REFERENCES users(id),FOREIGN KEY(attendance_id) REFERENCES attendance_records(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance_records(work_date,user_id);
+CREATE INDEX IF NOT EXISTS idx_personnel_locations ON personnel_location_events(user_id,captured_at);
