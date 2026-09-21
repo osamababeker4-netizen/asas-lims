@@ -608,6 +608,40 @@ table thead th,.page table.engineering-table thead th{
   border-bottom-color:#c7d8e1!important;
 }
 table tbody tr:hover{background:#f2f9fa!important}
+
+/* V10.5.0 final table identity: every operational table follows the ASAS logo palette. */
+.page .table-panel,.page .engineering-table-wrap{
+  border:1px solid #c8d9e3!important;
+  border-top:4px solid var(--asas-gold)!important;
+  border-radius:14px!important;
+  background:#fff!important;
+  box-shadow:0 12px 30px rgba(11,31,51,.09)!important;
+}
+.page table{background:#fff!important}
+.page table thead th{
+  z-index:3;
+  background:linear-gradient(110deg,var(--asas-navy-2),#174f78 58%,var(--asas-blue))!important;
+  color:#fff!important;
+  border-bottom:3px solid var(--asas-gold)!important;
+  font-weight:900!important;
+  letter-spacing:.01em;
+}
+.page table thead th:first-child{border-inline-start:4px solid var(--asas-turquoise)!important}
+.page table tbody tr:nth-child(even){background:#f5f9fb!important}
+.page table tbody tr:nth-child(odd){background:#fff!important}
+.page table tbody tr:hover{
+  background:linear-gradient(90deg,rgba(14,165,174,.10),rgba(217,154,43,.10))!important;
+  box-shadow:inset -4px 0 0 var(--asas-turquoise)!important;
+}
+.page table td{border-bottom-color:#dce6ec!important;color:var(--asas-navy-2)!important}
+.page table td:first-child{font-weight:800}
+.page table tbody tr:last-child td{border-bottom:0}
+.page table .empty{padding:30px 18px!important;color:var(--muted)!important;text-align:center!important}
+.page .table-avatar{border:2px solid var(--asas-gold)!important;box-shadow:0 3px 9px rgba(11,31,51,.12)!important}
+@media(max-width:620px){
+  .page .table-panel,.page .engineering-table-wrap{border-radius:11px!important}
+  .page table th,.page table td{padding:10px 11px!important}
+}
 input:focus,select:focus,textarea:focus{
   border-color:var(--asas-turquoise)!important;
   box-shadow:0 0 0 3px rgba(14,165,174,.13)!important;
