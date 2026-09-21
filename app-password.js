@@ -1320,7 +1320,7 @@ function renderEquipment() {
     const calibration = item.calibrated_to || item.next_calibration || '—';
     const tones = [equipmentTone(item.verification_status,'verification'),equipmentTone(calibration,'calibration'),equipmentTone(item.maintenance_status,'maintenance')];
     const rowTone = tones.indexOf('danger') >= 0 ? 'danger' : tones.indexOf('warning') >= 0 ? 'warning' : tones.indexOf('success') >= 0 ? 'success' : 'neutral';
-    return '<tr class="equipment-row state-'+rowTone+'"><td><span class="equipment-code">'+esc(item.equipment_code || '—')+'</span></td><td><strong class="equipment-name">'+esc(item.name)+'</strong></td><td>'+esc(item.serial_no || '—')+'</td><td><span class="equipment-section">'+esc(item.section || '—')+'</span></td><td>'+esc(item.range_text || '—')+'</td><td>'+equipmentBadge(item.verification_status || '—','verification')+'</td><td>'+equipmentBadge(calibration,'calibration')+'</td><td>'+equipmentBadge(item.maintenance_status || '—','maintenance')+'</td><td class="equipment-notes">'+esc(item.notes || '—')+'</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</td></tr>';
+    return '<tr class="equipment-row state-'+rowTone+'"><td><span class="equipment-code">'+esc(item.equipment_code || '—')+'</span></td><td><strong class="equipment-name">'+esc(item.name)+'</strong></td><td>'+esc(item.serial_no || '—')+'</td><td><span class="equipment-section">'+esc(item.section || '—')+'</span></td><td>'+esc(item.range_text || '—')+'</td><td>'+equipmentBadge(item.verification_status || '—','verification')+'</td><td>'+equipmentBadge(calibration,'calibration')+'</td><td>'+equipmentBadge(item.maintenance_status || '—','maintenance')+'</td><td class="equipment-notes">'+esc(item.notes || '—')+'</td><td><div class="row-actions"><button class="text-btn" data-equipment-edit="'+item.id+'" type="button">تعديل</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</div></td></tr>';
   }).join('') || '<tr><td colspan="10" class="empty">لا توجد أجهزة.</td></tr>');
 }
 
@@ -1443,7 +1443,7 @@ async function renderQuality() {
       return '<span class="item-actions"><button class="text-btn" type="button" data-quality-file-ref="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">فتح</button><button class="text-btn" type="button" data-quality-file-download="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" type="button" data-quality-file-delete="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">حذف</button>':'')+'</span>';
     };
     const fileAction=function(item){return qualityRefActions(item.document_ref,item.code||item.title||'quality-file');};
-    const docActions=function(item){return '<div class="row-actions">'+fileAction(item)+'<button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="'+item.id+'" data-record-label="'+esc(item.code)+'" type="button">حذف</button></div>';};
+    const docActions=function(item){return '<div class="row-actions">'+fileAction(item)+'<button class="text-btn" data-quality-document-edit="'+item.id+'" type="button">تعديل</button><button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="'+item.id+'" data-record-label="'+esc(item.code)+'" type="button">حذف</button></div>';};
     const docs=qualityData.documents||[];
     setHtml($('qualityDocumentsTable'),docs.map(function(item){return '<tr><td>'+escUI(categoryNames[item.category]||item.category)+'</td><td>'+esc(item.code)+'</td><td>'+esc(item.title)+'</td><td>'+esc(item.revision||'—')+'</td><td>'+statusChip(item.status)+'</td><td>'+fileAction(item)+'</td><td>'+docActions(item)+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
     function renderDocList(id,category){
@@ -1456,7 +1456,7 @@ async function renderQuality() {
     setHtml($('qualityStaffTable'), (qualityData.staff||[]).map(function(item){const refs=[];if(item.qualification_ref)refs.push(qualityRefActions(item.qualification_ref,'المؤهل — '+item.full_name));if(item.cv_ref)refs.push(qualityRefActions(item.cv_ref,'السيرة الذاتية — '+item.full_name));return '<tr><td>'+esc(item.full_name)+'</td><td>'+esc(item.job_title||'—')+'</td><td>'+esc(item.specialty||'—')+'</td><td>'+esc(item.experience_years||'—')+'</td><td>'+(refs.join('<br>')||'—')+'</td><td>'+(item.active?'نشط':'موقوف')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
     const equipmentRows=dashboard&&dashboard.equipment?dashboard.equipment:[];
     const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
-    if($('qualityEquipmentInlineTable'))setHtml($('qualityEquipmentInlineTable'),equipmentRows.map(function(item){return '<tr><td>'+esc(item.equipment_code||'—')+'</td><td>'+esc(item.name)+'</td><td>'+esc(item.serial_no||'—')+'</td><td>'+esc(item.section||'—')+'</td><td>'+esc(item.verification_status||'—')+'</td><td>'+esc(item.calibrated_to||item.next_calibration||'—')+'</td><td>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد أجهزة بعد.</td></tr>');
+    if($('qualityEquipmentInlineTable'))setHtml($('qualityEquipmentInlineTable'),equipmentRows.map(function(item){return '<tr><td>'+esc(item.equipment_code||'—')+'</td><td>'+esc(item.name)+'</td><td>'+esc(item.serial_no||'—')+'</td><td>'+esc(item.section||'—')+'</td><td>'+esc(item.verification_status||'—')+'</td><td>'+esc(item.calibrated_to||item.next_calibration||'—')+'</td><td><div class="row-actions"><button class="text-btn" data-equipment-edit="'+item.id+'" type="button">تعديل</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</div></td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد أجهزة بعد.</td></tr>');
   } catch (error) {
     ['qualityDocumentsTable','proficiencyTable','qualityStaffTable','qualityEquipmentInlineTable'].forEach(function(id){if($(id))setHtml($(id),'<tr><td colspan="7" class="empty">تعذر تحميل بيانات الجودة.</td></tr>');});
   }
@@ -1909,6 +1909,38 @@ async function spreadsheetPreviewHtml(blob,name){
   return '<div class="spreadsheet-preview"><div class="spreadsheet-preview-head"><strong>'+esc(sheetName)+'</strong><span>'+workbook.SheetNames.length+' ورقة · عرض أول '+rows.length+' صف</span></div><div class="spreadsheet-preview-scroll">'+table+'</div></div>';
 }
 
+function contentEditingAllowed(kind,name){return kind==='excel'||kind==='text';}
+
+async function openAttachmentContentEditor(item,blob){
+  const kind=attachmentViewerKind(item.original_name),name=item.original_name||'ASAS-file';
+  if(!contentEditingAllowed(kind,name))throw new Error('هذه الصيغة تتطلب استبدال الملف بنسخة معدلة للحفاظ على تنسيقه');
+  let editor='',workbook=null,sheetName='';
+  if(kind==='excel'){
+    if(!window.XLSX)throw new Error('محرر Excel غير متاح الآن');
+    workbook=XLSX.read(await blob.arrayBuffer(),{type:'array',cellDates:true});sheetName=workbook.SheetNames[0];
+    const rows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,raw:false,defval:''});
+    const width=Math.min(80,Math.max(1,rows.reduce(function(max,row){return Math.max(max,row.length);},0)));
+    const total=Math.max(rows.length,25);
+    editor='<div class="file-content-editor"><div class="spreadsheet-preview-head"><strong>'+esc(sheetName)+'</strong><span>انقر داخل أي خلية للكتابة</span></div><div class="spreadsheet-preview-scroll"><table id="editableSpreadsheet" class="spreadsheet-preview-table editable"><tbody>'+Array.from({length:total},function(_,r){return '<tr>'+Array.from({length:width},function(_,c){return '<td contenteditable="true" data-row="'+r+'" data-col="'+c+'">'+esc((rows[r]||[])[c]===undefined?'':(rows[r]||[])[c])+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div></div>';
+  }else{
+    editor='<div class="file-content-editor"><textarea id="editableTextFile" class="attachment-text-editor" spellcheck="false">'+esc(await blob.text())+'</textarea></div>';
+  }
+  modal('<section class="attachment-viewer file-editor-view"><header class="attachment-viewer-head"><div><span class="section-kicker">ASAS File Editor</span><h2>'+esc(name)+'</h2><p>سيحفظ التعديل كإصدار جديد ويحتفظ النظام بالأصل.</p></div><div class="attachment-viewer-actions"><button class="btn primary" id="saveFileContentEdit" type="button">حفظ كإصدار جديد</button><button class="btn secondary" type="button" data-modal-close>إلغاء</button></div></header>'+editor+'</section>');
+  $('saveFileContentEdit').addEventListener('click',async function(){
+    const button=this;button.disabled=true;setText(button,'جارٍ الحفظ والمزامنة…');
+    try{
+      let output;
+      if(kind==='excel'){
+        const rows=[];document.querySelectorAll('#editableSpreadsheet tbody tr').forEach(function(tr){rows.push(Array.from(tr.cells).map(function(cell){return cell.textContent;}));});
+        while(rows.length&&rows[rows.length-1].every(function(value){return !String(value).trim();}))rows.pop();
+        workbook.Sheets[sheetName]=XLSX.utils.aoa_to_sheet(rows);output=new Blob([XLSX.write(workbook,{bookType:/\.xls$/i.test(name)?'xls':'xlsx',type:'array'})],{type:'application/octet-stream'});
+      }else output=new Blob([$('editableTextFile').value],{type:blob.type||'text/plain;charset=utf-8'});
+      const result=await api('/api/attachments/replace',{method:'POST',body:JSON.stringify({id:item.id,file_name:name,file_base64:await smartFileBase64(new File([output],name,{type:output.type}))})});
+      closeModal();documentSelectedIds.delete(Number(item.id));await loadDocumentCenter();showToast('تم حفظ التعديل كإصدار '+result.version_no);
+    }catch(error){button.disabled=false;setText(button,'حفظ كإصدار جديد');showToast(error.message,true);}
+  });
+}
+
 async function wordPreviewHtml(blob,name){
   if(/\.docx$/i.test(name)&&window.mammoth){
     try{
@@ -1959,9 +1991,11 @@ async function openAttachmentInViewer(item){
   }else{
     content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(item.original_name||'ملف')+'</h3><p>تم فتح الملف داخل البرنامج. الملف محفوظ في النظام بصيغته الأصلية دون تحويل. هذه الصيغة لا يملك المتصفح عارضًا كاملاً لمحتواها، لكن الملف يظل متاحًا هنا مع التنزيل المباشر.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
   }
-  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Internal File Viewer</span><h2>'+esc(item.original_name||'ملف')+'</h2><p>نسخة أصلية محفوظة · '+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn primary" type="button" data-viewer-download>تنزيل الأصل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
+  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Internal File Viewer</span><h2>'+esc(item.original_name||'ملف')+'</h2><p>نسخة أصلية محفوظة · '+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions">'+(contentEditingAllowed(kind,item.original_name)?'<button class="btn primary" type="button" data-viewer-edit>تحرير وكتابة</button>':'')+'<button class="btn secondary" type="button" data-viewer-download>تنزيل الأصل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
   const downloadButton=document.querySelector('[data-viewer-download]');
   if(downloadButton)downloadButton.addEventListener('click',function(){downloadAttachmentBlob(item,fetched.blob,fetched.url);});
+  const editButton=document.querySelector('[data-viewer-edit]');
+  if(editButton)editButton.addEventListener('click',function(){openAttachmentContentEditor(item,fetched.blob).catch(function(error){showToast(error.message,true);});});
 }
 
 async function authenticatedAttachmentDownload(item,openAfter){
@@ -2733,6 +2767,7 @@ function bindEvents() {
     if (button.dataset.workOrderEdit) {const item=(dashboard.work_orders||[]).find(function(x){return x.id===Number(button.dataset.workOrderEdit);});if(item)return openWorkOrderForm(item.project_id,item);}
     if (button.dataset.clientEdit) {const item=(dashboard.clients||[]).find(function(x){return x.id===Number(button.dataset.clientEdit);});if(item)return openClientForm(item);}
     if (button.dataset.sampleEdit) {const item=(dashboard.samples||[]).find(function(x){return x.id===Number(button.dataset.sampleEdit);});if(item)return openSampleForm(item);}
+    if (button.dataset.equipmentEdit) {const item=(dashboard.equipment||[]).find(function(x){return x.id===Number(button.dataset.equipmentEdit);});if(item)return openEquipmentForm(item);}
     if (button.dataset.workspaceTab) {
       const stored = JSON.parse($('modalBody').dataset.workspace || '{"tabs":[]}');
       const tab = stored.tabs.find(function(item) { return item[0] === button.dataset.workspaceTab; });

@@ -7,7 +7,7 @@ import urllib.request
 API='https://asas-lims-api.onrender.com'
 PAGES='https://osamababeker4-netizen.github.io/asas-lims/'
 ORIGIN='https://osamababeker4-netizen.github.io'
-EXPECTED_VERSION='10.8.0-operational-file-management-release'
+EXPECTED_VERSION='10.8.1-internal-file-editing-release'
 STRICT_PRODUCTION=os.environ.get('GITHUB_REF') == 'refs/heads/main'
 
 def once(req):
@@ -60,7 +60,7 @@ if STRICT_PRODUCTION:
     def pages_check():
         status, headers, body=once(urllib.request.Request(PAGES, headers={'Cache-Control':'no-cache','User-Agent':'ASAS-LIMS-Acceptance/10.4.0'}))
         text=body.decode('utf-8','replace')
-        if status == 200 and 'مساحة العمل التنفيذية' in text and '10-8-0-operational-file-management-release' in text:
+        if status == 200 and 'مساحة العمل التنفيذية' in text and '10-8-1-internal-file-editing-release' in text:
             return 'current'
         return None
     pages_state=retry(pages_check)
