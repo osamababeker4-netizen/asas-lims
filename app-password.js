@@ -98,6 +98,7 @@ let fieldGuideCategory = 'الكل';
 let fieldTestSearchTerm = '';
 let documentLibraryRows = [];
 let documentGroupFilter = 'الكل';
+let documentSelectedIds = new Set();
 let documentLibrarySearchTerm = '';
 let toastTimer = null;
 let activeAttachmentObjectUrl = '';
@@ -1751,17 +1752,24 @@ function renderDocumentCenterFiles() {
   });
   window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};
   documentLibraryRows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});
+  const validIds=new Set(documentLibraryRows.map(function(item){return Number(item.id);}));
+  documentSelectedIds.forEach(function(id){if(!validIds.has(Number(id)))documentSelectedIds.delete(id);});
   function actionButtons(item,buttonClass){
     const cls=buttonClass||'btn';
-    return '<button class="'+cls+' primary" type="button" data-smart-open="'+item.id+'">فتح</button><button class="'+cls+' secondary" type="button" data-smart-download="'+item.id+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="'+cls+' danger-link" type="button" data-smart-delete="'+item.id+'">حذف</button>':'');
+    return '<button class="'+cls+' primary" type="button" data-smart-open="'+item.id+'">فتح</button><button class="'+cls+' secondary" type="button" data-smart-download="'+item.id+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="'+cls+' secondary" type="button" data-smart-edit="'+item.id+'">تعديل</button><button class="'+cls+' secondary" type="button" data-smart-replace="'+item.id+'">استبدال</button><button class="'+cls+' secondary" type="button" data-smart-versions="'+item.id+'">الإصدارات</button><button class="'+cls+' danger-link" type="button" data-smart-delete="'+item.id+'">حذف</button>':'');
   }
   function cards(rows,emptyText) {
     if(!rows.length)return '<div class="empty-state document-empty"><strong>'+esc(emptyText||'لا توجد ملفات فعلية مطابقة.')+'</strong></div>';
     return rows.map(function(item) {
-      return '<article class="document-file-card compact"><div class="document-file-icon">'+documentFileTypeIcon(item.original_name)+'</div><div class="document-file-info"><span class="pill">'+escUI(item.material_group||'أخرى')+'</span><h4>'+esc(item.original_name)+'</h4><p>'+esc(item.file_category||'ملف')+' · '+esc(item.source_label||'المكتبة الفنية')+'</p><small>'+esc(saudiDisplay(item.created_at))+'</small></div><div class="document-file-actions">'+actionButtons(item,'btn')+'</div></article>';
+      const selected=documentSelectedIds.has(Number(item.id));
+      return '<article class="document-file-card compact'+(selected?' is-selected':'')+'"><label class="document-file-select"><input type="checkbox" data-document-select="'+item.id+'" '+(selected?'checked':'')+'> تحديد</label><div class="document-file-icon">'+documentFileTypeIcon(item.original_name)+'</div><div class="document-file-info"><span class="pill">'+escUI(item.material_group||'أخرى')+'</span><h4>'+esc(item.display_name||item.original_name)+'</h4><p>'+esc(item.file_category||'ملف')+' · '+esc(item.source_label||'المكتبة الفنية')+' · الإصدار '+esc(item.version_no||1)+'</p><small>'+esc(item.description||saudiDisplay(item.updated_at||item.created_at))+'</small></div><div class="document-file-actions">'+actionButtons(item,'btn')+'</div></article>';
     }).join('');
   }
   const main=$('documentLibraryFiles');if(main)setHtml(main,cards(filtered,'لا توجد ملفات فعلية مطابقة.'));
+  const count=documentSelectedIds.size,countBox=$('documentSelectedCount'),selectAll=$('documentSelectAll');
+  if(countBox)setText(countBox,count?'تم تحديد '+count+' ملف':'لم يتم تحديد ملفات');
+  document.querySelectorAll('[data-file-bulk]').forEach(function(button){button.disabled=!count;});
+  if(selectAll){const visibleIds=filtered.map(function(x){return Number(x.id);});selectAll.checked=Boolean(visibleIds.length&&visibleIds.every(function(id){return documentSelectedIds.has(id);}));selectAll.indeterminate=Boolean(!selectAll.checked&&visibleIds.some(function(id){return documentSelectedIds.has(id);}));selectAll.dataset.visibleIds=visibleIds.join(',');}
   const technical=$('technicalLibraryFiles');if(technical)setHtml(technical,cards(documentLibraryRows.filter(function(x){return x.source_label==='المكتبة الفنية';}),'لا توجد ملفات في المكتبة الفنية بعد.'));
   const vault=$('companyVaultFiles');if(vault)setHtml(vault,cards(documentLibraryRows.filter(function(x){return x.source_label==='خزنة الشركة';}),'لا توجد ملفات في الخزنة بعد.'));
   const log=$('qualityImportLog');
@@ -1769,6 +1777,51 @@ function renderDocumentCenterFiles() {
     const recent=documentLibraryRows.slice().sort(function(a,b){return String(b.created_at||'').localeCompare(String(a.created_at||''));}).slice(0,50);
     setHtml(log,recent.length?recent.map(function(item){return '<div class="qc-log-row"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.source_label||'')+' · '+esc(item.file_category||'ملف')+'</small></div><span>'+esc(item.material_group||'أخرى')+'</span><time>'+esc(saudiDisplay(item.created_at))+'</time><div class="item-actions"><button class="text-btn" data-smart-open="'+item.id+'" type="button">فتح</button><button class="text-btn" data-smart-download="'+item.id+'" type="button">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" data-smart-delete="'+item.id+'" type="button">حذف</button>':'')+'</div></div>';}).join(''):'<div class="empty-state">لا توجد عمليات استيراد بعد.</div>');
   }
+}
+
+function selectedDocumentItems(){return documentLibraryRows.filter(function(item){return documentSelectedIds.has(Number(item.id));});}
+
+function openDocumentEdit(item){
+  if(!item)return;
+  modal('<h2>تعديل بيانات الملف</h2><p>يتم تعديل البيانات الوصفية فقط دون المساس بمحتوى الملف.</p><form id="documentEditForm" data-file-id="'+item.id+'"><div class="modal-grid"><label>الاسم الظاهر<input name="display_name" required value="'+esc(item.display_name||item.original_name)+'"></label><label>التصنيف<select name="material_group">'+['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'].map(function(x){return '<option '+(x===(item.material_group||'أخرى')?'selected':'')+'>'+x+'</option>';}).join('')+'</select></label><label class="full-span">الوصف<textarea name="description" rows="3">'+esc(item.description||'')+'</textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ ومزامنة</button></div></form>');
+}
+
+function openDocumentReplace(item){
+  if(!item)return;
+  modal('<h2>استبدال الملف</h2><p>ستحفظ النسخة الحالية كإصدار سابق، وتصبح النسخة الجديدة هي النسخة التشغيلية.</p><form id="documentReplaceForm" data-file-id="'+item.id+'"><label>النسخة الجديدة<input name="file" type="file" required></label><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">استبدال وإنشاء إصدار</button></div></form>');
+}
+
+async function submitDocumentEdit(form){
+  await api('/api/attachments/update',{method:'POST',body:JSON.stringify({id:Number(form.dataset.fileId),display_name:form.elements.display_name.value,material_group:form.elements.material_group.value,description:form.elements.description.value})});
+  closeModal();await loadDocumentCenter();showToast('تم تعديل الملف ومزامنة التغيير');
+}
+
+async function submitDocumentReplace(form){
+  const file=form.elements.file.files[0];if(!file)throw new Error('اختر النسخة الجديدة');
+  const result=await api('/api/attachments/replace',{method:'POST',body:JSON.stringify({id:Number(form.dataset.fileId),file_name:file.name,file_base64:await fileToBase64(file)})});
+  closeModal();documentSelectedIds.delete(Number(form.dataset.fileId));await loadDocumentCenter();showToast('تم حفظ الإصدار '+result.version_no+' والاحتفاظ بالنسخة السابقة');
+}
+
+async function openDocumentVersions(item){
+  const rows=await api('/api/attachments/versions?id='+encodeURIComponent(item.id));window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};rows.forEach(function(row){window.__ASAS_SMART_FILES[row.id]=row;});
+  modal('<h2>سجل إصدارات الملف</h2><div class="stack-list">'+rows.map(function(row,index){return '<div class="list-item"><div><strong>'+(index===0?'الحالي — ':'')+'الإصدار '+esc(row.version_no||1)+'</strong><small>'+esc(row.original_name)+' · '+esc(saudiDisplay(row.updated_at||row.created_at))+'</small></div><div class="item-actions"><button class="text-btn" data-smart-open="'+row.id+'" type="button">فتح</button><button class="text-btn" data-smart-download="'+row.id+'" type="button">تنزيل</button></div></div>';}).join('')+'</div><div class="modal-actions"><button class="btn secondary" data-modal-close type="button">إغلاق</button></div>');
+}
+
+async function runDocumentBulk(action){
+  const items=selectedDocumentItems();if(!items.length)throw new Error('حدد ملفًا واحدًا على الأقل');
+  if(action==='download'){for(const item of items){await authenticatedAttachmentDownload(item,false);await smartUploadDelay(180);}showToast('تم تنزيل '+items.length+' ملف');return;}
+  if(action==='classify'){
+    const group=window.prompt('اكتب التصنيف: أسفلت، تربة، خرسانة، الحقل وNDT، أخرى','أخرى');if(group===null)return;
+    if(['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'].indexOf(group.trim())<0)throw new Error('التصنيف غير معتمد');
+    for(const item of items)await api('/api/attachments/update',{method:'POST',body:JSON.stringify({id:item.id,display_name:item.display_name||item.original_name,description:item.description||'',material_group:group.trim()})});
+  }else if(action==='archive'){
+    if(!window.confirm('أرشفة '+items.length+' ملف؟'))return;
+    for(const item of items)await api('/api/attachments/update',{method:'POST',body:JSON.stringify({id:item.id,display_name:item.display_name||item.original_name,description:item.description||'',material_group:item.material_group||'أخرى',archived:true})});
+  }else if(action==='delete'){
+    if(!window.confirm('نقل '+items.length+' ملف إلى سلة المحذوفات؟'))return;
+    for(const item of items)await api('/api/attachments/delete',{method:'POST',body:JSON.stringify({id:item.id})});
+  }
+  const done=items.length;documentSelectedIds.clear();await loadDocumentCenter();showToast('اكتمل الإجراء على '+done+' ملف وتمت المزامنة');
 }
 
 async function loadDocumentCenter() {
@@ -2634,6 +2687,8 @@ function bindEvents() {
   $('resetSyncQueue').addEventListener('click',function(){resetSyncQueue().catch(function(error){showToast(error.message,true);});});
   $('resetOperationalData').addEventListener('click',function(){resetOperationalData().catch(function(error){showToast(error.message,true);});});
   document.addEventListener('change',function(event) {
+    if(event.target.matches('[data-document-select]')){const id=Number(event.target.dataset.documentSelect);if(event.target.checked)documentSelectedIds.add(id);else documentSelectedIds.delete(id);renderDocumentCenterFiles();return;}
+    if(event.target.id==='documentSelectAll'){const ids=String(event.target.dataset.visibleIds||'').split(',').filter(Boolean).map(Number);ids.forEach(function(id){if(event.target.checked)documentSelectedIds.add(id);else documentSelectedIds.delete(id);});renderDocumentCenterFiles();return;}
     if(event.target.matches('[data-task-status]'))updateOperationalTaskStatus(event.target.dataset.taskStatus,event.target.value).catch(function(error){showToast(error.message,true);});
     if (event.target.matches('.project-status')) changeProjectStatus(event.target.dataset.projectId,event.target.value);
     if (event.target.id === 'testCatalogSelect') updateTestDynamic();
@@ -2657,6 +2712,10 @@ function bindEvents() {
     const qualityDelete=event.target.closest('[data-quality-file-delete]');if(qualityDelete){event.preventDefault();try{await deleteAuthorizedQualityFile(qualityDelete.dataset.qualityFileDelete,qualityDelete.dataset.qualityFileName||'quality-file');}catch(error){showToast(error.message,true);}return;}
     const removeSelected=event.target.closest('[data-smart-remove-selected]');if(removeSelected){event.preventDefault();const form=$('smartImportForm');if(form){form.__selectedFiles=smartSelectedFiles(form).filter(function(_file,index){return index!==Number(removeSelected.dataset.smartRemoveSelected);});renderSmartSelectedFiles(form);}return;}
     const retryFailed=event.target.closest('[data-smart-retry-failed]');if(retryFailed){event.preventDefault();const form=$('smartImportForm');if(form)try{await submitSmartImport(form);}catch(error){showToast(error.message,true);}return;}
+    const bulkFileAction=event.target.closest('[data-file-bulk]');if(bulkFileAction){event.preventDefault();try{await runDocumentBulk(bulkFileAction.dataset.fileBulk);}catch(error){showToast(error.message,true);}return;}
+    const smartEdit=event.target.closest('[data-smart-edit]');if(smartEdit){event.preventDefault();openDocumentEdit((window.__ASAS_SMART_FILES||{})[Number(smartEdit.dataset.smartEdit)]);return;}
+    const smartReplace=event.target.closest('[data-smart-replace]');if(smartReplace){event.preventDefault();openDocumentReplace((window.__ASAS_SMART_FILES||{})[Number(smartReplace.dataset.smartReplace)]);return;}
+    const smartVersions=event.target.closest('[data-smart-versions]');if(smartVersions){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartVersions.dataset.smartVersions)];if(item)try{await openDocumentVersions(item);}catch(error){showToast(error.message,true);}return;}
     const smartOpen=event.target.closest('[data-smart-open]');if(smartOpen){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartOpen.dataset.smartOpen)];if(item)try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
     const smartDownload=event.target.closest('[data-smart-download]');if(smartDownload){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartDownload.dataset.smartDownload)];if(item)try{await authenticatedAttachmentDownload(item,false);}catch(error){showToast(error.message,true);}return;}
     const smartDelete=event.target.closest('[data-smart-delete]');if(smartDelete){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartDelete.dataset.smartDelete)];if(item)try{await deleteUploadedFile(item);}catch(error){showToast(error.message,true);}return;}
@@ -2761,6 +2820,8 @@ function bindEvents() {
       if (form.id === 'qualityStaffForm') await submitQualityRecord(form,'/api/quality/staff',['qualification_file','cv_file']);
       if (form.id === 'bulkImportForm') await submitBulkImport(form);
       if (form.id === 'recordAttachmentForm') await submitRecordAttachment(form);
+      if (form.id === 'documentEditForm') await submitDocumentEdit(form);
+      if (form.id === 'documentReplaceForm') await submitDocumentReplace(form);
       if (form.id === 'smartImportForm') await submitSmartImport(form);
       if (form.id === 'catalogResourcesForm') await submitCatalogResources(form);
       if (form.id === 'customCatalogTestForm') await submitCustomCatalogTest(form);

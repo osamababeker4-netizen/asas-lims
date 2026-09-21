@@ -219,7 +219,7 @@ class SchemaMigrationTests(unittest.TestCase):
         scripts = '\n'.join((Path(__file__).parent / name).read_text(encoding='utf-8') for name in (
             'app-password.js','quality-management.js','branch-map.js'))
         delegated = {'page','page-go','open-project','project-view','smart-import','quality-add','quality-template',
-            'quality-import','qm-open','qm-inline-save','document-group','branch-query','field-guide-filter','profile-action'}
+            'quality-import','qm-open','qm-inline-save','document-group','file-bulk','branch-query','field-guide-filter','profile-action'}
         missing = []
         for tag in re.findall(r'<button\b[^>]*>', html, flags=re.I):
             attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', tag))
@@ -1091,7 +1091,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.7.0-live-notifications-final-release'", server)
+        self.assertIn("APP_VERSION = '10.8.0-operational-file-management-release'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1110,7 +1110,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-7-0-live-notifications-final-release', sw)
+        self.assertIn('v10-8-0-operational-file-management-release', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1409,10 +1409,10 @@ class SchemaMigrationTests(unittest.TestCase):
         server = (root / 'server.py').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.7.0-live-notifications-final-release'", server)
-        self.assertIn('v10-7-0-live-notifications-final-release', sw)
-        self.assertIn('ASAS LIMS · V10.7.0 Live Notifications Final Release', html)
-        self.assertIn('V10.7.0 · Live Notifications Final Release', html)
+        self.assertIn("APP_VERSION = '10.8.0-operational-file-management-release'", server)
+        self.assertIn('v10-8-0-operational-file-management-release', sw)
+        self.assertIn('ASAS LIMS · V10.8.0 Operational File Management Release', html)
+        self.assertIn('V10.8.0 · Operational File Management Release', html)
         self.assertNotIn('V10.3.0 Decision Intelligence', html)
         self.assertIn('id="decisionIntelligenceCenter"', html)
         self.assertIn('id="refreshDecisionIntelligence"', html)
@@ -1458,7 +1458,7 @@ class SchemaMigrationTests(unittest.TestCase):
         app = (root / 'app-password.js').read_text(encoding='utf-8')
         schema = (root / 'schema.sql').read_text(encoding='utf-8')
         server = (root / 'server.py').read_text(encoding='utf-8')
-        self.assertIn("APP_VERSION = '10.7.0-live-notifications-final-release'", server)
+        self.assertIn("APP_VERSION = '10.8.0-operational-file-management-release'", server)
         self.assertIn('CREATE TABLE IF NOT EXISTS operational_tasks', schema)
         self.assertIn("path == '/api/operational-tasks'", server)
         self.assertIn('id="operationalWorkspace"', html)

@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.7.0-live-notifications-final-release'
+APP_VERSION = '10.8.0-operational-file-management-release'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -532,7 +532,12 @@ def migrate_schema(connection):
         'record_attachments': [
             ('section', 'section TEXT'), ('file_category', 'file_category TEXT'),
             ('material_group', "material_group TEXT NOT NULL DEFAULT 'أخرى'"),
-            ('classification_status', 'classification_status TEXT'), ('mime_type', 'mime_type TEXT')
+            ('classification_status', 'classification_status TEXT'), ('mime_type', 'mime_type TEXT'),
+            ('display_name', 'display_name TEXT'), ('description', 'description TEXT'),
+            ('archived', 'archived INTEGER NOT NULL DEFAULT 0'),
+            ('version_no', 'version_no INTEGER NOT NULL DEFAULT 1'),
+            ('previous_attachment_id', 'previous_attachment_id INTEGER'),
+            ('updated_at', 'updated_at TEXT')
         ],
         'quality_cycle_steps': [
             ('details_json', "details_json TEXT NOT NULL DEFAULT '{}'")
@@ -1634,16 +1639,28 @@ class H(BaseHTTPRequestHandler):
                 if not record_allowed(user, entity_type):
                     return self.send_json({'error': 'غير مصرح'}, 403)
                 return self.send_json([dict(row) for row in connection.execute(
-                    'select id,original_name,file_category,coalesce(material_group,\'أخرى\') material_group,classification_status,section,entity_type,entity_id,created_at from record_attachments where entity_type=? and entity_id=? order by id desc',
+                    'select id,original_name,coalesce(display_name,original_name) display_name,description,file_category,coalesce(material_group,\'أخرى\') material_group,classification_status,section,entity_type,entity_id,version_no,archived,previous_attachment_id,created_at,updated_at from record_attachments where entity_type=? and entity_id=? and coalesce(archived,0)=0 order by id desc',
                     (entity_type, entity_id)).fetchall()])
 
             if path == '/api/smart-imports':
                 section = str(parse_qs(parsed.query).get('section', [''])[0])
                 if not smart_section_allowed(user, section):
                     return self.send_json({'error': 'غير مصرح'}, 403)
-                rows = connection.execute('''select id,original_name,file_category,coalesce(material_group,'أخرى') material_group,classification_status,section,entity_type,entity_id,created_at
-                    from record_attachments where section=? order by material_group,file_category,original_name,id desc limit 2000''', (section,)).fetchall()
+                rows = connection.execute('''select id,original_name,coalesce(display_name,original_name) display_name,description,file_category,coalesce(material_group,'أخرى') material_group,classification_status,section,entity_type,entity_id,version_no,archived,previous_attachment_id,created_at,updated_at
+                    from record_attachments where section=? and coalesce(archived,0)=0 order by material_group,file_category,original_name,id desc limit 2000''', (section,)).fetchall()
                 return self.send_json([dict(row) for row in rows])
+
+            if path == '/api/attachments/versions':
+                attachment_id = parse_optional_int(parse_qs(parsed.query).get('id', [''])[0])
+                current = connection.execute('select * from record_attachments where id=?', (attachment_id,)).fetchone() if attachment_id else None
+                if not attachment_access_allowed(user, current):
+                    return self.send_json({'error': 'الملف غير موجود أو غير مصرح'}, 404)
+                rows, seen, row = [], set(), current
+                while row and row['id'] not in seen:
+                    seen.add(row['id']); rows.append(dict(row))
+                    previous = row['previous_attachment_id'] if 'previous_attachment_id' in row.keys() else None
+                    row = connection.execute('select * from record_attachments where id=?', (previous,)).fetchone() if previous else None
+                return self.send_json(rows)
 
             if path.startswith('/api/attachments/files/'):
                 attachment_id = parse_optional_int(path.rsplit('/', 1)[-1])
@@ -2961,6 +2978,51 @@ class H(BaseHTTPRequestHandler):
                 connection.commit()
                 publish_event(deleted.get('section') or deleted.get('entity_type') or 'attachments', 'trash', attachment_id)
                 return self.send_json({'ok': True, 'trashed': attachment_id, 'name': deleted.get('original_name')})
+
+            if path == '/api/attachments/update':
+                attachment_id = parse_optional_int(data.get('id'))
+                row = connection.execute('select * from record_attachments where id=?', (attachment_id,)).fetchone() if attachment_id else None
+                if not attachment_delete_allowed(user, row):
+                    return self.send_json({'error': 'الملف غير موجود أو لا تملك صلاحية تعديله'}, 403)
+                display_name = str(data.get('display_name') or row['original_name']).strip()[:240]
+                description = str(data.get('description') or '').strip()[:2000]
+                material_group = str(data.get('material_group') or row['material_group'] or 'أخرى').strip()
+                if material_group not in {'أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'}:
+                    return self.send_json({'error': 'تصنيف الملف غير صحيح'}, 400)
+                archived = 1 if data.get('archived') in (True, 1, '1', 'true') else 0
+                connection.execute('update record_attachments set display_name=?,description=?,material_group=?,archived=?,updated_at=CURRENT_TIMESTAMP where id=?',
+                                   (display_name, description, material_group, archived, attachment_id))
+                audit(connection,user['id'],'تعديل بيانات ملف','uploaded_file',attachment_id,display_name)
+                connection.commit(); publish_event(row['section'] or row['entity_type'] or 'attachments','update',attachment_id)
+                return self.send_json({'ok':True,'id':attachment_id,'archived':bool(archived)})
+
+            if path == '/api/attachments/replace':
+                attachment_id = parse_optional_int(data.get('id'))
+                row = connection.execute('select * from record_attachments where id=?', (attachment_id,)).fetchone() if attachment_id else None
+                if not attachment_delete_allowed(user, row):
+                    return self.send_json({'error': 'الملف غير موجود أو لا تملك صلاحية استبداله'}, 403)
+                original_name = os.path.basename(str(data.get('file_name') or '')).strip()
+                encoded = str(data.get('file_base64') or '')
+                if not original_name or not encoded:
+                    return self.send_json({'error': 'اختر النسخة الجديدة'}, 400)
+                try: content = base64.b64decode(encoded, validate=True)
+                except ValueError: return self.send_json({'error': 'ملف الاستبدال غير صالح'}, 400)
+                if not content or len(content) > MAX_SMART_FILE_BYTES:
+                    return self.send_json({'error': 'حجم الملف غير مسموح'}, 400)
+                extension = safe_file_extension(original_name); stored_name = secrets.token_urlsafe(18) + extension
+                os.makedirs(RECORD_UPLOADS, exist_ok=True)
+                with open(os.path.join(RECORD_UPLOADS, stored_name), 'wb') as uploaded: uploaded.write(content)
+                version_no = int(row['version_no'] or 1) + 1
+                cursor = connection.execute('''insert into record_attachments(entity_type,entity_id,original_name,stored_name,uploaded_by,section,file_category,material_group,classification_status,mime_type,display_name,description,archived,version_no,previous_attachment_id,updated_at)
+                    values(?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,CURRENT_TIMESTAMP)''',
+                    (row['entity_type'],row['entity_id'],original_name,stored_name,user['id'],row['section'],smart_file_category(extension),row['material_group'],row['classification_status'],extension.lstrip('.') or 'bin',row['display_name'] or original_name,row['description'],version_no,attachment_id))
+                new_id = cursor.lastrowid
+                connection.execute('update record_attachments set archived=1,updated_at=CURRENT_TIMESTAMP where id=?',(attachment_id,))
+                for column in ('astm_attachment_id','worksheet_attachment_id','results_attachment_id'):
+                    connection.execute('update catalog_resources set '+column+'=? where '+column+'=?',(new_id,attachment_id))
+                audit(connection,user['id'],'استبدال ملف بإصدار جديد','uploaded_file',new_id,'v{}'.format(version_no))
+                connection.commit(); publish_event(row['section'] or row['entity_type'] or 'attachments','replace',new_id)
+                return self.send_json({'ok':True,'id':new_id,'version_no':version_no,'previous_attachment_id':attachment_id})
 
             if path == '/api/smart-import':
                 section = str(data.get('section') or '')

@@ -214,8 +214,15 @@ CREATE TABLE IF NOT EXISTS record_attachments(
  material_group TEXT NOT NULL DEFAULT 'أخرى',
  classification_status TEXT,
  mime_type TEXT,
+ display_name TEXT,
+ description TEXT,
+ archived INTEGER NOT NULL DEFAULT 0,
+ version_no INTEGER NOT NULL DEFAULT 1,
+ previous_attachment_id INTEGER,
+ updated_at TEXT,
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY(uploaded_by) REFERENCES users(id)
+ FOREIGN KEY(uploaded_by) REFERENCES users(id),
+ FOREIGN KEY(previous_attachment_id) REFERENCES record_attachments(id)
 );
 CREATE INDEX IF NOT EXISTS idx_record_attachments_entity ON record_attachments(entity_type,entity_id);
 

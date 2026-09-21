@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-7-0-live-notifications-final-release';
-const APP_SHELL = ['./','./index.html','./style.css?v=10-7-0-live-notifications-final-release','./app-password.js?v=10-7-0-live-notifications-final-release','./quality-management.js?v=10-7-0-live-notifications-final-release','./branch-map.js?v=10-7-0-live-notifications-final-release','./i18n.js?v=10-7-0-live-notifications-final-release','./runtime-config.js?v=10-7-0-live-notifications-final-release','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
+const CACHE_NAME = 'asas-lims-pwa-v10-8-0-operational-file-management-release';
+const APP_SHELL = ['./','./index.html','./style.css?v=10-8-0-operational-file-management-release','./app-password.js?v=10-8-0-operational-file-management-release','./quality-management.js?v=10-8-0-operational-file-management-release','./branch-map.js?v=10-8-0-operational-file-management-release','./i18n.js?v=10-8-0-operational-file-management-release','./runtime-config.js?v=10-8-0-operational-file-management-release','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
