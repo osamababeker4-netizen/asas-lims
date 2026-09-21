@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-4-0-operational-workspace';
-const APP_SHELL = ['./','./index.html','./style.css?v=10-4-0-operational-workspace','./app-password.js?v=10-4-0-operational-workspace','./branch-map.js?v=10-4-0-operational-workspace','./i18n.js?v=10-4-0-operational-workspace','./runtime-config.js?v=10-4-0-operational-workspace','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
+const CACHE_NAME = 'asas-lims-pwa-v10-4-1-login-label';
+const APP_SHELL = ['./','./index.html','./style.css?v=10-4-1-login-label','./app-password.js?v=10-4-1-login-label','./branch-map.js?v=10-4-1-login-label','./i18n.js?v=10-4-1-login-label','./runtime-config.js?v=10-4-1-login-label','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
