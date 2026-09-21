@@ -318,7 +318,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_drafts(
  recipient_user_id INTEGER,
  related_entity TEXT NOT NULL,
  related_id INTEGER,
- target_name TEXT NOT NULL DEFAULT 'مجتمع مختبر أساس',
+ target_name TEXT NOT NULL DEFAULT 'مجتمع تكنو سويل لاب',
  message_text TEXT NOT NULL,
  status TEXT NOT NULL DEFAULT 'draft',
  created_by INTEGER,
@@ -373,12 +373,12 @@ CREATE INDEX IF NOT EXISTS idx_field_created ON field_visits(created_at);
 CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_drafts_status ON whatsapp_drafts(status, created_at);
 
-INSERT OR IGNORE INTO settings(key,value) VALUES('lab_name','مختبر أساس');
-INSERT OR IGNORE INTO settings(key,value) VALUES('lab_name_en','ASAS Laboratory');
-INSERT OR IGNORE INTO settings(key,value) VALUES('website_url','https://www.asaslab.com/');
-INSERT OR IGNORE INTO settings(key,value) VALUES('support_email','info@asaslab.com');
+INSERT OR IGNORE INTO settings(key,value) VALUES('lab_name','تكنو سويل لاب');
+INSERT OR IGNORE INTO settings(key,value) VALUES('lab_name_en','Techno Soil Lab');
+INSERT OR IGNORE INTO settings(key,value) VALUES('website_url','https://techno-soil-lab.com/');
+INSERT OR IGNORE INTO settings(key,value) VALUES('support_email','info.makkah@techno-soil-lab.com');
 INSERT OR IGNORE INTO settings(key,value) VALUES('currency','SAR');
-INSERT OR IGNORE INTO settings(key,value) VALUES('report_prefix','AST-R-');
+INSERT OR IGNORE INTO settings(key,value) VALUES('report_prefix','TSL-R-');
 INSERT OR IGNORE INTO settings(key,value) VALUES('sample_prefix','AS-');
 INSERT OR IGNORE INTO settings(key,value) VALUES('work_order_prefix','WO-');
 INSERT OR IGNORE INTO settings(key,value) VALUES('timezone','Asia/Riyadh');
@@ -407,7 +407,7 @@ INSERT OR IGNORE INTO test_catalog(code,name_ar,name_en,category,standard,versio
 ('GRB-ROUGHNESS','وعورة الأسفلت','Asphalt Roughness','طرق','GRB','1.0',1);
 
 
--- V9 additive operational modules. Existing ASAS tables remain unchanged.
+-- V9 additive operational modules. Existing TECHNO tables remain unchanged.
 CREATE TABLE IF NOT EXISTS inventory_items(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  item_code TEXT UNIQUE,
