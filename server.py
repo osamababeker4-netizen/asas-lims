@@ -153,7 +153,7 @@ def ensure_field_manual_cache():
     request = urllib.request.Request(
         FIELD_MANUAL_SOURCE_URL,
         headers={
-            'User-Agent': 'Mozilla/5.0 (compatible; ASAS-LIMS/10.2.23)',
+            'User-Agent': 'Mozilla/5.0 (compatible; TECHNO-LIMS/10.8.1)',
             'Accept': 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
             'Accept-Language': 'ar,en;q=0.8'
         }
@@ -188,7 +188,7 @@ def fetch_balady_permit(license_no):
         raise RuntimeError('تكامل بلدي غير مهيأ: أضف عنوان API الرسمي ورمز التفويض في إعدادات الخادم')
     encoded = urlencode({'license': license_no})
     url = BALADY_API_BASE_URL.replace('{license}', urlencode({'v': license_no})[2:]) if '{license}' in BALADY_API_BASE_URL else BALADY_API_BASE_URL + ('&' if '?' in BALADY_API_BASE_URL else '?') + encoded
-    headers = {'Accept': 'application/json', 'User-Agent': 'ASAS-LIMS/8.1'}
+    headers = {'Accept': 'application/json', 'User-Agent': 'TECHNO-LIMS/10.8.1'}
     if BALADY_API_TOKEN:
         headers['Authorization'] = 'Bearer ' + BALADY_API_TOKEN
     if BALADY_API_KEY:
@@ -882,8 +882,8 @@ def telegram_send_photo(photo_data_url, caption=''):
     if len(raw) > 10 * 1024 * 1024:
         raise ValueError('telegram_photo_too_large')
     extension = 'jpg' if mime == 'image/jpeg' else mime.split('/', 1)[1]
-    filename = 'asas-field-photo.' + extension
-    boundary = '----ASAS' + secrets.token_hex(12)
+    filename = 'techno-field-photo.' + extension
+    boundary = '----TECHNO' + secrets.token_hex(12)
     chunks = []
     def add_field(name, value):
         chunks.append(('--' + boundary + '\r\nContent-Disposition: form-data; name="' + name + '"\r\n\r\n' + str(value) + '\r\n').encode('utf-8'))
@@ -916,7 +916,7 @@ def telegram_send_media_group(photo_data_urls, caption=''):
     photos = list(photo_data_urls or [])[:10]
     if not photos:
         return []
-    boundary = '----ASAS' + secrets.token_hex(12)
+    boundary = '----TECHNO' + secrets.token_hex(12)
     chunks = []
     media = []
     for index, value in enumerate(photos):
@@ -939,7 +939,7 @@ def telegram_send_media_group(photo_data_urls, caption=''):
             item['caption'] = str(caption)[:1024]
         media.append(item)
         extension = 'jpg' if mime == 'image/jpeg' else mime.split('/', 1)[1]
-        chunks.append(('--' + boundary + '\r\nContent-Disposition: form-data; name="' + field + '"; filename="asas-field-' + str(index + 1) + '.' + extension + '"\r\nContent-Type: ' + mime + '\r\n\r\n').encode('utf-8'))
+        chunks.append(('--' + boundary + '\r\nContent-Disposition: form-data; name="' + field + '"; filename="techno-field-' + str(index + 1) + '.' + extension + '"\r\nContent-Type: ' + mime + '\r\n\r\n').encode('utf-8'))
         chunks.append(raw)
         chunks.append(b'\r\n')
     def add_field(name, value):
@@ -1486,9 +1486,9 @@ class H(BaseHTTPRequestHandler):
                 connection = db()
                 connection.execute('select 1').fetchone()
                 connection.close()
-                return self.send_json({'status': 'ok', 'database': 'ready', 'service': 'asas-lims', 'version': APP_VERSION})
+                return self.send_json({'status': 'ok', 'database': 'ready', 'service': 'techno-lims', 'version': APP_VERSION})
             except sqlite3.Error:
-                return self.send_json({'status': 'degraded', 'database': 'unavailable', 'service': 'asas-lims', 'version': APP_VERSION}, 503)
+                return self.send_json({'status': 'degraded', 'database': 'unavailable', 'service': 'techno-lims', 'version': APP_VERSION}, 503)
 
         user = user_from(self)
         if path.startswith('/api/') and not user:
@@ -1742,7 +1742,7 @@ class H(BaseHTTPRequestHandler):
                     target = ensure_field_manual_cache()
                 except RuntimeError as error:
                     return self.send_json({'error': str(error)}, 502)
-                filename = 'ASAS-Field-Testing-Guide.pdf'
+                filename = 'TECHNO-Field-Testing-Guide.pdf'
                 return self.static(
                     os.path.relpath(target, BASE),
                     'application/pdf',
@@ -1889,7 +1889,7 @@ class H(BaseHTTPRequestHandler):
                 lab = connection.execute("select value from settings where key='lab_name'").fetchone()
                 report = dict(row)
                 report['data'] = data
-                report['lab_name'] = lab['value'] if lab and lab['value'] else 'مختبر أساس'
+                report['lab_name'] = lab['value'] if lab and lab['value'] else 'تكنو سويل لاب'
                 return self.send_json(report)
 
             return self.send_json({'error': 'غير موجود'}, 404)
@@ -1988,7 +1988,7 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'النسخ الاحتياطي متاح لمدير النظام ومدير الجودة فقط'}, 403)
                 os.makedirs(BACKUP_DIR, exist_ok=True)
                 stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-                filename = 'asas-lims-backup-' + stamp + '.sqlite3'
+                filename = 'techno-lims-backup-' + stamp + '.sqlite3'
                 target = os.path.join(BACKUP_DIR, filename)
                 destination = sqlite3.connect(target)
                 try:
@@ -2002,7 +2002,7 @@ class H(BaseHTTPRequestHandler):
             if path == '/api/system/reset-operational':
                 if user.get('role') not in {'admin', 'quality_manager'}:
                     return self.send_json({'error': 'تصفير النظام متاح لمدير النظام ومدير الجودة فقط'}, 403)
-                if str(data.get('confirmation') or '') != 'RESET-ASAS-OPERATIONAL':
+                if str(data.get('confirmation') or '') != 'RESET-TECHNO-OPERATIONAL':
                     return self.send_json({'error': 'رمز تأكيد التصفير غير صحيح'}, 400)
                 # Preserve the authenticated manager who explicitly performs the reset.
                 # Account display names may be Arabic or English, so name matching is
@@ -2178,7 +2178,7 @@ class H(BaseHTTPRequestHandler):
                 if not text:
                     return self.send_json({'error': 'المسودة فارغة'}, 400)
                 sender_row = connection.execute('select full_name,username from users where id=?', (user['id'],)).fetchone()
-                sender_name = ((sender_row['full_name'] if sender_row else '') or user.get('full_name') or (sender_row['username'] if sender_row else '') or user.get('username') or 'مستخدم أساس').strip()
+                sender_name = ((sender_row['full_name'] if sender_row else '') or user.get('full_name') or (sender_row['username'] if sender_row else '') or user.get('username') or 'مستخدم تكنو').strip()
                 lines = text.splitlines()
                 if lines and (lines[0].startswith('👤 المرسل الميداني:') or lines[0].startswith('👤 المرسل الفعلي:')):
                     lines[0] = sender_name
@@ -2527,7 +2527,7 @@ class H(BaseHTTPRequestHandler):
                 if not test or not technician:
                     return self.send_json({'error': 'الاختبار أو الفني غير موجود'}, 404)
                 connection.execute("update tests set technician_id=?,status='مسند' where id=?", (technician_id, test_id))
-                message = ('🔬 تكليف اختبار — مختبر أساس\n'
+                message = ('🔬 تكليف اختبار — تكنو سويل لاب\n'
                     'الفني: {name}\nالعينة: {sample}\nالاختبار: {test_name} ({code})\n'
                     'رقم الاختبار: {test_no}\nيرجى تنفيذ الاختبار وتسجيل النتيجة في النظام.').format(
                         name=technician['full_name'], sample=test['sample_no'], test_name=test['name_ar'],
@@ -2656,7 +2656,7 @@ class H(BaseHTTPRequestHandler):
                 assignee = connection.execute('select full_name from users where id=?', (parse_optional_int(data.get('assigned_to')),)).fetchone()
                 create_whatsapp_draft(
                     connection, user['id'], 'work_order', entity_id,
-                    '📋 أمر عمل جديد — مختبر أساس\nرقم: {no}\nالعنوان: {title}\nالحالة: {status}\nالمكلّف: {assignee}\nيرجى متابعة الأمر من النظام.'.format(
+                    '📋 أمر عمل جديد — تكنو سويل لاب\nرقم: {no}\nالعنوان: {title}\nالحالة: {status}\nالمكلّف: {assignee}\nيرجى متابعة الأمر من النظام.'.format(
                         no=order_no, title=title, status=status, assignee=assignee['full_name'] if assignee else 'غير محدد'
                     ), parse_optional_int(data.get('assigned_to'))
                 )
@@ -2706,7 +2706,7 @@ class H(BaseHTTPRequestHandler):
                 entity_id = connection.execute('select last_insert_rowid()').fetchone()[0]
                 queue_sync(connection, 'field_visit', entity_id, 'create', {'license_no': license_no, 'status': status})
                 create_whatsapp_draft(connection, user['id'], 'field_visit', entity_id,
-                    '📍 زيارة ميدانية جديدة — مختبر أساس\nالرخصة: {license}\nالموقع: {location}\nالحالة: {status}\nتم إنشاء مسودة للتواصل الداخلي.'.format(
+                    '📍 زيارة ميدانية جديدة — تكنو سويل لاب\nالرخصة: {license}\nالموقع: {location}\nالحالة: {status}\nتم إنشاء مسودة للتواصل الداخلي.'.format(
                         license=license_no, location=data.get('location') or 'غير محدد', status=status))
                 audit(connection, user['id'], 'إضافة زيارة ميدانية', 'field_visit', entity_id, license_no)
                 connection.commit()
@@ -2824,7 +2824,7 @@ class H(BaseHTTPRequestHandler):
                 queue_sync(connection, 'sample', entity_id, 'create', {'sample_no': sample_no, 'project_id': data.get('project_id')})
                 create_whatsapp_draft(
                     connection, user['id'], 'sample', entity_id,
-                    '🧪 عينة جديدة — مختبر أساس\nالعينة: {sample}\nالمادة: {material}\nخطة الاختبارات الرسمية: {count} اختباراً\nتم إنشاء المسودة للمراجعة قبل النشر في مجتمع الشركة.'.format(
+                    '🧪 عينة جديدة — تكنو سويل لاب\nالعينة: {sample}\nالمادة: {material}\nخطة الاختبارات الرسمية: {count} اختباراً\nتم إنشاء المسودة للمراجعة قبل النشر في مجتمع الشركة.'.format(
                         sample=sample_no, material=material, count=len(planned)
                     )
                 )
@@ -3345,11 +3345,11 @@ class H(BaseHTTPRequestHandler):
                             connection.execute('insert into test_data(test_id,section,field_name,value_text,value_num,unit) values(?,?,?,?,?,?)', (
                                 test_id, section, key, text_value, numeric_value, data.get('units', {}).get(key)
                             ))
-                report_no = nextno(connection, 'AST-R-', 'reports')
+                report_no = nextno(connection, 'TSL-R-', 'reports')
                 connection.execute('insert into reports(report_no,test_id,status) values(?,?,?)', (report_no, test_id, 'مسودة'))
                 queue_sync(connection, 'test', test_id, 'create', {'test_no': test_no, 'catalog': catalog['code']})
                 create_whatsapp_draft(connection, user['id'], 'test', test_id,
-                    '🔬 تم تسجيل نتيجة اختبار كمسودة — مختبر أساس\nرقم الاختبار: {no}\nالاختبار: {name}\nالتقرير: {report}\nلا تُنشر النتائج خارج النظام قبل الاعتماد.'.format(no=test_no, name=catalog['name_ar'], report=report_no))
+                    '🔬 تم تسجيل نتيجة اختبار كمسودة — تكنو سويل لاب\nرقم الاختبار: {no}\nالاختبار: {name}\nالتقرير: {report}\nلا تُنشر النتائج خارج النظام قبل الاعتماد.'.format(no=test_no, name=catalog['name_ar'], report=report_no))
                 audit(connection, user['id'], 'إضافة اختبار', 'test', test_id, test_no + ' - ' + catalog['name_ar'])
                 connection.commit()
                 publish_event('test', 'create', test_id)
@@ -3372,7 +3372,7 @@ class H(BaseHTTPRequestHandler):
                     connection.execute('update reports set status=? where id=?', (status, report_id))
                 report = connection.execute('select report_no from reports where id=?', (report_id,)).fetchone()
                 create_whatsapp_draft(connection, user['id'], 'report', report_id,
-                    '📄 تحديث تقرير — مختبر أساس\nرقم التقرير: {no}\nالحالة: {status}\nهذه مسودة للمراجعة قبل مشاركتها في مجتمع الشركة.'.format(no=report['report_no'], status=status))
+                    '📄 تحديث تقرير — تكنو سويل لاب\nرقم التقرير: {no}\nالحالة: {status}\nهذه مسودة للمراجعة قبل مشاركتها في مجتمع الشركة.'.format(no=report['report_no'], status=status))
                 audit(connection, user['id'], 'تغيير حالة تقرير', 'report', report_id, status)
                 connection.commit()
                 publish_event('report', 'status', report_id)
@@ -3405,11 +3405,11 @@ class H(BaseHTTPRequestHandler):
                 test_id, index, point['moisture'], point['mold_soil_wet'], point.get('wet_density'), point.get('dry_density')
             ))
         connection.execute('insert into proctor_results(test_id,mdd,omc) values(?,?,?)', (test_id, data['mdd'], data['omc']))
-        report_no = nextno(connection, 'AST-R-', 'reports')
+        report_no = nextno(connection, 'TSL-R-', 'reports')
         connection.execute('insert into reports(report_no,test_id,status) values(?,?,?)', (report_no, test_id, 'مسودة'))
         queue_sync(connection, 'test', test_id, 'create', {'test_no': test_no, 'catalog': data.get('standard_code')})
         create_whatsapp_draft(connection, user['id'], 'test', test_id,
-            '🔬 تم تسجيل اختبار بروكتور كمسودة — مختبر أساس\nرقم الاختبار: {no}\nالتقرير: {report}\nلا تُنشر النتائج خارج النظام قبل الاعتماد.'.format(no=test_no, report=report_no))
+            '🔬 تم تسجيل اختبار بروكتور كمسودة — تكنو سويل لاب\nرقم الاختبار: {no}\nالتقرير: {report}\nلا تُنشر النتائج خارج النظام قبل الاعتماد.'.format(no=test_no, report=report_no))
         audit(connection, user['id'], 'إضافة اختبار', 'test', test_id, test_no + ' - ' + data.get('standard_code'))
         connection.commit()
         publish_event('test', 'create', test_id)
@@ -3418,5 +3418,5 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     init()
-    print('LIMS مختبر أساس: http://127.0.0.1:' + str(PORT))
+    print('LIMS تكنو سويل لاب: http://127.0.0.1:' + str(PORT))
     ThreadingHTTPServer(('0.0.0.0', PORT), H).serve_forever()
