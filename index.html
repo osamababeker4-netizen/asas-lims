@@ -14,46 +14,56 @@
 </head>
 <body>
   <section id="login" class="login-screen techno-login-screen">
-    <div class="techno-login-shell">
-      <aside class="techno-login-showcase" aria-label="هوية تيكنو سويل لاب">
-        <div class="techno-showcase-copy">
-          <span class="techno-showcase-kicker">TECHNO SOIL LAB</span>
+    <div class="techno-login-stage">
+      <aside class="techno-login-hero" aria-label="هوية تيكنو سويل لاب">
+        <div class="techno-hero-copy">
+          <span class="techno-hero-kicker">BUILDING<br>A SAFER<br>TOMORROW</span>
+          <div class="techno-hero-rule"></div>
           <h2><strong>دقة</strong> في الاختبار<br><em>ثقة</em> في البناء</h2>
-          <p>إدارة أعمال المختبر والمشاريع والاختبارات الميدانية ضمن بيئة تشغيلية موحدة.</p>
-          <div class="techno-showcase-features" aria-label="مجالات النظام">
-            <span>تقارير موثقة</span>
-            <span>جودة ودقة</span>
-            <span>مختبر وميدان</span>
-            <span>دعم المشاريع</span>
-          </div>
+          <p>خدمات اختبار مواد البناء والتربة<br>بمعايير عالية لمستقبل أكثر أماناً</p>
+          <div class="techno-hero-accent"></div>
         </div>
-        <div class="techno-showcase-footer">TECHNO SOIL LAB · LIMS</div>
+        <div class="techno-hero-features" aria-label="مزايا المختبر">
+          <div><span class="feature-icon">✓</span><b>تقارير معتمدة<br>وموثوقة</b></div>
+          <div><span class="feature-icon">◇</span><b>جودة<br>ودقة</b></div>
+          <div><span class="feature-icon">⌬</span><b>مختبرات متقدمة<br>ومتخصصة</b></div>
+          <div><span class="feature-icon">⌂</span><b>دعم قطاع<br>الإنشاءات</b></div>
+        </div>
+        <small class="techno-hero-brand">TECHNO SOIL LAB</small>
       </aside>
 
-      <div class="login-card techno-login-card">
-        <img src="techno-logo.svg" class="login-logo techno-login-logo" alt="شعار شركة تيكنو سويل لاب">
-        <span class="login-edition">نظام إدارة المختبر (LIMS)</span>
-        <h1>تسجيل الدخول</h1>
-        <p class="techno-login-welcome">مرحباً بكم في نظام المختبرات</p>
-        <form id="loginForm" class="form-stack techno-login-form">
-          <label>رقم الجوال<input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="+9665XXXXXXXX"></label>
-          <label>كلمة المرور<input id="loginPassword" name="password" autocomplete="current-password" type="password" required placeholder="أدخل كلمة المرور"></label>
-          <button class="btn primary techno-login-submit" type="submit">دخول</button>
-        </form>
-        <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
-        <form id="staticSetupForm" class="form-stack hidden" novalidate>
-          <p class="form-note">أنشئ حساب المدير المحلي مرة واحدة على هذا الجهاز.</p>
-          <label>اسم مستخدم المدير<input id="setupUsername" autocomplete="username" required value="admin" placeholder="اسم المستخدم"></label>
-          <label>الاسم الكامل<input id="setupFullName" autocomplete="name" required value="مدير المختبر" placeholder="الاسم الكامل"></label>
-          <label>رقم الجوال الدولي (اختياري)<input id="setupPhone" autocomplete="tel" inputmode="tel" placeholder="+9665XXXXXXXX"></label>
-          <label>كلمة مرور جديدة<input id="setupPassword" autocomplete="new-password" type="password" required placeholder="كلمة المرور التي تريدها"></label>
-          <label>تأكيد كلمة المرور<input id="setupPasswordConfirm" autocomplete="new-password" type="password" required placeholder="أعد كتابة كلمة المرور"></label>
-          <button class="btn primary" type="submit">إنشاء الحساب المحلي</button>
-        </form>
-        <p id="loginMessage" class="form-message" aria-live="polite"></p>
-        <small class="techno-login-security">بياناتك محمية وآمنة داخل النظام</small>
+      <div class="techno-login-pane">
+        <div class="login-card techno-login-card">
+          <img src="techno-logo.svg" class="login-logo techno-login-logo" alt="شعار شركة تيكنو سويل لاب">
+          <div class="techno-login-separator"><span>(LIMS) نظام إدارة المختبر</span></div>
+          <h1>تسجيل الدخول</h1>
+          <p class="techno-login-welcome">مرحباً بكم في نظام المختبرات</p>
+          <form id="loginForm" class="form-stack techno-login-form">
+            <label>رقم الجوال
+              <div class="techno-input-wrap"><span class="techno-input-icon">▯</span><input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="05XXXXXXXX"></div>
+            </label>
+            <label>كلمة المرور
+              <div class="techno-input-wrap"><span class="techno-input-icon">♙</span><input id="loginPassword" name="password" autocomplete="current-password" type="password" required placeholder="أدخل كلمة المرور"></div>
+            </label>
+            <button class="btn primary techno-login-submit" type="submit">دخول <span aria-hidden="true">←</span></button>
+          </form>
+          <button id="staticSetup" class="btn link-btn hidden" type="button">تهيئة حساب محلي للعرض الثابت</button>
+          <form id="staticSetupForm" class="form-stack hidden" novalidate>
+            <p class="form-note">أنشئ حساب المدير المحلي مرة واحدة على هذا الجهاز.</p>
+            <label>اسم مستخدم المدير<input id="setupUsername" autocomplete="username" required value="admin" placeholder="اسم المستخدم"></label>
+            <label>الاسم الكامل<input id="setupFullName" autocomplete="name" required value="مدير المختبر" placeholder="الاسم الكامل"></label>
+            <label>رقم الجوال الدولي (اختياري)<input id="setupPhone" autocomplete="tel" inputmode="tel" placeholder="+9665XXXXXXXX"></label>
+            <label>كلمة مرور جديدة<input id="setupPassword" autocomplete="new-password" type="password" required placeholder="كلمة المرور التي تريدها"></label>
+            <label>تأكيد كلمة المرور<input id="setupPasswordConfirm" autocomplete="new-password" type="password" required placeholder="أعد كتابة كلمة المرور"></label>
+            <button class="btn primary" type="submit">إنشاء الحساب المحلي</button>
+          </form>
+          <p id="loginMessage" class="form-message" aria-live="polite"></p>
+          <div class="techno-login-security"><span>♢</span> بياناتك محمية وآمنة لدينا</div>
+        </div>
+        <div class="techno-side-words" aria-hidden="true"><span>تربة</span><span>خرسانة</span><span>ركام</span><span>أسفلت</span><span>جودة</span><span>مستقبل أفضل</span></div>
       </div>
     </div>
+    <footer class="techno-login-footer">معاً نبني بيئة أكثر أماناً</footer>
   </section>
 
   <div id="app" class="app-shell hidden">
