@@ -34,6 +34,8 @@ jobs:
           cp index.html style.css app-password.js branch-map.js i18n.js runtime-config.js logo.png asas-home-banner.png asas-home-banner-mobile.png engineering-pages-bg.jpg whatsapp-logo.svg telegram-logo.svg manifest.webmanifest sw.js company-profile.pdf _site/
           mkdir -p _site/techno
           cp -R techno/. _site/techno/
+          cp -R a _site/a
+          cp -R t _site/t
 
       - name: رفع الواجهة الثابتة
         uses: actions/upload-pages-artifact@v3
