@@ -5,6 +5,7 @@ import io
 import hashlib
 import hmac
 import json
+import math
 import os
 import queue
 import secrets
@@ -21,7 +22,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.8.1-internal-file-editing-release'
+APP_VERSION = '10.8.2-techno-attendance-release'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -95,6 +96,34 @@ def valid_location(data):
     if not (-90 <= latitude <= 90 and -180 <= longitude <= 180 and 0 <= accuracy <= 100000):
         return None
     return latitude, longitude, accuracy
+
+
+def setting_value(connection, key, default=''):
+    row = connection.execute('select value from settings where key=?', (key,)).fetchone()
+    return (row['value'] if row and row['value'] is not None else default)
+
+
+def haversine_m(lat1, lon1, lat2, lon2):
+    radius = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2.0) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2.0) ** 2
+    return radius * 2.0 * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1.0 - a)))
+
+
+def attendance_geofence_check(connection, latitude, longitude):
+    enabled = str(setting_value(connection, 'attendance_geofence_enabled', 'false')).lower() == 'true'
+    if not enabled:
+        return True, None, None
+    try:
+        center_lat = float(setting_value(connection, 'attendance_geofence_lat', ''))
+        center_lng = float(setting_value(connection, 'attendance_geofence_lng', ''))
+        radius_m = max(10.0, float(setting_value(connection, 'attendance_geofence_radius_m', '250')))
+    except (TypeError, ValueError):
+        return True, None, None
+    distance = haversine_m(latitude, longitude, center_lat, center_lng)
+    return distance <= radius_m, distance, radius_m
 
 
 def db():
@@ -2035,6 +2064,10 @@ class H(BaseHTTPRequestHandler):
                 if not location:
                     return self.send_json({'error': 'تعذر اعتماد الموقع. فعّل GPS واسمح للموقع ثم أعد المحاولة.'}, 400)
                 latitude, longitude, accuracy = location
+                if path in ('/api/attendance/check-in', '/api/attendance/check-out'):
+                    geofence_ok, geofence_distance, geofence_radius = attendance_geofence_check(connection, latitude, longitude)
+                    if not geofence_ok:
+                        return self.send_json({'error': 'أنت خارج نطاق الحضور المعتمد. المسافة التقريبية %.0fم والحد %.0fم.' % (geofence_distance, geofence_radius)}, 403)
                 work_date = saudi_work_date()
                 note = str(data.get('note') or '').strip()[:500]
                 existing = connection.execute('select * from attendance_records where user_id=? and work_date=?', (user['id'], work_date)).fetchone()
@@ -2565,7 +2598,7 @@ class H(BaseHTTPRequestHandler):
             if path == '/api/settings/update':
                 if user.get('role') not in {'admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'}:
                     return self.send_json({'error': 'إعدادات النظام متاحة للأدوار الإدارية فقط'}, 403)
-                allowed = {'lab_name','lab_name_en','website_url','support_email','support_phone','currency','report_prefix','sample_prefix','work_order_prefix','timezone','default_language','date_format','whatsapp_group_url','telegram_url','map_provider','max_attachment_mb','enable_otp','require_report_approval','require_test_approval','require_field_gps','audit_delete_enabled','auto_sync_enabled','default_sample_status','report_due_days','result_decimal_places','unit_system','field_visit_prefix','client_prefix','sync_interval_minutes','audit_retention_days','backup_retention_days','auto_file_classification','skip_failed_uploads','direct_download_enabled','permit_provider','permit_lookup_timeout','gps_target_accuracy_m','field_photo_limit','telegram_draft_enabled','show_field_coordinates','default_home_page','table_page_size','show_saudi_clock','dashboard_refresh_seconds'}
+                allowed = {'lab_name','lab_name_en','website_url','support_email','support_phone','currency','report_prefix','sample_prefix','work_order_prefix','timezone','default_language','date_format','whatsapp_group_url','telegram_url','map_provider','max_attachment_mb','enable_otp','require_report_approval','require_test_approval','require_field_gps','audit_delete_enabled','auto_sync_enabled','default_sample_status','report_due_days','result_decimal_places','unit_system','field_visit_prefix','client_prefix','sync_interval_minutes','audit_retention_days','backup_retention_days','auto_file_classification','skip_failed_uploads','direct_download_enabled','permit_provider','permit_lookup_timeout','gps_target_accuracy_m','field_photo_limit','telegram_draft_enabled','show_field_coordinates','default_home_page','table_page_size','show_saudi_clock','dashboard_refresh_seconds','attendance_geofence_enabled','attendance_geofence_lat','attendance_geofence_lng','attendance_geofence_radius_m'}
                 for key, value in data.items():
                     if key in allowed:
                         connection.execute('insert into settings(key,value) values(?,?) on conflict(key) do update set value=excluded.value', (key, str(value)[:500]))
