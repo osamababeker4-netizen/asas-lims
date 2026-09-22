@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="techno-logo.svg">
   <title>TECHNO LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-8-4-techno-theme">
+  <link rel="stylesheet" href="style.css?v=10-8-5-techno-exact-ui">
 </head>
 <body>
   <section id="login" class="login-screen techno-login-screen">
@@ -62,7 +62,7 @@
         <img src="techno-logo.svg" alt="شعار شركة تيكنو سويل لاب">
         <strong>تيكنو سويل لاب</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.8.4 · Techno Theme</small>
+        <small class="release-chip">V10.8.5 · Techno Exact UI</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
@@ -75,6 +75,7 @@
         <button class="nav-link" data-page="tests">الاختبارات</button>
         <button class="nav-link" data-page="catalog">دليل الاختبارات</button>
         <button class="nav-link" data-page="reports">التقارير</button>
+        <button class="nav-link" data-page="equipment">الأجهزة والمعايرة</button>
         <button class="nav-link" data-page="communications">قنوات التواصل</button>
         <button class="nav-link" data-page="quality" id="qualityNav">الجودة والوثائق</button>
         <button class="nav-link" data-page="company">عن تيكنو سويل لاب</button>
@@ -110,6 +111,7 @@
             <h2 id="pageTitle">الرئيسية</h2>
           </div>
         </div>
+        <label class="techno-global-search" aria-label="البحث في النظام"><input id="globalSearch" type="search" placeholder="البحث في النظام (رقم عينة، مشروع، عميل...)"><span>⌕</span></label>
         <div class="topbar-actions">
         <div class="notification-wrap">
           <button id="notificationToggle" class="notification-bell" type="button" aria-haspopup="true" aria-expanded="false" aria-label="تنبيهات النظام"><span aria-hidden="true">🔔</span><b id="notificationCount" class="hidden">0</b></button>
@@ -135,87 +137,127 @@
         </div>
       </header>
 
-      <section id="dashboard" class="page active">
-        <article class="dashboard-brand-hero techno-dashboard-hero">
-          <div class="techno-dashboard-lockup">
-            <img src="techno-logo.svg" class="dashboard-brand-logo techno-dashboard-logo" alt="شعار تيكنو سويل لاب">
-            <div><span>TECHNO Soil Lab</span><strong>إدارة المختبر والمشاريع والجودة</strong><small>Laboratory · Field · Quality · Attendance</small></div>
+      <section id="dashboard" class="page active techno-dashboard-page">
+        <div class="techno-dashboard-welcome">
+          <div>
+            <h2>مرحباً بك مجدداً، <span id="dashboardWelcomeName">مستخدم</span> 👋</h2>
+            <p>هنا نظرة عامة على نشاط المختبر اليوم</p>
           </div>
-        </article>
-        <div class="page-heading">
-          <div><h2>نظرة تشغيلية</h2><p>الأولويات، الأعمال المتأخرة، وحالة سلسلة العينة حتى التقرير.</p></div>
-          <div class="heading-actions"><button class="btn secondary smart-import-edge" data-smart-import="projects" type="button">إرفاق ملف</button><button class="btn primary" data-open-project type="button">+ مشروع جديد</button></div>
+          <div class="techno-dashboard-date" id="dashboardToday"></div>
         </div>
-        <div class="metric-grid">
-          <article class="metric-card accent-blue"><span>المشاريع النشطة</span><strong id="metricProjects">0</strong></article>
-          <article class="metric-card accent-purple"><span>أوامر العمل</span><strong id="metricOrders">0</strong></article>
-          <article class="metric-card accent-orange"><span>العينات قيد المعالجة</span><strong id="metricSamples">0</strong></article>
-          <article class="metric-card accent-green"><span>التقارير</span><strong id="metricReports">0</strong></article>
-          <article class="metric-card accent-red"><span>بانتظار المراجعة</span><strong id="metricReview">0</strong></article>
-          <article class="metric-card accent-slate"><span>طابور المزامنة</span><strong id="metricSync">0</strong></article>
+
+        <div class="techno-summary-grid">
+          <button class="techno-summary-card" type="button" data-page-go="samples">
+            <span class="summary-icon">⚗</span><span>إجمالي العينات</span><strong id="metricSamples">0</strong><small>جميع العينات المسجلة</small>
+          </button>
+          <button class="techno-summary-card" type="button" data-page-go="tests">
+            <span class="summary-icon">◷</span><span>الاختبارات قيد التنفيذ</span><strong id="metricOrders">0</strong><small>أوامر واختبارات تشغيلية</small>
+          </button>
+          <button class="techno-summary-card" type="button" data-page-go="reports">
+            <span class="summary-icon">▤</span><span>التقارير الصادرة</span><strong id="metricReports">0</strong><small>إجمالي التقارير</small>
+          </button>
+          <button class="techno-summary-card" type="button" data-page-go="projects">
+            <span class="summary-icon">▱</span><span>المشاريع النشطة</span><strong id="metricProjects">0</strong><small>مشاريع نشطة وقيد المراجعة</small>
+          </button>
+          <button class="techno-summary-card" type="button" data-page-go="attendance">
+            <span class="summary-icon">♙</span><span>الحضور اليوم</span><strong id="dashboardAttendanceRate">0%</strong><small id="dashboardAttendanceCaption">—</small>
+          </button>
+          <button class="techno-summary-card calibration" type="button" data-page-go="equipment">
+            <span class="summary-icon">⌕</span><span>أجهزة تحتاج معايرة</span><strong id="dashboardCalibrationDue">0</strong><small>خلال 30 يوم أو متأخرة</small>
+          </button>
         </div>
-        <article class="panel decision-intelligence" id="decisionIntelligenceCenter">
-          <div class="panel-heading decision-heading">
-            <div>
-              <span class="section-kicker">Decision Intelligence</span>
-              <h3>التحليل الذكي واتخاذ القرار</h3>
-              <p class="muted">ملخص تنفيذي ومؤشرات جودة البيانات وحالة المشاريع وإجراءات مقترحة مستخرجة من بيانات النظام الفعلية فقط.</p>
-            </div>
-            <div class="heading-actions">
-              <button id="refreshDecisionIntelligence" class="btn secondary" type="button">تحديث التحليل</button>
-              <button id="exportDecisionIntelligence" class="btn secondary" type="button">تصدير Excel</button>
-              <button id="openDecisionReport" class="btn primary" type="button">التقرير الإداري</button>
-            </div>
-          </div>
 
-          <div class="decision-kpi-grid">
-            <article class="decision-kpi"><span>متوسط تقدم المشاريع</span><strong id="decisionProjectProgress">0%</strong><small>من بيانات المشاريع الفعلية</small></article>
-            <article class="decision-kpi"><span>إغلاق أوامر العمل</span><strong id="decisionWorkOrderRate">0%</strong><small>مكتمل ÷ جميع الأوامر</small></article>
-            <article class="decision-kpi"><span>إنجاز الاختبارات</span><strong id="decisionTestRate">0%</strong><small>مكتمل أو معتمد</small></article>
-            <article class="decision-kpi"><span>اعتماد التقارير</span><strong id="decisionReportRate">0%</strong><small>التقارير المعتمدة</small></article>
-            <article class="decision-kpi warning"><span>مشاكل جودة البيانات</span><strong id="decisionDataIssueCount">0</strong><small>نواقص أو تعارضات تحتاج معالجة</small></article>
-            <article class="decision-kpi danger"><span>إجراءات حرجة</span><strong id="decisionCriticalCount">0</strong><small>تأخير أو مراجعة أو معايرة</small></article>
-          </div>
-
-          <div class="decision-grid">
-            <section class="decision-card">
-              <div class="decision-card-head"><strong>الملخص التنفيذي</strong><span>Executive Summary</span></div>
-              <div id="decisionExecutiveSummary" class="decision-summary"></div>
-            </section>
-            <section class="decision-card">
-              <div class="decision-card-head"><strong>جودة البيانات</strong><span>Data Quality</span></div>
-              <div id="decisionDataQuality" class="decision-list"></div>
-            </section>
-            <section class="decision-card">
-              <div class="decision-card-head"><strong>حالة المشاريع</strong><span>Project Health</span></div>
-              <div id="decisionProjectHealth" class="decision-list"></div>
-            </section>
-            <section class="decision-card">
-              <div class="decision-card-head"><strong>الإجراءات المقترحة</strong><span>Next Actions</span></div>
-              <div id="decisionRecommendations" class="decision-list"></div>
-            </section>
-          </div>
-          <p class="decision-footnote">التحليل آلي قائم على قواعد تشغيلية وبيانات النظام الحالية؛ لا يفترض بيانات غير مسجلة ولا يستبدل مراجعة المسؤول.</p>
-        </article>
-        <article class="panel operational-workspace" id="operationalWorkspace">
-          <div class="panel-heading"><div><span class="section-kicker">Action Workspace</span><h3>مساحة العمل التنفيذية</h3><p class="muted">تحويل القرارات والتوصيات إلى مهام مسندة بمواعيد وحالات قابلة للمتابعة.</p></div><button id="openOperationalTask" class="btn primary" type="button">+ مهمة تنفيذية</button></div>
-          <div class="task-kpi-row"><span>المفتوحة <b id="taskOpenCount">0</b></span><span>قيد التنفيذ <b id="taskActiveCount">0</b></span><span>المتأخرة <b id="taskOverdueCount">0</b></span><span>المكتملة <b id="taskDoneCount">0</b></span></div>
-          <div id="operationalTaskList" class="operational-task-list"></div>
-        </article>
-        <div class="dashboard-grid">
-          <article class="panel priority-panel">
-            <div class="panel-heading"><h3>أولويات اليوم</h3><span class="pill">تشغيلي</span></div>
-            <div id="priorityList" class="stack-list"></div>
+        <div class="techno-dashboard-main-grid">
+          <article class="panel techno-attendance-card">
+            <div class="panel-heading">
+              <div><h3>الحضور والانصراف اليوم</h3><p class="muted">ملخص أفراد المختبر</p></div>
+              <button class="text-btn" data-page-go="attendance" type="button">عرض تفاصيل الحضور ←</button>
+            </div>
+            <div class="attendance-overview">
+              <div class="attendance-ring" id="dashboardAttendanceRing"><span id="dashboardAttendanceRingValue">0%</span><small>نسبة التسجيل</small></div>
+              <div class="attendance-legend">
+                <span><i class="present"></i> الحاضرون <b id="dashboardPresent">0</b></span>
+                <span><i class="checkedout"></i> انصرفوا <b id="dashboardCheckedOut">0</b></span>
+                <span><i class="absent"></i> غير مسجل <b id="dashboardNotRegistered">0</b></span>
+              </div>
+            </div>
           </article>
-          <article class="panel">
-            <div class="panel-heading"><h3>آخر العمليات</h3><button class="text-btn" data-page-go="audit" type="button">سجل التدقيق</button></div>
-            <div id="activityList" class="timeline-list"></div>
+
+          <article class="panel techno-fields-card">
+            <div class="panel-heading"><h3>مجالات الاختبارات</h3><button class="text-btn" data-page-go="catalog" type="button">عرض الكل ←</button></div>
+            <div class="techno-test-fields">
+              <button type="button" data-page-go="tests"><span class="field-photo concrete"></span><strong>الخرسانة</strong><small><b id="dashConcreteCount">0</b> اختبار</small></button>
+              <button type="button" data-page-go="tests"><span class="field-photo soil"></span><strong>التربة</strong><small><b id="dashSoilCount">0</b> اختبار</small></button>
+              <button type="button" data-page-go="tests"><span class="field-photo asphalt"></span><strong>الأسفلت</strong><small><b id="dashAsphaltCount">0</b> اختبار</small></button>
+              <button type="button" data-page-go="field"><span class="field-photo ndt"></span><strong>الموقع والحقل</strong><small><b id="dashFieldCount">0</b> اختبار/زيارة</small></button>
+            </div>
+          </article>
+
+          <article class="panel techno-activity-card">
+            <div class="panel-heading"><h3>آخر الأنشطة</h3><button class="text-btn" data-page-go="audit" type="button">عرض الكل ←</button></div>
+            <div id="activityList" class="timeline-list techno-activity-list"></div>
           </article>
         </div>
-        <article class="panel">
-          <div class="panel-heading"><h3>المشاريع ذات الأولوية</h3><button class="text-btn" data-page-go="projects" type="button">إدارة المشاريع</button></div>
-          <div id="dashboardProjects" class="compact-projects"></div>
-        </article>
+
+        <div class="techno-dashboard-bottom-grid">
+          <article class="panel techno-recent-card">
+            <div class="panel-heading"><h3>أحدث العينات والتقارير</h3><button class="text-btn" data-page-go="samples" type="button">عرض الكل ←</button></div>
+            <div class="table-panel">
+              <table class="techno-dashboard-table">
+                <thead><tr><th>رقم العينة</th><th>المشروع</th><th>المادة</th><th>الحالة</th><th>تاريخ الاستلام</th></tr></thead>
+                <tbody id="dashboardRecentRows"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel techno-quick-card">
+            <div class="panel-heading"><h3>روابط سريعة</h3></div>
+            <div class="techno-quick-links">
+              <button class="quick-link" type="button" data-page-go="samples"><span>⚗＋</span>تسجيل عينة جديدة</button>
+              <button class="quick-link" type="button" data-page-go="reports"><span>▤＋</span>إصدار تقرير</button>
+              <button class="quick-link" type="button" data-open-project><span>▱＋</span>إضافة مشروع</button>
+              <button class="quick-link" type="button" data-page-go="equipment"><span>⌕＋</span>معايرة جهاز</button>
+            </div>
+          </article>
+        </div>
+
+        <details class="techno-dashboard-advanced">
+          <summary>لوحة الإدارة والتحليل المتقدم</summary>
+          <div class="metric-grid techno-hidden-metrics">
+            <article class="metric-card accent-red"><span>بانتظار المراجعة</span><strong id="metricReview">0</strong></article>
+            <article class="metric-card accent-slate"><span>طابور المزامنة</span><strong id="metricSync">0</strong></article>
+          </div>
+          <div class="dashboard-grid">
+            <article class="panel priority-panel"><div class="panel-heading"><h3>أولويات اليوم</h3><span class="pill">تشغيلي</span></div><div id="priorityList" class="stack-list"></div></article>
+            <article class="panel"><div class="panel-heading"><h3>المشاريع ذات الأولوية</h3><button class="text-btn" data-page-go="projects" type="button">إدارة المشاريع</button></div><div id="dashboardProjects" class="compact-projects"></div></article>
+          </div>
+          <article class="panel decision-intelligence" id="decisionIntelligenceCenter">
+            <div class="panel-heading decision-heading">
+              <div><span class="section-kicker">Decision Intelligence</span><h3>التحليل الذكي واتخاذ القرار</h3><p class="muted">ملخص تنفيذي ومؤشرات جودة البيانات وحالة المشاريع وإجراءات مقترحة مستخرجة من بيانات النظام الفعلية فقط.</p></div>
+              <div class="heading-actions"><button id="refreshDecisionIntelligence" class="btn secondary" type="button">تحديث التحليل</button><button id="exportDecisionIntelligence" class="btn secondary" type="button">تصدير Excel</button><button id="openDecisionReport" class="btn primary" type="button">التقرير الإداري</button></div>
+            </div>
+            <div class="decision-kpi-grid">
+              <article class="decision-kpi"><span>متوسط تقدم المشاريع</span><strong id="decisionProjectProgress">0%</strong><small>من بيانات المشاريع الفعلية</small></article>
+              <article class="decision-kpi"><span>إغلاق أوامر العمل</span><strong id="decisionWorkOrderRate">0%</strong><small>مكتمل ÷ جميع الأوامر</small></article>
+              <article class="decision-kpi"><span>إنجاز الاختبارات</span><strong id="decisionTestRate">0%</strong><small>مكتمل أو معتمد</small></article>
+              <article class="decision-kpi"><span>اعتماد التقارير</span><strong id="decisionReportRate">0%</strong><small>التقارير المعتمدة</small></article>
+              <article class="decision-kpi warning"><span>مشاكل جودة البيانات</span><strong id="decisionDataIssueCount">0</strong><small>نواقص أو تعارضات تحتاج معالجة</small></article>
+              <article class="decision-kpi danger"><span>إجراءات حرجة</span><strong id="decisionCriticalCount">0</strong><small>تأخير أو مراجعة أو معايرة</small></article>
+            </div>
+            <div class="decision-grid">
+              <section class="decision-card"><div class="decision-card-head"><strong>الملخص التنفيذي</strong><span>Executive Summary</span></div><div id="decisionExecutiveSummary" class="decision-summary"></div></section>
+              <section class="decision-card"><div class="decision-card-head"><strong>جودة البيانات</strong><span>Data Quality</span></div><div id="decisionDataQuality" class="decision-list"></div></section>
+              <section class="decision-card"><div class="decision-card-head"><strong>حالة المشاريع</strong><span>Project Health</span></div><div id="decisionProjectHealth" class="decision-list"></div></section>
+              <section class="decision-card"><div class="decision-card-head"><strong>الإجراءات المقترحة</strong><span>Next Actions</span></div><div id="decisionRecommendations" class="decision-list"></div></section>
+            </div>
+            <p class="decision-footnote">التحليل آلي قائم على قواعد تشغيلية وبيانات النظام الحالية؛ لا يفترض بيانات غير مسجلة ولا يستبدل مراجعة المسؤول.</p>
+          </article>
+          <article class="panel operational-workspace" id="operationalWorkspace">
+            <div class="panel-heading"><div><span class="section-kicker">Action Workspace</span><h3>مساحة العمل التنفيذية</h3><p class="muted">تحويل القرارات والتوصيات إلى مهام مسندة بمواعيد وحالات قابلة للمتابعة.</p></div><button id="openOperationalTask" class="btn primary" type="button">+ مهمة تنفيذية</button></div>
+            <div class="task-kpi-row"><span>المفتوحة <b id="taskOpenCount">0</b></span><span>قيد التنفيذ <b id="taskActiveCount">0</b></span><span>المتأخرة <b id="taskOverdueCount">0</b></span><span>المكتملة <b id="taskDoneCount">0</b></span></div>
+            <div id="operationalTaskList" class="operational-task-list"></div>
+          </article>
+        </details>
       </section>
 
       <section id="projects" class="page">
@@ -593,18 +635,18 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="runtime-config.js?v=10-8-4-techno-theme"></script>
-  <script src="i18n.js?v=10-8-4-techno-theme"></script>
-  <script src="app-password.js?v=10-8-4-techno-theme"></script>
-  <script src="quality-management.js?v=10-8-4-techno-theme"></script>
-  <script src="branch-map.js?v=10-8-4-techno-theme"></script>
+  <script src="runtime-config.js?v=10-8-5-techno-exact-ui"></script>
+  <script src="i18n.js?v=10-8-5-techno-exact-ui"></script>
+  <script src="app-password.js?v=10-8-5-techno-exact-ui"></script>
+  <script src="quality-management.js?v=10-8-5-techno-exact-ui"></script>
+  <script src="branch-map.js?v=10-8-5-techno-exact-ui"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
           return Promise.all(keys.filter(function (key) { return (key.startsWith('asas-lims-pwa-') || key.startsWith('techno-lims-pwa-')) && key !== 'techno-lims-pwa-v10-8-3-ui-fix'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-8-4-techno-theme', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-8-5-techno-exact-ui', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>
