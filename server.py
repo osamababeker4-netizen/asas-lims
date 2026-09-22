@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.8.1-internal-file-editing-release'
+APP_VERSION = '10.8.4-login-fix'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -976,6 +976,18 @@ def normalize_phone(phone, default_code='+966'):
         return '+' + digits
     return default_code + digits.lstrip('0')
 
+def normalize_login_id(value):
+    """Accept usernames plus common Saudi mobile formats without weakening password checks."""
+    raw = str(value or '').strip()
+    if not raw:
+        return '', ''
+    phone = ''
+    if re.fullmatch(r'[+\d\s().-]+', raw):
+        candidate = normalize_phone(raw)
+        if valid_e164(candidate):
+            phone = candidate
+    return raw, phone
+
 
 def excel_date(value):
     text = str(value or '').strip()
@@ -1237,9 +1249,10 @@ def start_otp_challenge(connection, login_id, password, channel='sms'):
     """Validate the first factor, then request a time-limited OTP challenge."""
     if channel not in ('sms', 'call', 'whatsapp'):
         return None, 'invalid_otp_channel', 400, None
+    raw_login, normalized_phone = normalize_login_id(login_id)
     user = connection.execute(
-        'select * from users where (username=? or phone=?) and active=1',
-        (login_id, login_id)
+        'select * from users where (lower(username)=lower(?) or phone=? or phone=?) and active=1',
+        (raw_login, raw_login, normalized_phone)
     ).fetchone()
     if not user or not checkpw(password, user['password_hash']):
         return None, 'invalid_credentials', 401, None
@@ -1267,7 +1280,11 @@ def start_otp_challenge(connection, login_id, password, channel='sms'):
 
 
 def password_login(connection, login_id, password):
-    user = connection.execute('select * from users where (username=? or phone=?) and active=1', (login_id, login_id)).fetchone()
+    raw_login, normalized_phone = normalize_login_id(login_id)
+    user = connection.execute(
+        'select * from users where (lower(username)=lower(?) or phone=? or phone=?) and active=1',
+        (raw_login, raw_login, normalized_phone)
+    ).fetchone()
     if not user or not checkpw(password, user['password_hash']):
         return None, None, 'invalid_credentials'
     token = create_session(user)
@@ -1907,6 +1924,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json({'ok': False, 'error': 'invalid_request'}, 400)
             connection = db()
             username = str(data.get('username', '')).strip()
+            normalized_username, normalized_phone = normalize_login_id(username)
+            username = normalized_phone or normalized_username
             attempt_key = login_attempt_key(self, username)
             retry_after = login_rate_status(attempt_key)
             if retry_after:
