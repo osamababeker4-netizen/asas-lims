@@ -1,0 +1,39 @@
+name: TECHNO Branch Acceptance
+
+on:
+  push:
+    branches:
+      - techno-lims-v10.8.1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: techno-branch-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Techno candidate
+        uses: actions/checkout@v4
+
+      - name: Python syntax
+        run: python3 -m py_compile server.py test_server.py acceptance_final.py
+
+      - name: JavaScript syntax
+        run: |
+          node --check app-password.js
+          node --check quality-management.js
+          node --check branch-map.js
+          node --check i18n.js
+          node --check asas_tests_module.js
+
+      - name: Regression and button/reset acceptance
+        run: python3 -m unittest -v test_server.py
+
+      - name: Final upload acceptance
+        run: python3 acceptance_final.py
