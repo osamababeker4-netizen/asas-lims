@@ -1075,7 +1075,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.8.6-responsive-release'", server)
+        self.assertIn("APP_VERSION = '10.8.7-mobile-fit-release'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1094,7 +1094,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-8-6-responsive', sw)
+        self.assertIn('v10-8-7-mobile-fit', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1393,10 +1393,10 @@ class SchemaMigrationTests(unittest.TestCase):
         server = (root / 'server.py').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.8.6-responsive-release'", server)
-        self.assertIn('v10-8-6-responsive', sw)
+        self.assertIn("APP_VERSION = '10.8.7-mobile-fit-release'", server)
+        self.assertIn('v10-8-7-mobile-fit', sw)
         self.assertIn('TECHNO LIMS', html)
-        self.assertIn('V10.8.6 · Responsive', html)
+        self.assertIn('V10.8.7 · Mobile Fit', html)
         self.assertNotIn('V10.3.0 Decision Intelligence', html)
         self.assertIn('id="decisionIntelligenceCenter"', html)
         self.assertIn('id="refreshDecisionIntelligence"', html)
@@ -1442,7 +1442,7 @@ class SchemaMigrationTests(unittest.TestCase):
         app = (root / 'app-password.js').read_text(encoding='utf-8')
         schema = (root / 'schema.sql').read_text(encoding='utf-8')
         server = (root / 'server.py').read_text(encoding='utf-8')
-        self.assertIn("APP_VERSION = '10.8.6-responsive-release'", server)
+        self.assertIn("APP_VERSION = '10.8.7-mobile-fit-release'", server)
         self.assertIn('CREATE TABLE IF NOT EXISTS operational_tasks', schema)
         self.assertIn("path == '/api/operational-tasks'", server)
         self.assertIn('id="operationalWorkspace"', html)
