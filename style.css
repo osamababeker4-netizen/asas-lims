@@ -1849,3 +1849,130 @@ html,body{
   .techno-login-card h1{font-size:1.65rem}
   .main-content{background:linear-gradient(180deg,#fafdff,#f1f8fd)!important}
 }
+
+
+/* TECHNO V10.8.5 — exact approved desktop dashboard */
+.techno-dashboard-page{position:relative}
+.techno-dashboard-page::before{
+  content:"";
+  position:fixed;
+  inset:0 auto 0 0;
+  width:min(18vw,280px);
+  pointer-events:none;
+  opacity:.10;
+  background:
+    linear-gradient(90deg,rgba(255,255,255,.15),rgba(255,255,255,.88)),
+    url("engineering-pages-bg.jpg") center/cover no-repeat;
+  filter:saturate(.85);
+}
+.techno-global-search{
+  flex:1 1 380px;
+  max-width:610px;
+  min-width:220px;
+  position:relative;
+  margin-inline:18px;
+}
+.techno-global-search input{
+  width:100%;height:44px;border:1px solid #d6e5f0;border-radius:12px;
+  background:#fff;padding:0 18px 0 44px;color:#31536e;
+  box-shadow:0 6px 18px rgba(25,73,107,.05);
+}
+.techno-global-search span{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:1.4rem;color:#0874c6}
+.techno-dashboard-welcome{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:6px 0 18px;padding:0 4px}
+.techno-dashboard-welcome h2{margin:0;color:#075da4;font-size:clamp(1.65rem,2.4vw,2.35rem);font-weight:900}
+.techno-dashboard-welcome h2 span{color:#075da4}
+.techno-dashboard-welcome p{margin:5px 0 0;color:#71869a}
+.techno-dashboard-date{font-size:.8rem;color:#6c8193;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.7)}
+.techno-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.techno-summary-card{
+  border:1px solid #d9e8f2;background:rgba(255,255,255,.96);border-radius:14px;
+  padding:14px 14px 12px;text-align:right;color:#3c5569;cursor:pointer;min-height:124px;
+  box-shadow:0 9px 24px rgba(31,80,116,.055);transition:.18s ease;
+}
+.techno-summary-card:hover{transform:translateY(-2px);border-color:#bddced;box-shadow:0 14px 28px rgba(31,80,116,.09)}
+.techno-summary-card .summary-icon{float:left;font-size:1.5rem;color:#0874c6}
+.techno-summary-card>span:not(.summary-icon){display:block;font-size:.78rem;font-weight:800;color:#5a7183}
+.techno-summary-card strong{display:block;font-size:1.85rem;line-height:1;margin:13px 0 7px;color:#0a3154}
+.techno-summary-card small{display:block;color:#8a9cab;font-size:.66rem}
+.techno-summary-card.calibration strong,.techno-summary-card.calibration .summary-icon{color:#f58220}
+.techno-dashboard-main-grid{display:grid;grid-template-columns:minmax(230px,.82fr) minmax(390px,1.45fr) minmax(260px,.95fr);gap:14px;margin-bottom:14px}
+.techno-dashboard-main-grid>.panel,.techno-dashboard-bottom-grid>.panel{margin:0;padding:16px;border-radius:14px}
+.techno-dashboard-main-grid .panel-heading,.techno-dashboard-bottom-grid .panel-heading{margin-bottom:12px}
+.techno-dashboard-main-grid h3,.techno-dashboard-bottom-grid h3{margin:0;color:#173b59;font-size:1rem}
+.attendance-overview{display:flex;align-items:center;justify-content:center;gap:24px;min-height:210px}
+.attendance-ring{
+  --attendance-pct:0;
+  width:128px;height:128px;border-radius:50%;display:grid;place-items:center;align-content:center;
+  background:conic-gradient(#0874c6 calc(var(--attendance-pct)*1%),#29b684 0 82%,#edf3f7 0);
+  position:relative;color:#0a3154;font-weight:900
+}
+.attendance-ring::after{content:"";position:absolute;inset:14px;background:#fff;border-radius:50%}
+.attendance-ring span,.attendance-ring small{position:relative;z-index:1}
+.attendance-ring span{font-size:1.55rem}.attendance-ring small{font-size:.65rem;color:#7b8d9b;margin-top:2px}
+.attendance-legend{display:grid;gap:12px;min-width:112px}.attendance-legend span{display:grid;grid-template-columns:auto 1fr auto;gap:7px;align-items:center;font-size:.76rem;color:#62798b}
+.attendance-legend i{width:8px;height:8px;border-radius:50%}.attendance-legend i.present{background:#20b781}.attendance-legend i.checkedout{background:#f58220}.attendance-legend i.absent{background:#94a5b2}
+.attendance-legend b{color:#173b59}
+.techno-test-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.techno-test-fields button{
+  min-height:112px;border:1px solid #dce8f0;border-radius:12px;background:#fff;padding:0;overflow:hidden;
+  display:grid;grid-template-columns:92px 1fr;grid-template-rows:1fr 1fr;text-align:right;cursor:pointer;color:#173b59
+}
+.techno-test-fields button:hover{border-color:#b8d9ec;box-shadow:0 8px 20px rgba(8,116,198,.08)}
+.field-photo{grid-row:1/3;width:92px;height:100%;min-height:112px;background-size:cover;background-position:center}
+.field-photo.concrete{background:linear-gradient(135deg,rgba(220,225,228,.25),rgba(255,255,255,.05)),url("engineering-pages-bg.jpg") 20% 50%/cover}
+.field-photo.soil{background:linear-gradient(135deg,#ccb18f,#e9d4b9)}
+.field-photo.asphalt{background:linear-gradient(135deg,#313b44,#78838c)}
+.field-photo.ndt{background:linear-gradient(135deg,#d9e7ee,#91b2c5)}
+.techno-test-fields strong{align-self:end;padding:10px 11px 2px;font-size:.95rem}.techno-test-fields small{padding:2px 11px 10px;color:#7b8e9c}.techno-test-fields small b{color:#0874c6}
+.techno-activity-list{max-height:238px;overflow:auto;padding-inline-end:3px}.techno-activity-list .timeline-item{padding:10px 0;border-bottom:1px solid #edf2f5}.techno-activity-list .timeline-item:last-child{border-bottom:0}
+.techno-dashboard-bottom-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,.62fr);gap:14px;margin-bottom:14px}
+.techno-dashboard-table{min-width:620px!important}.techno-dashboard-table thead th{font-size:.72rem!important}.techno-dashboard-table td{font-size:.74rem}
+.techno-quick-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.quick-link{
+  min-height:94px;border:1px solid #dce9f1;border-radius:12px;background:linear-gradient(180deg,#fff,#f4f9fd);
+  color:#086ab5;font-weight:800;display:grid;place-items:center;gap:6px;cursor:pointer;padding:10px;text-align:center
+}
+.quick-link span{font-size:1.55rem}.quick-link:hover{background:#eef8fe;border-color:#bddced}
+.techno-dashboard-advanced{margin-top:14px;border:1px solid #dce8f0;border-radius:13px;background:rgba(255,255,255,.8);overflow:hidden}
+.techno-dashboard-advanced>summary{cursor:pointer;padding:14px 16px;color:#486478;font-weight:800;background:#f8fbfd}
+.techno-dashboard-advanced>[class],.techno-dashboard-advanced>article{margin:14px}
+.techno-hidden-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.sidebar{width:250px!important}
+.main-content{margin-right:250px!important;padding:16px 18px 28px!important}
+.brand img{height:78px!important;width:100%!important}
+.brand strong,.brand span{display:none!important}
+.official-header{display:none!important}
+.topbar{position:sticky;top:0;z-index:30;margin:0 0 14px!important;border-radius:0 0 14px 14px!important;padding:10px 14px!important}
+.topbar-title .eyebrow,.topbar-title h2{display:none}
+.topbar-title{flex:0 0 auto}
+#pageBack{white-space:nowrap}
+.sidebar nav{padding-top:6px}
+.nav-link{border-radius:9px!important;padding:10px 12px!important;margin:2px 0!important}
+.nav-link.active{background:linear-gradient(135deg,#0874c6,#075da4)!important}
+@media(max-width:1180px){
+  .techno-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .techno-dashboard-main-grid{grid-template-columns:1fr 1fr}.techno-activity-card{grid-column:1/-1}
+  .techno-dashboard-bottom-grid{grid-template-columns:1fr}
+}
+@media(max-width:1000px){
+  .main-content{margin-right:0!important}
+  .techno-global-search{margin-inline:6px;min-width:0}
+  .techno-dashboard-page::before{display:none}
+}
+@media(max-width:700px){
+  .techno-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .techno-dashboard-main-grid{grid-template-columns:1fr}
+  .techno-activity-card{grid-column:auto}
+  .techno-test-fields{grid-template-columns:1fr}
+  .techno-dashboard-bottom-grid{grid-template-columns:1fr}
+  .techno-quick-links{grid-template-columns:1fr 1fr}
+  .techno-dashboard-welcome{align-items:flex-start;flex-direction:column}
+  .techno-dashboard-welcome h2{font-size:1.55rem}
+  .techno-global-search{display:none}
+  .attendance-overview{flex-direction:column;gap:15px}
+}
+@media(max-width:430px){
+  .techno-summary-grid{grid-template-columns:1fr 1fr;gap:8px}.techno-summary-card{min-height:110px;padding:11px}
+  .techno-summary-card strong{font-size:1.55rem}
+  .techno-quick-links{grid-template-columns:1fr}
+}
