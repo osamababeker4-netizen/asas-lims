@@ -654,7 +654,7 @@
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return (key.startsWith('asas-lims-pwa-') || key.startsWith('techno-lims-pwa-')) && key !== 'techno-lims-pwa-v10-8-3-ui-fix'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return (key.startsWith('asas-lims-pwa-') || key.startsWith('techno-lims-pwa-')) && key !== 'techno-lims-pwa-v10-8-5-desktop'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
         navigator.serviceWorker.register('sw.js?v=10-8-5-techno-exact-ui', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
@@ -870,7 +870,7 @@
         reader.readAsDataURL(blob);
       });
 
-      // الإرسال الآمن عبر خادم أساس؛ لا يتم كشف رمز البوت في المتصفح.
+      // الإرسال الآمن عبر خادم تيكنو؛ لا يتم كشف رمز البوت في المتصفح.
       const uniquePhotos = [];
       const seenPhotos = new Set();
       for (const blob of photoBlobs) {
@@ -886,7 +886,7 @@
       if (typeof api === 'function') {
         await api('/api/telegram/draft', { method: 'POST', body: JSON.stringify(payload) });
       } else {
-        throw new Error('تعذر الوصول إلى جلسة نظام أساس');
+        throw new Error('تعذر الوصول إلى جلسة نظام تيكنو');
       }
       capturedPhotos = []; // تفريغ الذاكرة
       return true;
