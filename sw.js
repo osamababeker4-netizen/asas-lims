@@ -1,6 +1,6 @@
 'use strict';
-const CACHE_NAME = 'techno-lims-pwa-v10-8-3-ui-fix';
-const APP_SHELL = ['./','./index.html','./style.css?v=10-8-3-techno-ui-fix','./app-password.js?v=10-8-3-techno-ui-fix','./quality-management.js?v=10-8-3-techno-ui-fix','./branch-map.js?v=10-8-3-techno-ui-fix','./i18n.js?v=10-8-3-techno-ui-fix','./runtime-config.js?v=10-8-3-techno-ui-fix','./field-test-guide.html','./manifest.webmanifest','./techno-logo.svg','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
+const CACHE_NAME = 'techno-lims-pwa-v10-8-4-theme';
+const APP_SHELL = ['./','./index.html','./style.css?v=10-8-4-techno-theme','./app-password.js?v=10-8-4-techno-theme','./quality-management.js?v=10-8-4-techno-theme','./branch-map.js?v=10-8-4-techno-theme','./i18n.js?v=10-8-4-techno-theme','./runtime-config.js?v=10-8-4-techno-theme','./field-test-guide.html','./manifest.webmanifest','./techno-logo.svg','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
