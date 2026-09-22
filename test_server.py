@@ -1482,7 +1482,7 @@ class SchemaMigrationTests(unittest.TestCase):
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
         self.assertIn("APP_VERSION = '10.8.4-login-fix'", server)
-        self.assertIn('v10-8-4-login-fix', sw)
+        self.assertIn('v10-8-9-button-save-fix', sw)
         self.assertIn('ASAS LIMS · V10.8.9', html)
         self.assertIn('V10.8.9 · Button Save Fix', html)
         self.assertNotIn('V10.3.0 Decision Intelligence', html)
