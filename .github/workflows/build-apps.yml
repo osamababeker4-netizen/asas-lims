@@ -2,7 +2,7 @@ name: Build ASAS 8.1 preview applications
 on:
   push:
     branches: [main]
-    paths: ['desktop/**', 'LIMS_Asas_Integrated_V7.0.0_BASE_READY/field/**', '.github/workflows/build-apps.yml']
+    paths: ['desktop/**', 'desktop/legacy-field-base/field/**', '.github/workflows/build-apps.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,10 +22,10 @@ jobs:
       - name: Build full system and separate field preview
         run: |
           gradle -p desktop/android assembleDebug --no-daemon
-          gradle -p LIMS_Asas_Integrated_V7.0.0_BASE_READY/field assembleDebug --no-daemon
+          gradle -p desktop/legacy-field-base/field assembleDebug --no-daemon
           mkdir artifacts
           cp desktop/android/app/build/outputs/apk/debug/app-debug.apk artifacts/ASAS-LIMS-8.1.0-Android-Preview.apk
-          cp LIMS_Asas_Integrated_V7.0.0_BASE_READY/field/app/build/outputs/apk/debug/app-debug.apk artifacts/ASAS-Field-8.1.0-Preview.apk
+          cp desktop/legacy-field-base/field/app/build/outputs/apk/debug/app-debug.apk artifacts/ASAS-Field-8.1.0-Preview.apk
       - uses: actions/upload-artifact@v4
         with:
           name: ASAS-Android-8.1.0-Preview
