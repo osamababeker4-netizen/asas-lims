@@ -1,14 +1,14 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-8-9-button-save-fix';
+const CACHE_NAME = 'asas-lims-pwa-v10-9-0-system-review';
 const APP_SHELL = [
   './',
   './index.html',
-  './style.css?v=10-8-9-button-save-fix',
-  './app-password.js?v=10-8-9-button-save-fix',
-  './quality-management.js?v=10-8-9-button-save-fix',
-  './branch-map.js?v=10-8-9-button-save-fix',
-  './i18n.js?v=10-8-9-button-save-fix',
-  './runtime-config.js?v=10-8-9-button-save-fix',
+  './style.css?v=10-9-0-system-review',
+  './app-password.js?v=10-9-0-system-review',
+  './quality-management.js?v=10-9-0-system-review',
+  './branch-map.js?v=10-9-0-system-review',
+  './i18n.js?v=10-9-0-system-review',
+  './runtime-config.js?v=10-9-0-system-review',
   './field-test-guide.html',
   './manifest.webmanifest',
   './logo.png',
