@@ -1520,7 +1520,6 @@ class H(BaseHTTPRequestHandler):
             '/i18n.js': ('i18n.js', 'application/javascript; charset=utf-8'),
             '/branch-map.js': ('branch-map.js', 'application/javascript; charset=utf-8'),
             '/field-test-guide.html': ('field-test-guide.html', 'text/html; charset=utf-8'),
-            '/company-profile.pdf': ('company-profile.pdf', 'application/pdf')
         }
         if path in static_files:
             return self.static(*static_files[path])
