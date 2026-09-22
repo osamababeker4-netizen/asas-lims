@@ -1459,6 +1459,25 @@ class H(BaseHTTPRequestHandler):
             'awaiting_review': q("select id,code,name,'project' entity from projects where status='قيد المراجعة' union all select id,license_no,'زيارة ميدانية','field_visit' entity from field_visits where status='قيد المراجعة' order by id desc"),
             'overdue_tasks': q("select t.id,t.title,t.priority,t.due_date,u.full_name assignee_name from operational_tasks t left join users u on u.id=t.assigned_to where t.due_date is not null and t.due_date < date('now') and t.status != 'مكتملة' order by t.due_date")
         }
+        work_date = saudi_work_date()
+        active_users = connection.execute("select count(*) from users where active=1").fetchone()[0]
+        registered = connection.execute("select count(*) from attendance_records where work_date=? and check_in_at is not null", (work_date,)).fetchone()[0]
+        present = connection.execute("select count(*) from attendance_records where work_date=? and check_in_at is not null and check_out_at is null", (work_date,)).fetchone()[0]
+        checked_out = connection.execute("select count(*) from attendance_records where work_date=? and check_out_at is not null", (work_date,)).fetchone()[0]
+        attendance_summary = {
+            'work_date': work_date,
+            'active_users': active_users,
+            'registered': registered,
+            'present': present,
+            'checked_out': checked_out,
+            'not_registered': max(0, active_users - registered),
+            'rate': round((registered * 100.0 / active_users), 0) if active_users else 0
+        }
+        calibration_due_count = connection.execute("""
+            select count(*) from equipment
+            where next_calibration is not null and trim(next_calibration) != ''
+              and date(next_calibration) <= date('now','+30 day')
+        """).fetchone()[0]
         return {
             'counts': counts,
             'projects': projects,
@@ -1469,12 +1488,14 @@ class H(BaseHTTPRequestHandler):
                     (select count(*) from tests t where t.sample_id=s.id and t.status='مخطط') planned_tests_count
                 from samples s left join projects p on p.id=s.project_id order by s.id desc
             '''),
-            'tests': q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,pr.mdd,pr.omc,u.full_name technician_name from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id left join users u on u.id=t.technician_id order by t.id desc'),
+            'tests': q('select t.*,s.sample_no,tc.code,tc.name_ar,tc.standard,tc.category,pr.mdd,pr.omc,u.full_name technician_name from tests t join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id left join proctor_results pr on pr.test_id=t.id left join users u on u.id=t.technician_id order by t.id desc'),
             'reports': q('select r.*,t.test_no,tc.name_ar,s.sample_no from reports r join tests t on t.id=r.test_id join samples s on s.id=t.sample_id join test_catalog tc on tc.id=t.catalog_id order by r.id desc'),
             'equipment': q("select * from equipment order by coalesce(section,''),coalesce(equipment_code,''),name,id"),
             'audit': q("select a.*,u.full_name from audit_log a left join users u on u.id=a.user_id where a.entity in ('client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user') and a.action not like 'حذف %' order by a.id desc limit 150"),
             'activity': q("select created_at,action,details from audit_log where entity in ('client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user') and action not like 'حذف %' order by id desc limit 15"),
             'alerts': alerts,
+            'attendance_summary': attendance_summary,
+            'calibration_due_count': calibration_due_count,
             'sync': q("select id,entity,entity_id,operation,status,attempts,created_at,last_error from sync_queue where status='queued' order by id desc limit 30"),
             'technicians': q("select id,full_name,username from users where active=1 and role in ('technician','field') order by full_name"),
             'users_active': q("select id,full_name,username,role from users where active=1 order by full_name"),
