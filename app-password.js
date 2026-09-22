@@ -16,6 +16,7 @@ const PRIORITIES = ['منخفضة', 'متوسطة', 'عالية', 'حرجة'];
 const WORK_ORDER_STATUSES = ['مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'];
 const ROLE_NAMES = {admin:'مدير النظام',general_manager:'المدير العام',technical_manager:'المدير الفني',laboratory_manager:'مدير المختبر',quality_manager:'مدير الجودة',quality_officer:'مسؤول الجودة',calibration_officer:'مسؤول المعايرة',document_controller:'مسؤول الوثائق',manager:'مدير',technician:'فني مختبر',field:'مفتش ميداني',quality:'الجودة (قديم)'};
 const QUALITY_ACCESS_ROLES = ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'];
+const ATTENDANCE_MANAGER_ROLES = ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'];
 const COUNTRY_CODES = [{code:'+966',name:'السعودية 🇸🇦'},{code:'+971',name:'الإمارات 🇦🇪'},{code:'+973',name:'البحرين 🇧🇭'},{code:'+965',name:'الكويت 🇰🇼'},{code:'+974',name:'قطر 🇶🇦'},{code:'+968',name:'عُمان 🇴🇲'},{code:'+20',name:'مصر 🇪🇬'},{code:'+249',name:'السودان 🇸🇩'},{code:'+962',name:'الأردن 🇯🇴'},{code:'+967',name:'اليمن 🇾🇪'}];
 const OFFICIAL_WHATSAPP_URL = 'https://chat.whatsapp.com/LxqH7L6GorGEhMfUTYthgG?s=sh&p=a&mlu=4&ilr=4';
 const OFFICIAL_TELEGRAM_URL = 'https://t.me/+xPEyC5xPw8w5MjE0';
@@ -110,6 +111,7 @@ let realtimeTimer = null;
 let userUpdatesChannel = null;
 let eventStream = null;
 let eventAbortController = null;
+let attendanceDate = saudiToday();
 const AUTH_ERRORS = {
   invalid_credentials:'اسم المستخدم أو كلمة المرور غير صحيحة.',
   phone_not_configured:'لا يوجد رقم جوال دولي مفعّل لهذا الحساب. تواصل مع مدير النظام.',
@@ -471,7 +473,7 @@ function staticApi(path, options) {
   }
   if (path.indexOf('/api/report/') === 0) {
     const test = data.tests.find(function(item) { return item.id === Number(path.split('/').pop()); }) || {}; const report = data.reports.find(function(item) { return item.test_id === test.id; }) || {}; const cat = data.catalog.find(function(item) { return item.id === test.catalog_id; }) || {}; const sample = data.samples.find(function(item) { return item.id === Number(test.sample_id); }) || {};
-    return Object.assign({},report,test,{name_ar:cat.name_ar,standard:cat.standard,sample_no:sample.sample_no,data:{inputs:{},results:test.results || {}},lab_name:'مختبر أساس'});
+    return Object.assign({},report,test,{name_ar:cat.name_ar,standard:cat.standard,sample_no:sample.sample_no,data:{inputs:{},results:test.results || {}},lab_name:'تيكنو سويل لاب'});
   }
   if (path === '/api/reports/status') {
     const report = data.reports.find(function(item) { return item.id === Number(body.id); }); if (!report) throw new Error('التقرير غير موجود'); report.status = body.status; localAudit(data,'تغيير حالة تقرير','report',report.report_no + ' → ' + body.status); saveLocal(data); return {ok:true};
@@ -589,6 +591,7 @@ function navigate(page) {
     if(pageHistory.length>30) pageHistory.shift();
   }
   if (page === 'field') setTimeout(fillFieldReadyOptions,0);
+  if (page === 'attendance') setTimeout(function(){loadAttendance().catch(function(error){showToast(error.message,true);});},0);
   document.querySelectorAll('.page').forEach(function(element) { element.classList.remove('active'); });
   const target = $(page);
   if (!target) return;
@@ -597,7 +600,7 @@ function navigate(page) {
   document.querySelectorAll('.nav-link[data-page]').forEach(function(button) { button.classList.toggle('active', button.dataset.page === page); });
   const nav = document.querySelector('.nav-link[data-page="' + page + '"]');
   const nestedTitles = {documentCenter:'مركز الملفات',equipment:'الأجهزة والمعايرة'};
-  setText($('pageTitle'), nav ? ((uiTextMemory.get(nav.firstChild) || {}).ar || nav.textContent).trim() : (nestedTitles[page] || 'أساس LIMS'));
+  setText($('pageTitle'), nav ? ((uiTextMemory.get(nav.firstChild) || {}).ar || nav.textContent).trim() : (nestedTitles[page] || 'TECHNO LIMS'));
   setText($('pageKicker'), page === 'projects' ? 'تنفيذ ومتابعة' : 'إدارة المختبر');
   updateBackButton();
   $('sidebar').classList.remove('open');
@@ -778,6 +781,7 @@ async function refresh() {
       }
     }
     if (currentUser && ['admin','general_manager','manager','quality_manager'].indexOf(currentUser.role) >= 0) await renderUsers();
+    if (activePageId === 'attendance') await loadAttendance();
   })();
   try { return await refreshInFlight; } finally { refreshInFlight = null; }
 }
@@ -861,6 +865,109 @@ function renderSystemNotifications(){
 function toggleNotificationPanel(force){const panel=$('notificationPanel'),button=$('notificationToggle');if(!panel||!button)return;const open=typeof force==='boolean'?force:panel.classList.contains('hidden');panel.classList.toggle('hidden',!open);button.setAttribute('aria-expanded',open?'true':'false');if(open)renderSystemNotifications();}
 function markNotificationsRead(){localStorage.setItem(STORAGE_KEY+'_notifications_read',String(Date.now()));renderSystemNotifications();}
 function openNotificationItem(index){const item=notificationItems[Number(index)];if(!item)return;toggleNotificationPanel(false);markNotificationsRead();const id=Number(item.id);if(item.type==='sync_queue')return openSyncWorkQueue();if(item.type==='equipment'){const row=(dashboard.equipment||[]).find(function(x){return x.id===id;});navigate('equipment');if(row)openEquipmentForm(row);return;}if(item.type==='workOrder'){const row=(dashboard.work_orders||[]).find(function(x){return x.id===id;});navigate('workOrders');if(row)openWorkOrderForm(row.project_id,row);return;}if(item.type==='project'){navigate('projects');return openProjectForm(id);}if(item.type==='reports'){navigate('reports');return reviewReport(id);}navigate(item.route||'dashboard');}
+
+
+function attendanceManagerAccess() {
+  return !!(currentUser && ATTENDANCE_MANAGER_ROLES.indexOf(currentUser.role) >= 0);
+}
+
+function attendanceGps() {
+  return new Promise(function(resolve,reject) {
+    if (!navigator.geolocation) return reject(new Error('هذا الجهاز لا يدعم تحديد الموقع.'));
+    navigator.geolocation.getCurrentPosition(function(position) {
+      resolve({
+        latitude:Number(position.coords.latitude),
+        longitude:Number(position.coords.longitude),
+        accuracy:Number(position.coords.accuracy || 0)
+      });
+    }, function(error) {
+      const messages={1:'تم رفض إذن الموقع. اسمح للموقع من إعدادات المتصفح ثم أعد المحاولة.',2:'تعذر تحديد الموقع حالياً.',3:'انتهت مهلة تحديد الموقع.'};
+      reject(new Error(messages[error.code] || 'تعذر تحديد الموقع.'));
+    }, {enableHighAccuracy:true,timeout:15000,maximumAge:15000});
+  });
+}
+
+function attendanceMapUrl(latitude, longitude) {
+  return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(String(latitude)+','+String(longitude));
+}
+
+function attendanceStateLabel(record) {
+  if (!record || !record.check_in_at) return 'غير مسجل';
+  if (record.check_out_at || record.status === 'completed') return 'انصرف';
+  return 'حاضر';
+}
+
+function renderMyAttendance(payload) {
+  const record=(payload&&payload.record)||null;
+  const workDate=(payload&&payload.work_date)||attendanceDate||saudiToday();
+  const isToday=workDate===saudiToday();
+  setText($('attendanceStatus'),attendanceStateLabel(record));
+  setText($('attendanceCheckInTime'),record&&record.check_in_at?saudiDisplay(record.check_in_at):'—');
+  setText($('attendanceCheckOutTime'),record&&record.check_out_at?saudiDisplay(record.check_out_at):'—');
+  setText($('attendanceLastLocationAt'),record&&record.last_location_at?saudiDisplay(record.last_location_at):'—');
+  setText($('attendanceAccuracy'),record&&record.last_accuracy!==null&&record.last_accuracy!==undefined?Math.round(Number(record.last_accuracy))+' m':'—');
+  const checkIn=$('attendanceCheckIn'), update=$('attendanceUpdateLocation'), checkOut=$('attendanceCheckOut');
+  if(checkIn)checkIn.disabled=!isToday||!!(record&&record.check_in_at);
+  if(update)update.disabled=!isToday||!(record&&record.check_in_at)||!!(record&&record.check_out_at);
+  if(checkOut)checkOut.disabled=!isToday||!(record&&record.check_in_at)||!!(record&&record.check_out_at);
+  const loc=$('attendanceLocationCard');
+  if(loc){
+    if(record&&record.last_latitude!==null&&record.last_longitude!==null){
+      setHtml(loc,'<div><strong>آخر موقع مسجل</strong><small>'+esc(saudiDisplay(record.last_location_at))+' · دقة '+esc(Math.round(Number(record.last_accuracy||0)))+' m</small></div><a class="btn secondary" target="_blank" rel="noopener noreferrer" href="'+esc(attendanceMapUrl(record.last_latitude,record.last_longitude))+'">فتح في الخريطة</a>');
+    } else setHtml(loc,'<span>لم يتم تسجيل موقع بعد.</span>');
+  }
+  const events=(payload&&payload.events)||[];
+  const eventNames={check_in:'تسجيل حضور',heartbeat:'تحديث موقع',check_out:'تسجيل انصراف'};
+  const box=$('attendanceEvents');
+  if(box)setHtml(box,events.length?events.map(function(item){return '<div class="attendance-event"><strong>'+esc(eventNames[item.event_type]||item.event_type)+'</strong><span>'+esc(saudiDisplay(item.captured_at))+'</span><small>GPS '+esc(Math.round(Number(item.accuracy||0)))+' m'+(item.note?' · '+esc(item.note):'')+'</small></div>';}).join(''):'<div class="empty-state">لا توجد أحداث موقع لهذا اليوم.</div>');
+}
+
+function renderAttendanceTeam(records, locations, workDate) {
+  const tbody=$('attendanceTeamTable'), panel=$('attendanceManagerPanel');
+  if(!tbody||!panel)return;
+  if(!attendanceManagerAccess()){panel.classList.add('hidden');return;}
+  panel.classList.remove('hidden');
+  const recordMap={};(records||[]).forEach(function(row){recordMap[String(row.user_id)]=row;});
+  const isToday=workDate===saudiToday();
+  const rows=[];
+  (locations||[]).forEach(function(person){
+    const record=recordMap[String(person.user_id)]||{};
+    rows.push(Object.assign({},person,record,{last_latitude:isToday?person.last_latitude:record.last_latitude,last_longitude:isToday?person.last_longitude:record.last_longitude,last_location_at:isToday?person.last_location_at:record.last_location_at,last_accuracy:isToday?person.last_accuracy:record.last_accuracy}));
+    delete recordMap[String(person.user_id)];
+  });
+  Object.keys(recordMap).forEach(function(key){rows.push(recordMap[key]);});
+  setText($('attendanceTeamCount'),String(rows.length));
+  setHtml(tbody,rows.length?rows.map(function(row){
+    const map=row.last_latitude!==null&&row.last_latitude!==undefined&&row.last_longitude!==null&&row.last_longitude!==undefined?'<a class="text-btn" target="_blank" rel="noopener noreferrer" href="'+esc(attendanceMapUrl(row.last_latitude,row.last_longitude))+'">الخريطة</a>':'—';
+    return '<tr><td><strong>'+esc(row.full_name||row.username||'—')+'</strong><small>@'+esc(row.username||'')+'</small></td><td>'+esc(ROLE_NAMES[row.role]||row.role||'—')+'</td><td>'+statusChip(attendanceStateLabel(row))+'</td><td>'+esc(row.check_in_at?saudiDisplay(row.check_in_at):'—')+'</td><td>'+esc(row.check_out_at?saudiDisplay(row.check_out_at):'—')+'</td><td>'+esc(row.last_location_at?saudiDisplay(row.last_location_at):'—')+(row.last_accuracy!==null&&row.last_accuracy!==undefined?'<small>GPS '+esc(Math.round(Number(row.last_accuracy)))+' m</small>':'')+'</td><td>'+map+'</td></tr>';
+  }).join(''):'<tr><td colspan="7"><div class="empty-state">لا توجد سجلات لهذا التاريخ.</div></td></tr>');
+}
+
+async function loadAttendance() {
+  if(!currentUser||!$('attendanceDate'))return;
+  const date=$('attendanceDate').value||attendanceDate||saudiToday();
+  attendanceDate=date;$('attendanceDate').value=date;
+  const mine=await api('/api/attendance/me?date='+encodeURIComponent(date));
+  renderMyAttendance(mine);
+  if(attendanceManagerAccess()){
+    const results=await Promise.all([api('/api/attendance?date='+encodeURIComponent(date)),api('/api/personnel/locations')]);
+    renderAttendanceTeam(results[0].records||[],results[1]||[],date);
+  } else renderAttendanceTeam([],[],date);
+}
+
+async function attendanceAction(action) {
+  const labels={checkIn:'الحضور',location:'الموقع',checkOut:'الانصراف'};
+  const buttons={checkIn:$('attendanceCheckIn'),location:$('attendanceUpdateLocation'),checkOut:$('attendanceCheckOut')};
+  const button=buttons[action]; if(button)button.disabled=true;
+  try{
+    const location=await attendanceGps();
+    const body={latitude:location.latitude,longitude:location.longitude,accuracy:location.accuracy,note:($('attendanceNote')&&$('attendanceNote').value||'').trim()};
+    const path=action==='checkIn'?'/api/attendance/check-in':(action==='checkOut'?'/api/attendance/check-out':'/api/attendance/location');
+    await api(path,{method:'POST',body:JSON.stringify(body)});
+    showToast('تم تسجيل '+labels[action]+' بنجاح');
+    await loadAttendance();
+  } finally { if(button)button.disabled=false; }
+}
 
 function renderDashboard() {
   if (!dashboard) return;
@@ -1071,7 +1178,7 @@ async function runSyncQueue(){const result=await api('/api/sync/run',{method:'PO
 function decisionReportMarkup(model){
   const issues=model.issues.length?model.issues.map(function(item){return '<tr><td>'+esc(item.label)+'</td><td>'+esc(item.count)+'</td><td>'+esc(decisionToneLabel(item.severity))+'</td><td>'+esc(item.detail)+'</td></tr>';}).join(''):'<tr><td colspan="4">لا توجد ملاحظات ضمن الفحوص الحالية.</td></tr>';
   const recommendations=model.recommendations.map(function(item,index){return '<tr><td>'+(index+1)+'</td><td>'+esc(item.priority)+'</td><td>'+esc(item.title)+'</td><td>'+esc(item.detail)+'</td></tr>';}).join('');
-  return '<section class="decision-report"><header><img src="logo.png" alt="مختبر أساس"><div><span>ASAS LIMS · Decision Intelligence</span><h2>التقرير الإداري التشغيلي</h2><p>تم الإنشاء: '+esc(model.generated_at)+'</p></div></header>'+
+  return '<section class="decision-report"><header><img src="logo.png" alt="تيكنو سويل لاب"><div><span>TECHNO LIMS · Decision Intelligence</span><h2>التقرير الإداري التشغيلي</h2><p>تم الإنشاء: '+esc(model.generated_at)+'</p></div></header>'+
     '<h3>الملخص التنفيذي</h3><div class="decision-report-summary">'+model.summary.map(function(line){return '<p>'+esc(line)+'</p>';}).join('')+'</div>'+
     '<h3>مؤشرات الأداء</h3><div class="decision-report-kpis"><span>تقدم المشاريع <b>'+model.project_progress+'%</b></span><span>إغلاق أوامر العمل <b>'+model.work_order_rate+'%</b></span><span>إنجاز الاختبارات <b>'+model.test_rate+'%</b></span><span>اعتماد التقارير <b>'+model.report_rate+'%</b></span></div>'+
     '<h3>جودة البيانات</h3><div class="engineering-table-wrap"><table><thead><tr><th>الملاحظة</th><th>العدد</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>'+issues+'</tbody></table></div>'+
@@ -1470,7 +1577,7 @@ async function inlineFileBase64(file,maxMb){
   return btoa(binary);
 }
 async function submitInlineQualityDocument(form){
-  const data={owner:'شركة مختبر أساس'};new FormData(form).forEach(function(value,key){if(key!=='quality_file')data[key]=value;});
+  const data={owner:'شركة تيكنو سويل لاب'};new FormData(form).forEach(function(value,key){if(key!=='quality_file')data[key]=value;});
   const fixed=form.dataset.inlineQualityDocument;if(fixed&&fixed!=='document')data.category=fixed;
   const file=form.elements.quality_file&&form.elements.quality_file.files[0];
   if(file){data.file_name=file.name;data.file_base64=await inlineFileBase64(file,100);}
@@ -1499,7 +1606,7 @@ async function submitInlineSmartImport(form){
 
 function openQualityForm(kind) {
   const names = {procedure:'إجراء جودة',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
-  if (names[kind]) return modal('<h2>إضافة ' + names[kind] + '</h2><form id="qualityDocumentForm"><input type="hidden" name="category" value="' + kind + '"><input type="hidden" name="owner" value="شركة مختبر أساس"><div class="modal-grid"><label>الكود<input name="code" required placeholder="QMS-P-001"></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision" placeholder="Rev. 01"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>رفع ملف<input name="quality_file" type="file"></label><label>رابط بديل (اختياري)<input name="document_ref" type="url"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><p class="form-note">أي صيغة ملف حتى 100MB.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الوثيقة</button></div></form>');
+  if (names[kind]) return modal('<h2>إضافة ' + names[kind] + '</h2><form id="qualityDocumentForm"><input type="hidden" name="category" value="' + kind + '"><input type="hidden" name="owner" value="شركة تيكنو سويل لاب"><div class="modal-grid"><label>الكود<input name="code" required placeholder="QMS-P-001"></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision" placeholder="Rev. 01"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>رفع ملف<input name="quality_file" type="file"></label><label>رابط بديل (اختياري)<input name="document_ref" type="url"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><p class="form-note">أي صيغة ملف حتى 100MB.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الوثيقة</button></div></form>');
   if (kind === 'proficiency') return modal('<h2>إضافة مشاركة اختبار كفاءة</h2><form id="proficiencyForm"><div class="modal-grid"><label>اسم الاختبار<input name="test_name" required></label><label>المادة<input name="material"></label><label>المعيار<input name="standard"></label><label>مقدم الخدمة<input name="provider"></label><label>تاريخ المشاركة<input name="participation_date" type="date"></label><label>النتيجة<input name="result"></label><label>Z-score<input name="z_score"></label><label>رفع تقرير<input name="quality_file" type="file"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ المشاركة</button></div></form>');
   if (kind === 'staff') return modal('<h2>إضافة سجل موظف للجودة</h2><form id="qualityStaffForm"><div class="modal-grid"><label>الاسم الكامل<input name="full_name" required></label><label>المسمى الوظيفي<input name="job_title"></label><label>التخصص<input name="specialty"></label><label>سنوات الخبرة<input name="experience_years" type="number" min="0"></label><label>رفع المؤهل<input name="qualification_file" type="file"></label><label>رفع السيرة الذاتية<input name="cv_file" type="file"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ السجل</button></div></form>');
 }
@@ -1678,8 +1785,8 @@ async function deleteQualityDocument(id) { if(!window.confirm('هل تريد ح�
 async function resetSyncQueue(){if(!window.confirm('سيتم حذف جميع نتائج وطابور المزامنة السابق والبدء من الصفر. هل تريد المتابعة؟'))return;const result=await api('/api/sync/reset',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' نتيجة وبدأ طابور مزامنة جديد');}
 async function resetOperationalData(){
   if(!window.confirm('سيتم إنشاء نسخة احتياطية ثم حذف جميع بيانات التشغيل وبقية المستخدمين نهائيًا، مع الإبقاء فقط على حساب المدير الحالي. هل تريد المتابعة؟'))return;
-  const phrase=window.prompt('للتأكيد النهائي اكتب: تصفير نظام أساس');
-  if(phrase!=='تصفير نظام أساس'){showToast('تم إلغاء التصفير؛ عبارة التأكيد غير مطابقة',true);return;}
+  const phrase=window.prompt('للتأكيد النهائي اكتب: تصفير نظام تيكنو');
+  if(phrase!=='تصفير نظام تيكنو'){showToast('تم إلغاء التصفير؛ عبارة التأكيد غير مطابقة',true);return;}
   const result=await api('/api/system/reset-operational',{method:'POST',body:JSON.stringify({confirmation:'RESET-ASAS-OPERATIONAL'})});
   await refresh(); showToast('تم تصفير بيانات التشغيل. النسخة الاحتياطية: '+result.backup);
 }
@@ -2717,6 +2824,11 @@ function bindEvents() {
   });
   $('addFieldTest').addEventListener('click',openFieldTestPicker);
   $('saveFieldVisit').addEventListener('click',saveFieldVisit);
+  if($('attendanceDate')){$('attendanceDate').value=attendanceDate;$('attendanceDate').addEventListener('change',function(){attendanceDate=this.value||saudiToday();loadAttendance().catch(function(error){showToast(error.message,true);});});}
+  if($('attendanceRefresh'))$('attendanceRefresh').addEventListener('click',function(){loadAttendance().catch(function(error){showToast(error.message,true);});});
+  if($('attendanceCheckIn'))$('attendanceCheckIn').addEventListener('click',function(){attendanceAction('checkIn').catch(function(error){showToast(error.message,true);loadAttendance().catch(function(){});});});
+  if($('attendanceUpdateLocation'))$('attendanceUpdateLocation').addEventListener('click',function(){attendanceAction('location').catch(function(error){showToast(error.message,true);loadAttendance().catch(function(){});});});
+  if($('attendanceCheckOut'))$('attendanceCheckOut').addEventListener('click',function(){attendanceAction('checkOut').catch(function(error){showToast(error.message,true);loadAttendance().catch(function(){});});});
   $('clearAudit').addEventListener('click',function(){clearAuditLog().catch(function(error){showToast(error.message,true);});});
   $('resetSyncQueue').addEventListener('click',function(){resetSyncQueue().catch(function(error){showToast(error.message,true);});});
   $('resetOperationalData').addEventListener('click',function(){resetOperationalData().catch(function(error){showToast(error.message,true);});});
@@ -2791,7 +2903,7 @@ function bindEvents() {
     if (button.dataset.whatsappCopy) {
       const draft = (dashboard.whatsapp_drafts || []).find(function(item) { return item.id === Number(button.dataset.whatsappCopy); });
       if (!draft) return;
-      try { await navigator.clipboard.writeText(draft.message_text); showToast('تم نسخ المسودة؛ الصقها في مجتمع مختبر أساس بعد المراجعة'); }
+      try { await navigator.clipboard.writeText(draft.message_text); showToast('تم نسخ المسودة؛ الصقها في مجتمع تيكنو سويل لاب بعد المراجعة'); }
       catch (error) { showToast('تعذر النسخ التلقائي؛ افتح المسودة وانسخ النص يدويًا',true); }
       return;
     }
