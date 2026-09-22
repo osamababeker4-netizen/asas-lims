@@ -1138,7 +1138,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.8.7-mobile-fit-release'", server)
+        self.assertIn("APP_VERSION = '10.9.0-system-review'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1456,7 +1456,7 @@ class SchemaMigrationTests(unittest.TestCase):
         server = (root / 'server.py').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.8.7-mobile-fit-release'", server)
+        self.assertIn("APP_VERSION = '10.9.0-system-review'", server)
         self.assertIn('v10-9-0-system-review', sw)
         self.assertIn('TECHNO LIMS', html)
         self.assertIn('V10.9.0 · Full System Review', html)
@@ -1505,7 +1505,7 @@ class SchemaMigrationTests(unittest.TestCase):
         app = (root / 'app-password.js').read_text(encoding='utf-8')
         schema = (root / 'schema.sql').read_text(encoding='utf-8')
         server = (root / 'server.py').read_text(encoding='utf-8')
-        self.assertIn("APP_VERSION = '10.8.7-mobile-fit-release'", server)
+        self.assertIn("APP_VERSION = '10.9.0-system-review'", server)
         self.assertIn('CREATE TABLE IF NOT EXISTS operational_tasks', schema)
         self.assertIn("path == '/api/operational-tasks'", server)
         self.assertIn('id="operationalWorkspace"', html)
