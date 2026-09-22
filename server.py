@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.8.3-techno-ui-fix-release'
+APP_VERSION = '10.8.5-techno-desktop-reset-release'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -47,7 +47,22 @@ LOGIN_WINDOW_SECONDS = int(os.environ.get('LIMS_LOGIN_WINDOW_SECONDS', '900'))
 LOGIN_MAX_ATTEMPTS = int(os.environ.get('LIMS_LOGIN_MAX_ATTEMPTS', '5'))
 LOGIN_ATTEMPTS = {}
 LOGIN_ATTEMPTS_LOCK = threading.Lock()
+
 BACKUP_DIR = os.environ.get('LIMS_BACKUP_DIR', os.path.join(BASE, 'backups'))
+
+OPERATIONAL_RESET_TABLES = [
+    'quotation_items','quotations','contracts','customer_complaints','corrective_actions',
+    'nonconformities','chain_of_custody','sample_result_entries','order_requests','inventory_items',
+    'maintenance_records','calibration_records','environmental_monitoring','training_records',
+    'field_visits','report_files','reports','proctor_points','proctor_results','test_data','tests',
+    'samples','work_orders','operational_tasks','projects','clients','equipment','quality_documents',
+    'proficiency_tests','quality_staff','quality_swot','quality_risks','quality_kpis','quality_actions',
+    'quality_cycle_steps','quality_cycles','record_attachments','catalog_resources','whatsapp_drafts',
+    'upload_receipts','trash_items','audit_log','sync_queue','suppliers','attendance_records',
+    'personnel_location_events'
+]
+RELEASE_RESET_MARKER = 'techno_v10_8_5_operational_reset_done'
+
 FIELD_MANUAL_SOURCE_URL = os.environ.get(
     'LIMS_FIELD_MANUAL_SOURCE_URL',
     "https://momah.gov.sa/sites/default/files/2024-12/aldlyl%20alshaml%20lla%27%60mal%20almdnyt%20llbnyt%20althtyt.pdf"
@@ -619,6 +634,51 @@ def refresh_user_sessions(user_id, **changes):
             account.update(changes)
 
 
+
+def perform_release_operational_reset(connection):
+    """One-time production reset for TECHNO V10.8.5.
+
+    Keeps user accounts, role access, system settings and the official test catalog.
+    All operational, quality, attendance, file, audit, trash and sync data is cleared.
+    A SQLite backup is written first and the settings marker prevents reruns.
+    """
+    if connection.execute('select 1 from settings where key=?', (RELEASE_RESET_MARKER,)).fetchone():
+        return None
+
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    backup_name = 'before-v10-8-5-operational-reset-' + stamp + '.sqlite3'
+    backup_target = os.path.join(BACKUP_DIR, backup_name)
+    destination = sqlite3.connect(backup_target)
+    try:
+        connection.backup(destination)
+    finally:
+        destination.close()
+
+    deleted = {}
+    connection.execute('PRAGMA foreign_keys=OFF')
+    try:
+        connection.execute('BEGIN IMMEDIATE')
+        for table in OPERATIONAL_RESET_TABLES:
+            if connection.execute("select 1 from sqlite_master where type='table' and name=?", (table,)).fetchone():
+                deleted[table] = connection.execute('select count(*) from ' + table).fetchone()[0]
+                connection.execute('delete from ' + table)
+                connection.execute("delete from sqlite_sequence where name=?", (table,))
+        connection.execute(
+            'insert or replace into settings(key,value) values(?,?)',
+            (RELEASE_RESET_MARKER, datetime.now(timezone.utc).isoformat())
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.execute('PRAGMA foreign_keys=ON')
+
+    print('TECHNO V10.8.5 operational reset completed; backup=' + backup_name)
+    return {'backup': backup_name, 'deleted': deleted}
+
+
 def init():
     for required_dir in (os.path.dirname(os.path.abspath(DB)), BACKUP_DIR, QUALITY_UPLOADS, RECORD_UPLOADS):
         os.makedirs(required_dir, exist_ok=True)
@@ -654,6 +714,7 @@ def init():
         )
         print('تم إنشاء حساب admin الأول باستخدام كلمة المرور المحلية التي وفرتها.')
     connection.commit()
+    perform_release_operational_reset(connection)
     connection.close()
 
 
@@ -2161,7 +2222,7 @@ class H(BaseHTTPRequestHandler):
                     connection.backup(destination)
                 finally:
                     destination.close()
-                operational_tables = ['quotation_items','quotations','contracts','customer_complaints','corrective_actions','nonconformities','chain_of_custody','sample_result_entries','order_requests','inventory_items','maintenance_records','calibration_records','environmental_monitoring','training_records','field_visits','report_files','reports','proctor_points','proctor_results','test_data','tests','samples','work_orders','operational_tasks','projects','clients','equipment','quality_documents','proficiency_tests','quality_staff','quality_swot','quality_risks','quality_kpis','quality_actions','quality_cycle_steps','quality_cycles','record_attachments','catalog_resources','whatsapp_drafts','upload_receipts','trash_items','audit_log','sync_queue','suppliers']
+                operational_tables = OPERATIONAL_RESET_TABLES
                 connection.execute('PRAGMA foreign_keys=OFF')
                 try:
                     connection.execute('BEGIN IMMEDIATE')
