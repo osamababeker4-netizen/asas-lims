@@ -7,8 +7,8 @@
   "start_url": "./?release=10-8-5-techno-exact-ui",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f4f9fd",
-  "theme_color": "#0874c6",
+  "background_color": "#f1f7fb",
+  "theme_color": "#0b73bd",
   "icons": [
     {
       "src": "techno-logo.svg",
