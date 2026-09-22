@@ -7,14 +7,14 @@ import urllib.request
 API='https://asas-lims-api.onrender.com'
 PAGES='https://osamababeker4-netizen.github.io/asas-lims/'
 ORIGIN='https://osamababeker4-netizen.github.io'
-EXPECTED_VERSION='10.8.1-internal-file-editing-release'
+EXPECTED_VERSION='10.9.0-system-review'
 STRICT_PRODUCTION=os.environ.get('GITHUB_REF') == 'refs/heads/main'
 
 def once(req):
     with urllib.request.urlopen(req, timeout=30) as response:
         return response.status, dict(response.headers), response.read()
 
-def retry(check, attempts=18, delay=10):
+def retry(check, attempts=8, delay=8):
     last=None
     for i in range(attempts):
         try:
