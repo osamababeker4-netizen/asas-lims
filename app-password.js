@@ -748,6 +748,7 @@ function applyCurrentUserIdentity(user) {
   currentUser = Object.assign({}, currentUser || {}, user);
   setText($('currentUsername'), currentUser.full_name || currentUser.username || 'مستخدم');
   setText($('currentUser'), ROLE_NAMES[currentUser.role] || currentUser.role || 'مستخدم');
+  setText($('dashboardWelcomeName'), currentUser.full_name || currentUser.username || 'مستخدم');
   $('currentUserAvatar').src = currentUser.avatar_data_url || 'techno-logo.svg';
   updateProfileMenuAccess();
 }
@@ -977,6 +978,28 @@ function renderDashboard() {
   setText($('metricReports'), dashboard.counts.reports || 0);
   setText($('metricReview'), (dashboard.alerts.awaiting_review || []).length);
   setText($('metricSync'), dashboard.counts.sync_queue || 0);
+  const att=dashboard.attendance_summary||{};
+  const rate=Number(att.rate)||0;
+  setText($('dashboardAttendanceRate'), rate+'%');
+  setText($('dashboardAttendanceRingValue'), rate+'%');
+  setText($('dashboardAttendanceCaption'), (Number(att.registered)||0)+' من '+(Number(att.active_users)||0)+' مسجل');
+  setText($('dashboardPresent'), att.present||0);
+  setText($('dashboardCheckedOut'), att.checked_out||0);
+  setText($('dashboardNotRegistered'), att.not_registered||0);
+  if($('dashboardAttendanceRing')) $('dashboardAttendanceRing').style.setProperty('--attendance-pct',String(rate));
+  setText($('dashboardCalibrationDue'), dashboard.calibration_due_count||0);
+  const tests=dashboard.tests||[];
+  const categoryCount=function(names){return tests.filter(function(t){return names.indexOf(String(t.category||''))>=0;}).length;};
+  setText($('dashConcreteCount'),categoryCount(['خرسانة','الخرسانة','Concrete']));
+  setText($('dashSoilCount'),categoryCount(['تربة','التربة','Soil']));
+  setText($('dashAsphaltCount'),categoryCount(['أسفلت','الأسفلت','Asphalt']));
+  setText($('dashFieldCount'),categoryCount(['الحقل وNDT','ميداني','Field'])+(Number(dashboard.counts.field_visits)||0));
+  if($('dashboardToday')) setText($('dashboardToday'),new Intl.DateTimeFormat('ar-SA',{weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(new Date()));
+  if($('dashboardRecentRows')){
+    setHtml($('dashboardRecentRows'),(dashboard.samples||[]).slice(0,5).map(function(s){
+      return '<tr><td><strong>'+esc(s.sample_no||'—')+'</strong></td><td>'+esc(s.project_name||s.project_code||'—')+'</td><td>'+escUI(s.material||s.sample_type||'—')+'</td><td>'+statusChip(s.status||'—')+'</td><td>'+esc(saudiDisplay(s.received_at||s.created_at||''))+'</td></tr>';
+    }).join('')||'<tr><td colspan="5" class="empty">لا توجد عينات مسجلة بعد.</td></tr>');
+  }
   const pending = dashboard.counts.sync_queue || 0;
   setText($('syncIndicator'), 'المزامنة المباشرة: متصلة' +
     (pending ? ' · ' + pending + ' عملية مسجلة' : ''));
@@ -2788,6 +2811,15 @@ function bindEvents() {
   document.querySelectorAll('.nav-link[data-page]').forEach(function(button) { button.addEventListener('click',function() { navigate(button.dataset.page); }); });
   document.querySelectorAll('[data-open-project]').forEach(function(button) { button.addEventListener('click',function() { openProjectForm(); }); });
   document.querySelectorAll('[data-page-go]').forEach(function(button) { button.addEventListener('click',function() { navigate(button.dataset.pageGo); }); });
+  if($('globalSearch')) $('globalSearch').addEventListener('keydown',function(event){
+    if(event.key!=='Enter') return;
+    event.preventDefault();
+    const q=String(this.value||'').trim().toLowerCase();
+    if(!q) return;
+    const hit=Array.from(document.querySelectorAll('.nav-link[data-page]')).find(function(button){return button.textContent.trim().toLowerCase().includes(q);});
+    if(hit){navigate(hit.dataset.page);return;}
+    if($('projectSearch')){$('projectSearch').value=q;navigate('projects');renderProjects();}
+  });
   document.querySelectorAll('.view-btn').forEach(function(button) { button.addEventListener('click',function() { setProjectView(button.dataset.projectView); }); });
   if($('refreshDecisionIntelligence'))$('refreshDecisionIntelligence').addEventListener('click',function(){refresh().then(function(){showToast('تم تحديث التحليل من البيانات الحالية');}).catch(function(error){showToast(error.message,true);});});
   if($('exportDecisionIntelligence'))$('exportDecisionIntelligence').addEventListener('click',function(){try{exportDecisionIntelligence();}catch(error){showToast(error.message,true);}});
