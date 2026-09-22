@@ -8,15 +8,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="logo.png">
+  <link rel="apple-touch-icon" href="techno-logo.svg">
   <title>TECHNO LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-8-2-techno-attendance-release">
+  <link rel="stylesheet" href="style.css?v=10-8-3-techno-ui-fix">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
-      <img src="logo.png" class="login-logo" alt="شعار شركة تيكنو سويل لاب">
-      <span class="login-edition">ASAS LIMS · V10.8.2 Team Attendance Release</span>
+      <img src="techno-logo.svg" class="login-logo" alt="شعار شركة تيكنو سويل لاب">
+      <span class="login-edition">TECHNO LIMS · V10.8.3 Mobile UI Fix</span>
       <h1>تسجيل الدخول</h1>
       <form id="loginForm" class="form-stack">
         <label>رقم الجوال<input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="+9665XXXXXXXX"></label>
@@ -40,10 +40,10 @@
   <div id="app" class="app-shell hidden">
     <aside id="sidebar" class="sidebar">
       <div class="brand">
-        <img src="logo.png" alt="شعار شركة تيكنو سويل لاب">
+        <img src="techno-logo.svg" alt="شعار شركة تيكنو سويل لاب">
         <strong>تيكنو سويل لاب</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.8.2 · Team Attendance Release</small>
+        <small class="release-chip">V10.8.3 · Mobile UI Fix</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
@@ -73,10 +73,10 @@
     <main class="main-content">
       <header class="official-header" aria-label="هوية تيكنو سويل لاب">
         <a class="official-brand" href="https://techno-soil-lab.com/" target="_blank" rel="noopener noreferrer">
-          <img src="logo.png" alt="شركة تيكنو سويل لاب للاختبارات والتربة والتحليل الفيزيائي">
+          <img src="techno-logo.svg" alt="شركة تيكنو سويل لاب للاختبارات والتربة والتحليل الفيزيائي">
           <span><strong>تيكنو سويل لاب</strong><small>بيانات هندسية دقيقة لكل مرحلة من مشروعك</small></span>
         </a>
-        <nav class="official-links" aria-label="روابط أساس الرسمية">
+        <nav class="official-links" aria-label="روابط تيكنو الرسمية">
           <a href="https://techno-soil-lab.com/" target="_blank" rel="noopener noreferrer">الموقع الرسمي</a>
           <button class="text-btn" type="button" data-page-go="company">عن الشركة</button>
           <button class="text-btn" type="button" data-page-go="projects">المشاريع</button>
@@ -101,7 +101,7 @@
         </div>
         <div class="profile-menu-wrap">
           <button id="profileMenuToggle" class="profile-summary fixed-profile" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="إعدادات المستخدم">
-            <img id="currentUserAvatar" class="user-avatar" src="logo.png" alt="صورة المستخدم">
+            <img id="currentUserAvatar" class="user-avatar" src="techno-logo.svg" alt="صورة المستخدم">
             <span><strong id="currentUsername">اسم المستخدم</strong><small id="currentUser">الصفة</small></span>
           </button>
           <div id="profileMenu" class="profile-mini-menu hidden" role="menu">
@@ -117,11 +117,11 @@
       </header>
 
       <section id="dashboard" class="page active">
-        <article class="dashboard-brand-hero dashboard-logo-only">
-          <picture class="dashboard-brand-lockup">
-            <source media="(max-width:620px)" srcset="asas-home-banner-mobile.png">
-            <img src="asas-home-banner.png" class="dashboard-brand-logo dashboard-home-banner" alt="بانر شركة تيكنو سويل لاب">
-          </picture>
+        <article class="dashboard-brand-hero techno-dashboard-hero">
+          <div class="techno-dashboard-lockup">
+            <img src="techno-logo.svg" class="dashboard-brand-logo techno-dashboard-logo" alt="شعار تيكنو سويل لاب">
+            <div><span>TECHNO Soil Lab</span><strong>إدارة المختبر والمشاريع والجودة</strong><small>Laboratory · Field · Quality · Attendance</small></div>
+          </div>
         </article>
         <div class="page-heading">
           <div><h2>نظرة تشغيلية</h2><p>الأولويات، الأعمال المتأخرة، وحالة سلسلة العينة حتى التقرير.</p></div>
@@ -331,7 +331,7 @@
 
       <section id="equipment" class="page">
         <div class="page-heading"><div><h2>الأجهزة والمعايرة</h2><p>أضف جهازاً واحداً أو استورد كل الأجهزة والمعايرات من ملف Excel/CSV دفعة واحدة.</p></div><div class="heading-actions"><button class="btn secondary smart-import-edge" data-smart-import="equipment" type="button">إرفاق ملف</button><button id="openEquipment" class="btn primary" type="button">+ جهاز</button></div></div>
-        <article class="panel equipment-import-panel"><div class="panel-heading"><div><h3>استيراد الأجهزة والمعايرات</h3><p class="muted">اختر ملف Excel الأصلي بصيغة XLSX أو ملف CSV؛ سيتعرف النظام على جدول الأجهزة ويرتب بياناته تلقائيًا.</p></div><button class="text-btn" data-quality-template="equipment" type="button">تنزيل قالب Excel</button></div><div class="equipment-import-actions"><input id="equipmentImport" class="quality-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><button class="btn primary" data-quality-import="equipment" type="button">استيراد كل الأجهزة</button></div><p class="form-note">يدعم قالب ASAS-F-6.4.1 مباشرة، ويستورد أكبر ورقة أجهزة مع تحديث السجلات الموجودة دون تكرارها.</p></article>
+        <article class="panel equipment-import-panel"><div class="panel-heading"><div><h3>استيراد الأجهزة والمعايرات</h3><p class="muted">اختر ملف Excel الأصلي بصيغة XLSX أو ملف CSV؛ سيتعرف النظام على جدول الأجهزة ويرتب بياناته تلقائيًا.</p></div><button class="text-btn" data-quality-template="equipment" type="button">تنزيل قالب Excel</button></div><div class="equipment-import-actions"><input id="equipmentImport" class="quality-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><button class="btn primary" data-quality-import="equipment" type="button">استيراد كل الأجهزة</button></div><p class="form-note">يدعم قالب قائمة الأجهزة الحالي تلقائيًا، ويستورد أكبر ورقة أجهزة مع تحديث السجلات الموجودة دون تكرارها.</p></article>
         <div class="panel table-panel equipment-table-shell"><table class="equipment-technical-table"><thead><tr><th>كود الجهاز</th><th>الجهاز</th><th>الرقم التسلسلي</th><th>القسم</th><th>النطاق</th><th>حالة التحقق</th><th>معاير حتى</th><th>الصيانة</th><th>الملاحظات</th><th></th></tr></thead><tbody id="equipmentTable"></tbody></table></div>
       </section>
 
@@ -557,7 +557,7 @@
 
       <footer class="official-footer">
         <div class="footer-brand">
-          <img src="logo.png" alt="شعار تيكنو سويل لاب">
+          <img src="techno-logo.svg" alt="شعار تيكنو سويل لاب">
           <p>تيكنو سويل لاب للاستشارات الفنية والمختبرات الهندسية — إدارة تشغيلية آمنة للمشاريع والاختبارات والتقارير.</p>
         </div>
         <div><h3>روابط سريعة</h3><button class="footer-link" type="button" data-page-go="dashboard">لوحة القيادة</button><button class="footer-link" type="button" data-page-go="projects">المشاريع</button><button class="footer-link" type="button" data-page-go="catalog">دليل الاختبارات</button></div>
@@ -575,18 +575,18 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="runtime-config.js?v=10-8-2-techno-attendance-release"></script>
-  <script src="i18n.js?v=10-8-2-techno-attendance-release"></script>
-  <script src="app-password.js?v=10-8-2-techno-attendance-release"></script>
-  <script src="quality-management.js?v=10-8-2-techno-attendance-release"></script>
-  <script src="branch-map.js?v=10-8-2-techno-attendance-release"></script>
+  <script src="runtime-config.js?v=10-8-3-techno-ui-fix"></script>
+  <script src="i18n.js?v=10-8-3-techno-ui-fix"></script>
+  <script src="app-password.js?v=10-8-3-techno-ui-fix"></script>
+  <script src="quality-management.js?v=10-8-3-techno-ui-fix"></script>
+  <script src="branch-map.js?v=10-8-3-techno-ui-fix"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-8-2-techno-attendance-release'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return (key.startsWith('asas-lims-pwa-') || key.startsWith('techno-lims-pwa-')) && key !== 'asas-lims-pwa-v10-8-3-techno-ui-fix'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-8-2-techno-attendance-release', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-8-3-techno-ui-fix', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>
@@ -594,7 +594,7 @@
 (function() {
   const TELEGRAM_SETTINGS = {
     // Never store the bot token in the public GitHub Pages bundle.
-    // Telegram delivery is handled by the authenticated ASAS backend.
+    // Telegram delivery is handled by the authenticated TECHNO backend.
     endpoint: ((window.LIMS_API_BASE_URL || '').replace(/\/+$/, '')) + '/api/telegram/draft'
   };
 
