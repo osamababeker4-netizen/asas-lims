@@ -10,7 +10,24 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-8-7-equipment-ui">
+  <meta name="asas-ui-release" content="10-8-8-refresh-control">
+  <script>
+    (function () {
+      var baseRelease = '10-8-8-refresh-control';
+      var requested = new URLSearchParams(location.search).get('release') || '';
+      var safe = /^[A-Za-z0-9._-]{1,80}$/.test(requested) ? requested : baseRelease;
+      window.ASAS_UI_RELEASE = safe;
+      document.documentElement.setAttribute('data-release', safe);
+    })();
+  </script>
+  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-8-8-refresh-control">
+  <script>
+    (function () {
+      var link = document.getElementById('asasMainStyle');
+      var release = window.ASAS_UI_RELEASE || '10-8-8-refresh-control';
+      if (link) link.href = 'style.css?v=' + encodeURIComponent(release);
+    })();
+  </script>
 </head>
 <body>
   <section id="login" class="login-screen">
@@ -29,7 +46,7 @@
       </section>
       <div class="login-card">
         <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-        <span class="login-edition">ASAS LIMS · V10.8.4</span>
+        <span class="login-edition">ASAS LIMS · V10.8.8</span>
         <h1>تسجيل الدخول</h1>
         <p class="login-welcome">مرحباً بك في نظام إدارة المختبرات</p>
         <form id="loginForm" class="form-stack">
@@ -59,7 +76,7 @@
         <img src="logo.png" alt="شعار شركة مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.8.4 · Responsive Signature UI</small>
+        <small class="release-chip">V10.8.8 · Refresh Control</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
@@ -559,20 +576,43 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="runtime-config.js?v=10-8-7-equipment-ui"></script>
-  <script src="i18n.js?v=10-8-7-equipment-ui"></script>
-  <script src="app-password.js?v=10-8-7-equipment-ui"></script>
-  <script src="quality-management.js?v=10-8-7-equipment-ui"></script>
-  <script src="branch-map.js?v=10-8-7-equipment-ui"></script>
-<script>
-    if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () {
-        if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-8-7-equipment-ui'; }).map(function (key) { return caches.delete(key); }));
-        }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-8-7-equipment-ui', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+  <script>
+    (function () {
+      var release = encodeURIComponent(window.ASAS_UI_RELEASE || '10-8-8-refresh-control');
+      ['runtime-config.js','i18n.js','app-password.js','quality-management.js','branch-map.js'].forEach(function (src) {
+        document.write('<script src="' + src + '?v=' + release + '"><\\/script>');
       });
-    }
+    })();
+  </script>
+<script>
+    (function () {
+      var release = window.ASAS_UI_RELEASE || '10-8-8-refresh-control';
+      var releaseKey = 'asas_lims_last_ui_release';
+      var previousRelease = '';
+      try { previousRelease = localStorage.getItem(releaseKey) || ''; } catch (_error) {}
+
+      function clearAsasCaches() {
+        if (!('caches' in window)) return Promise.resolve();
+        return caches.keys().then(function (keys) {
+          return Promise.all(keys.filter(function (key) {
+            return key.startsWith('asas-lims-pwa-');
+          }).map(function (key) { return caches.delete(key); }));
+        });
+      }
+
+      if (release && previousRelease !== release) {
+        clearAsasCaches().catch(function () {});
+        try { localStorage.setItem(releaseKey, release); } catch (_error) {}
+      }
+
+      if ('serviceWorker' in navigator && location.protocol === 'https:') {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js?v=' + encodeURIComponent(release), {updateViaCache:'none'})
+            .then(function (registration) { return registration.update(); })
+            .catch(function () {});
+        });
+      }
+    })();
   </script>
 <script>
 (function() {
