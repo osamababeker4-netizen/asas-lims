@@ -2816,3 +2816,231 @@ input:focus,select:focus,textarea:focus{
   }
 }
 
+/* V10.8.7 — Equipment workspace + modal refinement */
+#equipment .equipment-import-panel{
+  position:relative;
+  overflow:hidden;
+  border:1px solid #d8e7ed!important;
+  background:
+    linear-gradient(115deg,rgba(255,255,255,.99),rgba(240,248,250,.95))!important;
+}
+#equipment .equipment-import-panel::before{
+  content:"";
+  position:absolute;
+  top:0;right:0;left:0;
+  height:4px;
+  background:linear-gradient(90deg,#e78a2f,#0f8fa5 42%,#0a3348);
+}
+#equipment .equipment-import-panel h3{
+  color:#0a4058!important;
+}
+#equipment .equipment-import-actions{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:12px!important;
+  align-items:center!important;
+}
+#equipment .quality-file{
+  min-height:46px!important;
+  padding:8px 10px!important;
+  border:1px dashed #b9d5df!important;
+  border-radius:11px!important;
+  background:#fbfdfe!important;
+}
+#equipment .equipment-table-shell{
+  padding:0!important;
+  border:1px solid #d6e5eb!important;
+  box-shadow:0 12px 30px rgba(12,63,84,.065)!important;
+}
+#equipment .equipment-technical-table{
+  min-width:1180px!important;
+}
+#equipment .equipment-technical-table thead th{
+  position:sticky!important;
+  top:0!important;
+  z-index:2!important;
+  padding:13px 12px!important;
+  background:linear-gradient(180deg,#0f6079,#0b4b64)!important;
+  color:#fff!important;
+  border-bottom:0!important;
+  font-size:.78rem!important;
+  white-space:nowrap!important;
+}
+#equipment .equipment-technical-table tbody td{
+  padding:11px 12px!important;
+  border-bottom:1px solid #e7eff2!important;
+  color:#274c5d!important;
+  vertical-align:middle!important;
+}
+#equipment .equipment-technical-table tbody tr:nth-child(even){
+  background:#f8fbfc!important;
+}
+#equipment .equipment-technical-table tbody tr:hover{
+  background:#edf8fa!important;
+}
+#equipment .equipment-technical-table td:last-child{
+  min-width:120px!important;
+}
+
+/* modal — stronger hierarchy, cleaner grouping, better desktop fit */
+.modal{
+  padding:24px!important;
+  background:rgba(7,34,49,.68)!important;
+  backdrop-filter:blur(6px);
+}
+.modal-card{
+  width:min(940px,calc(100vw - 48px))!important;
+  max-height:min(90vh,860px)!important;
+  padding:30px 30px 24px!important;
+  border:1px solid rgba(255,255,255,.92)!important;
+  border-radius:22px!important;
+  background:
+    linear-gradient(180deg,#ffffff 0%,#fbfdfe 100%)!important;
+  box-shadow:0 34px 90px rgba(3,31,46,.34)!important;
+}
+.modal-card::before{
+  content:"";
+  position:absolute;
+  top:0;right:0;left:0;
+  height:5px;
+  border-radius:22px 22px 0 0;
+  background:linear-gradient(90deg,#e78a2f,#0f8fa5 46%,#0a3348);
+}
+.modal-card h2{
+  margin:2px 0 4px!important;
+  padding-left:42px;
+  color:#0a4058!important;
+  font-size:1.34rem!important;
+  font-weight:900!important;
+}
+.modal-card>p{
+  margin-bottom:20px!important;
+  color:#718792!important;
+}
+.modal-close{
+  top:14px!important;
+  left:14px!important;
+  width:34px!important;
+  height:34px!important;
+  border:1px solid #dae8ed!important;
+  border-radius:50%!important;
+  background:#f6fafb!important;
+  color:#52717e!important;
+  box-shadow:0 4px 12px rgba(12,63,84,.06)!important;
+}
+.modal-close:hover{
+  background:#fff1e6!important;
+  border-color:#f0c49e!important;
+  color:#a85c1e!important;
+}
+.modal-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:14px 16px!important;
+}
+.modal-grid label,
+.modal-card .form-stack label{
+  display:grid!important;
+  gap:7px!important;
+  color:#355e70!important;
+  font-size:.81rem!important;
+  font-weight:800!important;
+}
+.modal-grid input,
+.modal-grid select,
+.modal-grid textarea,
+.modal-card .form-stack input,
+.modal-card .form-stack select,
+.modal-card .form-stack textarea{
+  min-height:46px!important;
+  padding:10px 12px!important;
+  border:1px solid #cedfe6!important;
+  border-radius:10px!important;
+  background:#fff!important;
+  color:#173f52!important;
+  box-shadow:0 1px 2px rgba(9,51,72,.025) inset!important;
+}
+.modal-grid textarea,
+.modal-card .form-stack textarea{
+  min-height:92px!important;
+  resize:vertical!important;
+}
+.modal-grid input:focus,
+.modal-grid select:focus,
+.modal-grid textarea:focus,
+.modal-card .form-stack input:focus,
+.modal-card .form-stack select:focus,
+.modal-card .form-stack textarea:focus{
+  border-color:#0f8fa5!important;
+  box-shadow:0 0 0 3px rgba(15,143,165,.10)!important;
+}
+.modal-card input[type="file"]{
+  padding:7px!important;
+  border-style:dashed!important;
+  background:#f7fbfc!important;
+}
+.modal-actions{
+  position:sticky;
+  bottom:-24px;
+  z-index:3;
+  margin:22px -30px -24px!important;
+  padding:15px 30px 18px!important;
+  border-top:1px solid #e1ebef!important;
+  background:rgba(255,255,255,.97)!important;
+  backdrop-filter:blur(10px);
+}
+.modal-actions .btn{
+  min-width:120px!important;
+  min-height:44px!important;
+}
+.modal-actions .btn.primary{
+  background:linear-gradient(100deg,#0b526b,#0f8fa5)!important;
+}
+.modal-actions .btn.secondary{
+  background:#f4f8fa!important;
+}
+
+/* make dense equipment edit forms breathe without wasting space */
+.modal-card:has(input[name="serial_no"]) .modal-grid,
+.modal-card:has(input[name="equipment_code"]) .modal-grid{
+  padding:4px 2px 2px!important;
+}
+.modal-card:has(input[name="serial_no"]) label:has(textarea),
+.modal-card:has(input[name="equipment_code"]) label:has(textarea){
+  grid-column:1/-1;
+}
+
+@media(max-width:900px){
+  #equipment .equipment-import-actions{
+    grid-template-columns:1fr!important;
+  }
+  .modal{
+    padding:10px!important;
+    align-items:start!important;
+  }
+  .modal-card{
+    width:100%!important;
+    max-height:calc(100svh - 20px)!important;
+    margin:0!important;
+    padding:24px 16px 18px!important;
+    border-radius:18px!important;
+  }
+  .modal-card h2{
+    padding-left:38px;
+    font-size:1.16rem!important;
+  }
+  .modal-grid{
+    grid-template-columns:1fr!important;
+    gap:11px!important;
+  }
+  .modal-actions{
+    bottom:-18px;
+    margin:18px -16px -18px!important;
+    padding:12px 16px 14px!important;
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+  }
+  .modal-actions .btn{
+    width:100%!important;
+    min-width:0!important;
+  }
+}
