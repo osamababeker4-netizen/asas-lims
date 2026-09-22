@@ -4,13 +4,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="color-scheme" content="light">
-  <meta name="theme-color" content="#0b1f33">
+  <meta name="theme-color" content="#0a3859">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="techno-logo.svg">
   <title>TECHNO LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-8-7-mobile-fit">
+  <meta name="techno-ui-release" content="10-9-0-system-review">
+  <script>
+    (function () {
+      var baseRelease = '10-9-0-system-review';
+      var requested = new URLSearchParams(location.search).get('release') || '';
+      var safe = /^[A-Za-z0-9._-]{1,80}$/.test(requested) ? requested : baseRelease;
+      window.TECHNO_UI_RELEASE = safe;
+      document.documentElement.setAttribute('data-release', safe);
+    })();
+  </script>
+  <link id="technoMainStyle" rel="stylesheet" href="style.css?v=10-9-0-system-review">
+  <script>
+    (function () {
+      var link = document.getElementById('technoMainStyle');
+      var release = window.TECHNO_UI_RELEASE || '10-9-0-system-review';
+      if (link) link.href = 'style.css?v=' + encodeURIComponent(release);
+    })();
+  </script>
 <script>
   (function () {
     const root = document.documentElement;
@@ -70,8 +87,8 @@
           <h1>تسجيل الدخول</h1>
           <p class="techno-login-welcome">مرحباً بكم في نظام المختبرات</p>
           <form id="loginForm" class="form-stack techno-login-form">
-            <label>رقم الجوال
-              <div class="techno-input-wrap"><span class="techno-input-icon">▯</span><input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="05XXXXXXXX"></div>
+            <label>رقم الجوال أو اسم المستخدم
+              <div class="techno-input-wrap"><span class="techno-input-icon">▯</span><input id="loginUsername" name="username" autocomplete="username" inputmode="text" required placeholder="05XXXXXXXX أو اسم المستخدم"></div>
             </label>
             <label>كلمة المرور
               <div class="techno-input-wrap"><span class="techno-input-icon">♙</span><input id="loginPassword" name="password" autocomplete="current-password" type="password" required placeholder="أدخل كلمة المرور"></div>
@@ -103,7 +120,7 @@
         <img src="techno-logo.svg" alt="شعار شركة تيكنو سويل لاب">
         <strong>تيكنو سويل لاب</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.8.7 · Mobile Fit</small>
+        <small class="release-chip">V10.9.0 · Full System Review</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
@@ -676,20 +693,37 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="runtime-config.js?v=10-8-7-mobile-fit"></script>
-  <script src="i18n.js?v=10-8-7-mobile-fit"></script>
-  <script src="app-password.js?v=10-8-7-mobile-fit"></script>
-  <script src="quality-management.js?v=10-8-7-mobile-fit"></script>
-  <script src="branch-map.js?v=10-8-7-mobile-fit"></script>
+  <script src="runtime-config.js?v=10-9-0-system-review"></script>
+  <script src="i18n.js?v=10-9-0-system-review"></script>
+  <script src="app-password.js?v=10-9-0-system-review"></script>
+  <script src="quality-management.js?v=10-9-0-system-review"></script>
+  <script src="branch-map.js?v=10-9-0-system-review"></script>
 <script>
-    if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      window.addEventListener('load', function () {
-        if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return (key.startsWith('asas-lims-pwa-') || key.startsWith('techno-lims-pwa-')) && key !== 'techno-lims-pwa-v10-8-7-mobile-fit'; }).map(function (key) { return caches.delete(key); }));
-        }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-8-7-mobile-fit', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
-      });
-    }
+    (function () {
+      var release = window.TECHNO_UI_RELEASE || '10-9-0-system-review';
+      var releaseKey = 'techno_lims_last_ui_release';
+      var previousRelease = '';
+      try { previousRelease = localStorage.getItem(releaseKey) || ''; } catch (_error) {}
+      function clearTechnoCaches() {
+        if (!('caches' in window)) return Promise.resolve();
+        return caches.keys().then(function (keys) {
+          return Promise.all(keys.filter(function (key) {
+            return key.startsWith('techno-lims-pwa-');
+          }).map(function (key) { return caches.delete(key); }));
+        });
+      }
+      if (release && previousRelease !== release) {
+        clearTechnoCaches().catch(function () {});
+        try { localStorage.setItem(releaseKey, release); } catch (_error) {}
+      }
+      if ('serviceWorker' in navigator && location.protocol === 'https:') {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js?v=' + encodeURIComponent(release), {updateViaCache:'none'})
+            .then(function (registration) { return registration.update(); })
+            .catch(function () {});
+        });
+      }
+    })();
   </script>
 <script>
 (function() {
