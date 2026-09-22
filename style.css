@@ -2358,3 +2358,56 @@ button.decision-list-row:hover{border-color:#88bbc7;background:#f7fcfd}
   }
 }
 
+
+
+/* V10.8.5 — login/app visibility and overlap guard */
+#login.hidden,
+.login-screen.hidden{
+  display:none!important;
+}
+
+#app.hidden,
+.app-shell.hidden{
+  display:none!important;
+}
+
+#login:not(.hidden){
+  position:fixed!important;
+  inset:0!important;
+  z-index:1000!important;
+  width:100%!important;
+  max-width:100vw!important;
+  overflow:auto!important;
+}
+
+.login-stage,
+.login-stage > *{
+  min-width:0;
+}
+
+@media(min-width:901px) and (max-width:1360px){
+  .login-stage{
+    grid-template-columns:minmax(0,1fr) minmax(360px,430px)!important;
+  }
+  .login-showcase{
+    padding-inline:clamp(24px,3vw,44px)!important;
+  }
+  .login-showcase-copy{
+    width:min(560px,88%)!important;
+  }
+}
+
+@media(max-width:900px){
+  #login:not(.hidden){
+    position:fixed!important;
+    inset:0!important;
+  }
+  .login-stage{
+    width:100%!important;
+    grid-template-columns:1fr!important;
+  }
+  .login-card,
+  .login-showcase{
+    max-width:100%!important;
+  }
+}
