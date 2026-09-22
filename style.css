@@ -1294,3 +1294,32 @@ button.decision-list-row:hover{border-color:#88bbc7;background:#f7fcfd}
   }
   body.decision-print-mode .decision-report{border:0!important;padding:0!important}
 }
+
+
+/* TECHNO V10.8.2 attendance */
+:root{
+  --ink:#102a43;--muted:#61758a;--canvas:#f4f7fb;--line:#d8e2ec;
+  --primary:#1769aa;--primary-deep:#0d365f;--orange:#ef8d22;--orange-soft:#fff2e3;
+  --green:#21866f;--red:#bd4f4c;--shadow:0 14px 32px rgba(13,54,95,.10);
+}
+.sidebar{background:linear-gradient(180deg,#0b2c4f 0%,#0d365f 68%,#102a43 100%)!important}
+.nav-link:hover,.nav-link.active{background:linear-gradient(90deg,#ef8d22,#d97717)!important;color:#fff}
+.official-header{background:linear-gradient(110deg,#0b2c4f 0%,#1769aa 72%,#ef8d22 100%)!important}
+.topbar{border-right-color:var(--orange)!important}
+.progress span{background:linear-gradient(90deg,#1769aa,#ef8d22)!important}
+.page table.engineering-table thead th,.equipment-technical-table thead th{background:linear-gradient(180deg,#1769aa 0%,#0d365f 100%)!important;border-bottom-color:#ef8d22!important}
+.attendance-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.35fr);gap:18px}
+.attendance-self-card,.attendance-manager-panel{border-top:5px solid var(--orange)}
+.attendance-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 16px}
+.attendance-kpis div{padding:12px;border:1px solid var(--line);border-radius:12px;background:#f8fbff}
+.attendance-kpis span,.attendance-kpis strong{display:block}.attendance-kpis span{color:var(--muted);font-size:.76rem}.attendance-kpis strong{margin-top:4px;color:var(--primary-deep);font-size:.9rem}
+.attendance-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.attendance-location-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #cdddea;border-radius:12px;background:linear-gradient(135deg,#eef6fc,#fff8ef)}
+.attendance-location-card div{display:grid;gap:3px}.attendance-location-card small{color:var(--muted)}
+.attendance-event-list{display:grid;gap:7px;max-height:220px;overflow:auto;margin-top:14px}
+.attendance-event{display:grid;grid-template-columns:1fr auto;gap:3px 12px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.attendance-event small{grid-column:1/-1;color:var(--muted)}
+.attendance-date-label{display:grid;gap:4px;font-size:.75rem;font-weight:800;color:var(--muted)}.attendance-date-label input{padding:8px}
+.attendance-manager-panel .table-panel{max-height:66vh}
+@media(max-width:1000px){.attendance-grid{grid-template-columns:1fr}.attendance-manager-panel{order:2}}
+@media(max-width:620px){.attendance-kpis{grid-template-columns:1fr}.attendance-actions{grid-template-columns:1fr}.attendance-location-card{align-items:stretch;flex-direction:column}.attendance-location-card .btn{width:100%}}
