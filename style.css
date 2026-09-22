@@ -1323,3 +1323,129 @@ button.decision-list-row:hover{border-color:#88bbc7;background:#f7fcfd}
 .attendance-manager-panel .table-panel{max-height:66vh}
 @media(max-width:1000px){.attendance-grid{grid-template-columns:1fr}.attendance-manager-panel{order:2}}
 @media(max-width:620px){.attendance-kpis{grid-template-columns:1fr}.attendance-actions{grid-template-columns:1fr}.attendance-location-card{align-items:stretch;flex-direction:column}.attendance-location-card .btn{width:100%}}
+
+
+/* TECHNO V10.8.3 UI identity + mobile overlap fix */
+:root{
+  --techno-navy:#082f52;
+  --techno-navy-2:#0b426e;
+  --techno-blue:#0e629f;
+  --techno-blue-2:#1780bd;
+  --techno-orange:#f28c28;
+  --techno-orange-deep:#d66f0d;
+  --techno-canvas:#f3f7fa;
+  --techno-line:#d8e4ec;
+  --canvas:var(--techno-canvas);
+  --primary:var(--techno-blue);
+  --primary-deep:var(--techno-navy);
+  --orange:var(--techno-orange);
+  --orange-soft:#fff1e2;
+  --line:var(--techno-line);
+  --asas-navy:var(--techno-navy);
+  --asas-navy-2:var(--techno-navy-2);
+  --asas-blue:var(--techno-blue);
+  --asas-turquoise:var(--techno-blue-2);
+  --asas-gold:var(--techno-orange);
+  --asas-gold-deep:var(--techno-orange-deep);
+}
+html,body{max-width:100%;overflow-x:hidden;background:var(--techno-canvas)!important}
+body{color:#153247}
+.app-shell,.main-content,.page,.panel,.table-panel,.engineering-table-wrap,.qc-window-body,.attendance-grid,.attendance-self-card,.attendance-manager-panel{min-width:0;max-width:100%}
+.sidebar{background:linear-gradient(180deg,#072d4f 0%,#0a416d 58%,#083253 100%)!important;border-left:1px solid rgba(255,255,255,.08)!important}
+.brand{border-bottom-color:var(--techno-orange)!important}
+.brand img,.official-brand img,.login-logo{background:#fff!important;object-fit:contain!important;padding:5px!important;border:1px solid rgba(8,47,82,.12)!important}
+.nav-link:hover,.nav-link.active{background:linear-gradient(90deg,var(--techno-orange),var(--techno-orange-deep))!important;color:#fff!important;box-shadow:none!important}
+.official-header{background:linear-gradient(108deg,var(--techno-navy) 0%,var(--techno-blue) 74%,var(--techno-orange) 100%)!important;border-color:rgba(8,47,82,.14)!important}
+.topbar{border-right-color:var(--techno-orange)!important}
+.btn.primary{background:linear-gradient(135deg,var(--techno-blue),var(--techno-blue-2))!important}
+.btn.primary:hover{background:linear-gradient(135deg,var(--techno-navy-2),var(--techno-blue))!important}
+.btn.secondary{background:#eaf4fa!important;color:var(--techno-navy-2)!important;border:1px solid #cfe2ed!important}
+.text-btn{color:var(--techno-blue)!important}
+.page table thead th,.page table.engineering-table thead th,.equipment-technical-table thead th{background:linear-gradient(180deg,var(--techno-blue) 0%,var(--techno-navy-2) 100%)!important;color:#fff!important;border-bottom:3px solid var(--techno-orange)!important}
+.table-panel,.engineering-table-wrap{overflow-x:auto!important;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.page table{width:100%;max-width:none}
+.techno-dashboard-hero{margin-bottom:18px;padding:18px;border-radius:18px;background:linear-gradient(105deg,#ffffff 0%,#eef6fb 70%,#fff4e8 100%)!important;border:1px solid #d7e4ec!important;box-shadow:0 12px 28px rgba(8,47,82,.08)}
+.techno-dashboard-lockup{display:flex;align-items:center;gap:18px;min-width:0}
+.techno-dashboard-logo{width:min(360px,42%);height:96px;object-fit:contain;background:#fff;border-radius:14px;padding:8px}
+.techno-dashboard-lockup>div{display:grid;gap:3px;min-width:0}
+.techno-dashboard-lockup span{font-size:.78rem;font-weight:900;letter-spacing:.08em;color:var(--techno-orange)}
+.techno-dashboard-lockup strong{font-size:1.25rem;color:var(--techno-navy)}
+.techno-dashboard-lockup small{color:#5c7588}
+.attendance-self-card,.attendance-manager-panel{border-top-color:var(--techno-orange)!important}
+.attendance-kpis div{min-width:0;background:#f8fbfd!important}
+.attendance-kpis strong{overflow-wrap:anywhere}
+.attendance-location-card{min-width:0;overflow:hidden}
+.attendance-manager-panel .table-panel{width:100%;max-width:100%;overflow:auto!important}
+.attendance-manager-panel table{min-width:760px}
+.qc-window-card,.internal-window-card{max-width:100%;overflow:hidden}
+.qc-window-body{overflow:hidden}
+.qc-window-body .engineering-table-wrap{width:100%;overflow-x:auto!important}
+.document-file-grid,.compact-projects,.quality-control-grid,.internal-window-grid{min-width:0}
+input,select,textarea,button{max-width:100%}
+img,video,iframe{max-width:100%}
+.login-edition{color:var(--techno-blue)!important}
+.release-chip{border-color:rgba(242,140,40,.5)!important;color:#fff!important}
+
+@media(max-width:1000px){
+  .main-content{width:100%!important;margin-right:0!important;margin-left:0!important;padding:12px!important}
+  .sidebar{width:min(86vw,320px)!important;max-width:320px!important;right:0!important;left:auto!important;transform:translateX(105%);transition:transform .22s ease;box-shadow:-18px 0 40px rgba(3,28,49,.28)!important}
+  .sidebar.open{transform:translateX(0)!important}
+  #menuBtn{display:grid!important;background:#eaf3f8!important;color:var(--techno-navy)!important}
+  .official-header{margin:0 0 10px;padding:9px 11px;border-radius:14px;min-height:64px}
+  .official-brand{min-width:0;flex:1}
+  .official-brand img{width:108px;height:42px;flex:0 0 auto}
+  .official-brand span{min-width:0}
+  .official-brand small{white-space:normal}
+  .official-links{display:none!important}
+  .topbar{padding:10px 11px;margin-bottom:14px;min-height:64px}
+  .topbar-title{min-width:0;flex:1}
+  .topbar-title>div{min-width:0}
+  .topbar h2{font-size:1.08rem;overflow-wrap:anywhere}
+  .page-heading,.panel-heading,.decision-heading{align-items:stretch;flex-wrap:wrap}
+  .heading-actions{display:flex;flex-wrap:wrap;gap:7px;max-width:100%}
+  .heading-actions>*{min-width:0}
+  .dashboard-grid,.field-layout,.quality-grid,.company-project-grid,.decision-grid,.attendance-grid,.branch-map-layout{grid-template-columns:1fr!important}
+  .compact-projects{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .form-grid,.modal-grid,.qc-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .view-toolbar{flex-wrap:wrap;align-items:stretch}
+  .search-field{min-width:0!important;width:100%;margin:0!important}
+  .view-toolbar select{width:100%!important}
+  .notification-panel{position:fixed!important;top:78px!important;right:12px!important;left:12px!important;width:auto!important;max-width:none!important}
+}
+
+@media(max-width:620px){
+  body{font-size:14px}
+  .main-content{padding:8px!important}
+  .official-header{gap:8px}
+  .official-brand img{width:92px;height:38px}
+  .official-brand strong{font-size:.9rem}
+  .official-brand small{display:none}
+  .topbar{gap:8px;border-radius:13px}
+  .topbar-actions{gap:5px}
+  .fixed-profile span{display:none!important}
+  .notification-bell,.profile-summary{width:40px!important;height:40px!important;padding:4px!important}
+  .page-heading{display:grid!important;grid-template-columns:1fr!important;gap:10px}
+  .page-heading h2{font-size:1.25rem}
+  .heading-actions{width:100%}
+  .heading-actions .btn,.heading-actions .attendance-date-label{flex:1 1 140px}
+  .panel{padding:13px;border-radius:13px}
+  .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}
+  .metric-card{min-height:96px;padding:13px}
+  .metric-card strong{font-size:1.55rem}
+  .dashboard-grid,.compact-projects,.decision-kpi-grid,.company-facts,.company-grid,.company-mission-grid,.quality-control-grid,.internal-window-grid{grid-template-columns:1fr!important}
+  .form-grid,.modal-grid,.qc-form-grid{grid-template-columns:1fr!important}
+  .attendance-kpis,.attendance-actions{grid-template-columns:1fr!important}
+  .attendance-location-card{align-items:stretch!important;flex-direction:column!important}
+  .attendance-location-card .btn{width:100%}
+  .attendance-manager-panel table{min-width:680px}
+  .table-panel table,.engineering-table-wrap table{min-width:640px}
+  .techno-dashboard-lockup{display:grid;gap:10px;text-align:center}
+  .techno-dashboard-logo{width:100%;height:82px;margin:auto}
+  .techno-dashboard-lockup strong{font-size:1.05rem}
+  .techno-dashboard-lockup small{font-size:.78rem}
+  .brand{padding-bottom:12px!important}
+  .brand img{height:52px!important}
+  .sidebar nav{padding-bottom:8px}
+  .nav-link{padding:9px 11px!important;font-size:.92rem}
+  .sidebar-footer{padding-top:10px!important}
+}
