@@ -8,6 +8,18 @@ const SAUDI_LOCALE = 'ar-SA-u-ca-gregory';
 function saudiNow() { return new Date().toLocaleString(SAUDI_LOCALE, {timeZone:SAUDI_TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}); }
 function saudiToday() { const parts=new Intl.DateTimeFormat('en-CA',{timeZone:SAUDI_TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()); const values={}; parts.forEach(function(p){values[p.type]=p.value;}); return values.year+'-'+values.month+'-'+values.day; }
 function saudiDisplay(value) { if (!value) return '—'; const raw=String(value); const normalized=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw) ? raw.replace(' ','T')+'Z' : raw; const date=new Date(normalized); return Number.isNaN(date.getTime()) ? raw : date.toLocaleString(SAUDI_LOCALE,{timeZone:SAUDI_TIME_ZONE,dateStyle:'medium',timeStyle:'medium',hour12:false}); }
+function normalizeLoginId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (!/^[+\d\s().-]+$/.test(raw)) return raw;
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  while (digits.startsWith('966966')) digits = digits.slice(3);
+  if (digits.startsWith('966')) return '+' + digits;
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  if (digits.startsWith('5') && digits.length === 9) return '+966' + digits;
+  return raw;
+}
 function updateSaudiClock(){ const el=$('saudiClock'); if(el) setText(el,'توقيت السعودية: '+saudiNow()); }
 const STORAGE_KEY = 'asas_lims_v720';
 const PROJECT_STATUSES = ['مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل'];
@@ -120,7 +132,10 @@ const AUTH_ERRORS = {
   otp_sms_unavailable:'تعذر إرسال SMS حالياً. جرّب الاتصال الصوتي أو تواصل مع مدير النظام.',
   invalid_otp_channel:'طريقة التحقق غير مدعومة.',
   invalid_otp:'رمز التحقق غير صحيح أو منتهي الصلاحية.',
-  otp_resend_too_soon:'تم إرسال رمز مؤخراً. انتظر قليلاً ثم أعد المحاولة.'
+  otp_resend_too_soon:'تم إرسال رمز مؤخراً. انتظر قليلاً ثم أعد المحاولة.',
+  too_many_attempts:'تم إيقاف محاولات الدخول مؤقتاً بسبب كثرة المحاولات. انتظر قليلاً ثم أعد المحاولة.',
+  invalid_request:'بيانات تسجيل الدخول غير صالحة.',
+  otp_disabled:'تم تعطيل التحقق الإضافي مؤقتاً.'
 };
 let otpResendTimer = null;
 
@@ -277,8 +292,12 @@ function staticApi(path, options) {
   const data = localDB();
   const body = options && options.body ? JSON.parse(options.body) : {};
   if (path === '/api/login') {
-    const loginId = String(body.username || '').trim();
-    const user = data.users.find(function(item) { return (item.username === loginId || item.phone === loginId) && item.password === String(body.password || '') && item.active; });
+    const loginId = normalizeLoginId(body.username);
+    const user = data.users.find(function(item) {
+      const storedPhone = normalizeLoginId(item.phone || '');
+      return ((String(item.username || '').toLowerCase() === String(loginId || '').toLowerCase()) || storedPhone === loginId) &&
+        item.password === String(body.password || '') && item.active;
+    });
     if (!user) throw new Error(data.users.length ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : 'أنشئ حساب المدير المحلي أولاً');
     currentUser = {id:user.id,username:user.username,full_name:user.full_name,role:user.role,phone:user.phone || '',avatar_data_url:user.avatar_data_url || ''};
     localStorage.setItem(STORAGE_KEY + '_session', JSON.stringify(currentUser));
@@ -515,7 +534,12 @@ async function api(path, options) {
   if (STATIC_MODE) return staticApi(path, opts);
   const headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
   if (centralAccessToken) headers.Authorization = 'Bearer ' + centralAccessToken;
-  const response = await fetch(API_BASE_URL + path, Object.assign({}, opts, {credentials:'include', headers:headers}));
+  let response;
+  try {
+    response = await fetch(API_BASE_URL + path, Object.assign({}, opts, {credentials:'include', headers:headers}));
+  } catch (error) {
+    throw new Error('تعذر الاتصال بخادم أساس. تحقق من الإنترنت ثم أعد المحاولة.');
+  }
   let payload = {};
   try { payload = await response.json(); } catch (error) { throw new Error('استجابة غير صالحة من الخادم'); }
   if (response.status === 401 && currentUser) {
@@ -630,9 +654,10 @@ async function login(event) {
     const usernameInput = form && form.querySelector('[name="username"], #loginUsername');
     const passwordInput = form && form.querySelector('[name="password"], #loginPassword');
     if (!usernameInput || !passwordInput) throw new Error('تعذر تحميل حقول الدخول. حدّث الصفحة ثم أعد المحاولة.');
-    const username = usernameInput.value.trim();
+    const username = normalizeLoginId(usernameInput.value);
     const password = passwordInput.value;
-    if (!username || !password) throw new Error('أدخل اسم المستخدم وكلمة المرور.');
+    if (!username || !password) throw new Error('أدخل رقم الجوال أو اسم المستخدم وكلمة المرور.');
+    usernameInput.value = username;
     if (STATIC_MODE) return await completeLogin(await api('/api/login', {method:'POST',body:JSON.stringify({username:username,password:password})}));
     const result = await api('/api/auth/login', {method:'POST',body:JSON.stringify({username:username,password:password})});
     centralAccessToken = result.token;
