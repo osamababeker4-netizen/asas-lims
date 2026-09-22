@@ -1,10 +1,10 @@
 {
-  "name": "TECHNO Soil Lab LIMS V10.8.4",
+  "name": "TECHNO Soil Lab LIMS V10.8.5",
   "short_name": "TECHNO LIMS",
   "description": "منصة تيكنو سويل لاب لإدارة المختبر والمشاريع والجودة والحضور والعمليات الميدانية.",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "./?release=10-8-4-techno-theme",
+  "start_url": "./?release=10-8-5-techno-exact-ui",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f9fd",
