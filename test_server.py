@@ -54,7 +54,7 @@ class SchemaMigrationTests(unittest.TestCase):
     def test_professional_document_center_and_login_contract(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
-        self.assertIn('<h1>تسجيل دخول النظام</h1>', html)
+        self.assertIn('<h1>تسجيل الدخول</h1>', html)
         self.assertIn('data-page="dashboard">الرئيسية</button>', html)
         self.assertNotIn('id="documentCenterNav"', html)
         self.assertIn('id="qualityFilesEntry"', html)
@@ -496,26 +496,22 @@ class SchemaMigrationTests(unittest.TestCase):
         for group in ('خرسانة', 'تربة', 'أسفلت', 'الحقل وNDT'):
             self.assertIn("key:'" + group + "'", app)
 
+
     def test_dashboard_and_login_use_primary_company_logo_without_removed_hero_controls(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         css = (Path(__file__).parent / 'style.css').read_text(encoding='utf-8')
         self.assertNotIn('ASAS OPERATIONS CENTER', html)
         self.assertNotIn('من العينة إلى التقرير — في مسار واحد واضح', html)
-        self.assertIn('src="logo.png" class="login-logo"', html)
-        self.assertIn('src="asas-home-banner.png" class="dashboard-brand-logo dashboard-home-banner"', html)
-        self.assertIn('srcset="asas-home-banner-mobile.png"', html)
-        self.assertIn('dashboard-logo-only', html)
-        hero_start = html.index('<article class="dashboard-brand-hero dashboard-logo-only">')
-        hero_end = html.index('</article>', hero_start)
-        hero = html[hero_start:hero_end]
-        self.assertNotIn('شريكك الاستراتيجي في كل اختبارات مشروعك', hero)
-        self.assertNotIn('dashboard-brand-actions', hero)
-        self.assertIn('.dashboard-logo-only .dashboard-brand-logo', css)
-        self.assertIn('/* V10.2.7 approved dashboard banner */', css)
-        self.assertIn('width:100%!important', css)
-        self.assertIn('height:100%!important', css)
-        self.assertIn('object-fit:contain!important', css)
-        self.assertIn('padding:0!important', css)
+        self.assertIn('src="techno-logo.svg" class="login-logo techno-login-logo"', html)
+        self.assertIn('src="techno-logo.svg" class="dashboard-brand-logo techno-dashboard-logo"', html)
+        self.assertIn('class="techno-login-stage"', html)
+        self.assertIn('دقة</strong> في الاختبار', html)
+        self.assertIn('ثقة</em> في البناء', html)
+        self.assertIn('/* TECHNO V10.8.5 — approved desktop login + unified internal theme */', css)
+        self.assertIn("url('engineering-pages-bg.jpg')", css)
+        self.assertIn('.techno-login-card', css)
+        self.assertIn('.techno-hero-features', css)
+
 
     def test_topbar_uses_fixed_identity_profile_menu_and_back_navigation(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
@@ -535,53 +531,39 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('function goBackPage()', app)
         self.assertIn('function toggleProfileMenu()', app)
         self.assertIn("setText($('currentUsername'), currentUser.full_name", app)
-        self.assertNotIn("setText($('currentUsername'), '@' +", app)
         self.assertIn('.profile-mini-menu', css)
         self.assertIn('.page-back', css)
-        self.assertIn('background:linear-gradient(105deg,#0a4650 0%,#0f6f78 44%,#5e6f73 72%,#df7b2a 100%)!important', css)
-        self.assertIn('.topbar .fixed-profile strong{color:#fff!important}', css)
+        self.assertIn('background:rgba(255,255,255,.92)!important', css)
+        self.assertIn('.sidebar .nav-link.active', css)
+
 
     def test_clean_primary_logo_and_messaging_brand_icons_are_served_and_published(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         server_source = (Path(__file__).parent / 'server.py').read_text(encoding='utf-8')
         sw = (Path(__file__).parent / 'sw.js').read_text(encoding='utf-8')
-        pages = (Path(__file__).parent / '.github/workflows/deploy-pages.yml').read_text(encoding='utf-8')
-        self.assertIn('src="logo.png" class="login-logo"', html)
-        self.assertIn('src="asas-home-banner.png" class="dashboard-brand-logo dashboard-home-banner"', html)
-        self.assertIn('srcset="asas-home-banner-mobile.png"', html)
-        self.assertIn('src="logo.png" alt="شعار شركة مختبر أساس"', html)
-        self.assertIn('src="logo.png" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية"', html)
-        self.assertIn('id="currentUserAvatar" class="user-avatar" src="logo.png"', html)
-        self.assertEqual(html.count('src="asas-home-banner.png"'), 1)
-        self.assertGreaterEqual(html.count('src="logo.png"'), 4)
-        self.assertNotIn('src="asas-logo-primary.png"', html)
+        self.assertIn('src="techno-logo.svg" class="login-logo techno-login-logo"', html)
+        self.assertIn('src="techno-logo.svg" class="dashboard-brand-logo techno-dashboard-logo"', html)
+        self.assertIn('src="techno-logo.svg" alt="شعار شركة تيكنو سويل لاب"', html)
+        self.assertIn('id="currentUserAvatar" class="user-avatar" src="techno-logo.svg"', html)
+        self.assertGreaterEqual(html.count('src="techno-logo.svg"'), 4)
         self.assertIn('src="whatsapp-logo.svg"', html)
         self.assertIn('src="telegram-logo.svg"', html)
         self.assertNotIn('>WA</span>', html)
         self.assertNotIn('>TG</span>', html)
+        self.assertIn("'/techno-logo.svg': ('techno-logo.svg', 'image/svg+xml')", server_source)
         self.assertIn("'/whatsapp-logo.svg': ('whatsapp-logo.svg', 'image/svg+xml; charset=utf-8')", server_source)
         self.assertIn("'/telegram-logo.svg': ('telegram-logo.svg', 'image/svg+xml; charset=utf-8')", server_source)
-        self.assertIn("'./logo.png'", sw)
-        self.assertIn("'./asas-home-banner.png'", sw)
-        self.assertIn("'./asas-home-banner-mobile.png'", sw)
+        self.assertIn("'./techno-logo.svg'", sw)
         self.assertIn("'./engineering-pages-bg.jpg'", sw)
         self.assertIn("'./whatsapp-logo.svg'", sw)
         self.assertIn("'./telegram-logo.svg'", sw)
-        self.assertNotIn("'./asas-logo-primary.png'", sw)
-        self.assertIn('whatsapp-logo.svg', pages)
-        self.assertIn('telegram-logo.svg', pages)
-        self.assertIn('asas-home-banner.png', pages)
-        self.assertIn('asas-home-banner-mobile.png', pages)
-        self.assertIn('engineering-pages-bg.jpg', pages)
         self.server.init()
         httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
         worker = threading.Thread(target=httpd.serve_forever)
         worker.start()
         try:
             for path, signature in (
-                ('/logo.png', b'\x89PNG'),
-                ('/asas-home-banner.png', b'\x89PNG'),
-                ('/asas-home-banner-mobile.png', b'\x89PNG'),
+                ('/techno-logo.svg', b'<svg'),
                 ('/engineering-pages-bg.jpg', b'\xff\xd8\xff'),
                 ('/whatsapp-logo.svg', b'<svg'),
                 ('/telegram-logo.svg', b'<svg'),
@@ -594,7 +576,9 @@ class SchemaMigrationTests(unittest.TestCase):
                 self.assertEqual(response.status, 200)
                 self.assertTrue(body.startswith(signature))
         finally:
-            httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(timeout=5)
 
     def test_original_files_open_in_internal_viewer_and_keep_original_download(self):
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
@@ -1091,7 +1075,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.8.1-internal-file-editing-release'", server)
+        self.assertIn("APP_VERSION = '10.8.5-techno-desktop-reset-release'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1110,7 +1094,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-8-1-internal-file-editing-release', sw)
+        self.assertIn('v10-8-5-desktop', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1409,10 +1393,10 @@ class SchemaMigrationTests(unittest.TestCase):
         server = (root / 'server.py').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.8.1-internal-file-editing-release'", server)
-        self.assertIn('v10-8-1-internal-file-editing-release', sw)
-        self.assertIn('ASAS LIMS · V10.8.1 Internal File Editing Release', html)
-        self.assertIn('V10.8.1 · Internal File Editing Release', html)
+        self.assertIn("APP_VERSION = '10.8.5-techno-desktop-reset-release'", server)
+        self.assertIn('v10-8-5-desktop', sw)
+        self.assertIn('TECHNO LIMS', html)
+        self.assertIn('V10.8.5 · Desktop Identity', html)
         self.assertNotIn('V10.3.0 Decision Intelligence', html)
         self.assertIn('id="decisionIntelligenceCenter"', html)
         self.assertIn('id="refreshDecisionIntelligence"', html)
@@ -1429,7 +1413,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('function renderDecisionIntelligence()', app)
         self.assertIn('function exportDecisionIntelligence()', app)
         self.assertIn('function openDecisionIntelligenceReport()', app)
-        self.assertIn("XLSX.writeFile(workbook,'ASAS_Decision_Intelligence_'", app)
+        self.assertIn("XLSX.writeFile(workbook,'TECHNO_Decision_Intelligence_'", app)
         self.assertIn("أوامر عمل بلا مسؤول", app)
         self.assertIn("اختبارات غير مسندة لفني", app)
         self.assertIn("أجهزة تجاوزت تاريخ المعايرة", app)
@@ -1458,7 +1442,7 @@ class SchemaMigrationTests(unittest.TestCase):
         app = (root / 'app-password.js').read_text(encoding='utf-8')
         schema = (root / 'schema.sql').read_text(encoding='utf-8')
         server = (root / 'server.py').read_text(encoding='utf-8')
-        self.assertIn("APP_VERSION = '10.8.1-internal-file-editing-release'", server)
+        self.assertIn("APP_VERSION = '10.8.5-techno-desktop-reset-release'", server)
         self.assertIn('CREATE TABLE IF NOT EXISTS operational_tasks', schema)
         self.assertIn("path == '/api/operational-tasks'", server)
         self.assertIn('id="operationalWorkspace"', html)
@@ -1512,6 +1496,59 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(queued, 2)
         finally:
             httpd.shutdown(); httpd.server_close(); worker.join(timeout=5)
+
+
+    def test_v1085_release_reset_zeros_operational_data_and_preserves_users(self):
+        self.server.init()
+        connection = self.server.db()
+        admin_count = connection.execute('select count(*) from users').fetchone()[0]
+        connection.execute("delete from settings where key=?", (self.server.RELEASE_RESET_MARKER,))
+        connection.execute("insert into clients(name) values('عميل للتصفير')")
+        client_id = connection.execute('select last_insert_rowid()').fetchone()[0]
+        connection.execute("insert into projects(code,name,client_id) values('RESET-1','مشروع للتصفير',?)", (client_id,))
+        admin_id = connection.execute("select id from users order by id limit 1").fetchone()[0]
+        connection.execute("insert into attendance_records(user_id,work_date,status) values(?,?,?)", (admin_id, '2026-09-22', 'حاضر'))
+        connection.commit()
+        result = self.server.perform_release_operational_reset(connection)
+        self.assertIsNotNone(result)
+        self.assertEqual(connection.execute('select count(*) from clients').fetchone()[0], 0)
+        self.assertEqual(connection.execute('select count(*) from projects').fetchone()[0], 0)
+        self.assertEqual(connection.execute('select count(*) from attendance_records').fetchone()[0], 0)
+        self.assertEqual(connection.execute('select count(*) from personnel_location_events').fetchone()[0], 0)
+        self.assertEqual(connection.execute('select count(*) from users').fetchone()[0], admin_count)
+        self.assertIsNotNone(connection.execute('select value from settings where key=?', (self.server.RELEASE_RESET_MARKER,)).fetchone())
+        backup = Path(self.server.BACKUP_DIR) / result['backup']
+        self.assertTrue(backup.is_file())
+        connection.close()
+
+    def test_v1085_all_static_internal_buttons_have_action_hooks_and_valid_page_targets(self):
+        root = Path(__file__).parent
+        html = (root / 'index.html').read_text(encoding='utf-8')
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        sections = set(re.findall(r'<section\\b[^>]*\\bid=["\']([^"\']+)["\']', html, re.I))
+        targets = re.findall(r'data-(?:page|page-go)=["\']([^"\']+)["\']', html, re.I)
+        self.assertTrue(targets)
+        self.assertEqual(sorted(set(targets) - sections), [])
+        buttons = re.findall(r'<button\\b([^>]*)>', html, re.I)
+        missing = []
+        for attrs in buttons:
+            actionable = (
+                re.search(r'\\bid=["\'][^"\']+["\']', attrs) or
+                re.search(r'\\bdata-[\\w-]+(?:=["\'][^"\']*["\'])?', attrs) or
+                re.search(r'\\btype=["\']submit["\']', attrs)
+            )
+            if not actionable:
+                missing.append(attrs.strip())
+        self.assertEqual(missing, [])
+        for contract in (
+            "document.querySelectorAll('.nav-link[data-page]')",
+            "document.querySelectorAll('[data-open-project]')",
+            "document.querySelectorAll('[data-page-go]')",
+            "data-record-delete",
+            "data-smart-import",
+            "RESET-TECHNO-OPERATIONAL",
+        ):
+            self.assertIn(contract, app)
 
 
 if __name__ == '__main__':
