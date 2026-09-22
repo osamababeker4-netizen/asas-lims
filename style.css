@@ -1713,3 +1713,648 @@ button.decision-list-row:hover{border-color:#88bbc7;background:#f7fcfd}
   .official-links a{display:none}
 }
 
+/* V10.8.3 — Approved responsive ASAS reference design */
+:root{
+  --ui-navy:#0c4662;
+  --ui-navy-deep:#08334b;
+  --ui-cyan:#1598b4;
+  --ui-cyan-soft:#e8f6fb;
+  --ui-orange:#f28b22;
+  --ui-paper:#f6fbfe;
+}
+
+/* LOGIN — desktop reference composition */
+.login-screen{
+  min-height:100svh!important;
+  display:grid!important;
+  place-items:center!important;
+  padding:0!important;
+  overflow:hidden!important;
+  background:
+    linear-gradient(90deg,rgba(244,250,253,.97),rgba(248,252,254,.94)),
+    url('engineering-pages-bg.jpg') center/cover no-repeat!important;
+}
+.login-stage{
+  position:relative;
+  width:100%;
+  min-height:100svh;
+  display:grid;
+  grid-template-columns:minmax(0,1.8fr) minmax(390px,.72fr);
+  align-items:stretch;
+}
+.login-showcase{
+  position:relative;
+  min-height:100svh;
+  overflow:hidden;
+  padding:34px clamp(36px,5vw,82px) 30px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  color:#0d4d6d;
+  background:
+    linear-gradient(90deg,rgba(248,252,255,.93) 0%,rgba(247,252,255,.68) 47%,rgba(247,252,255,.08) 100%),
+    url('asas-home-banner.png') center/cover no-repeat;
+}
+.login-showcase::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(120deg,transparent 0 58%,rgba(255,255,255,.18) 58% 61%,transparent 61%),
+    linear-gradient(150deg,transparent 0 73%,rgba(21,152,180,.06) 73% 100%);
+}
+.login-showcase-top,
+.login-showcase-copy,
+.login-feature-row,
+.login-showcase-foot{position:relative;z-index:1}
+.login-showcase-top{
+  display:flex;
+  align-items:center;
+  gap:28px;
+  direction:ltr;
+  font-size:.96rem;
+}
+.login-showcase-top strong{
+  font-size:1.32rem;
+  color:#0b607d;
+}
+.login-showcase-top span{
+  direction:rtl;
+  color:#627d8e;
+}
+.login-showcase-copy{
+  width:min(610px,72%);
+  margin-inline-start:auto;
+  margin-block:auto;
+  text-align:center;
+  transform:translateY(2vh);
+}
+.login-showcase-kicker{
+  display:block;
+  margin-bottom:4px;
+  font-size:clamp(1.8rem,3.4vw,3.8rem);
+  line-height:1.15;
+  font-weight:900;
+  color:#075078;
+}
+.login-showcase-copy h2{
+  margin:0;
+  font-size:clamp(3.6rem,7vw,7rem);
+  line-height:.95;
+  font-weight:900;
+  color:var(--ui-orange);
+}
+.login-showcase-copy p{
+  margin:18px 0 0;
+  font-size:clamp(1.15rem,1.9vw,2rem);
+  line-height:1.7;
+  color:#325f78;
+}
+.login-feature-row{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  width:min(760px,82%);
+  margin-inline:auto;
+  margin-bottom:12px;
+  border-top:1px solid rgba(12,70,98,.10);
+}
+.login-feature-row span{
+  position:relative;
+  padding:44px 10px 0;
+  text-align:center;
+  font-size:.88rem;
+  font-weight:800;
+  color:#1f5872;
+}
+.login-feature-row span::before{
+  content:"";
+  position:absolute;
+  top:13px;left:50%;
+  width:19px;height:19px;
+  transform:translateX(-50%);
+  border:3px solid #0b7d9e;
+  border-radius:6px;
+  box-shadow:12px 0 0 -7px rgba(11,125,158,.45);
+}
+.login-showcase-foot{
+  display:grid;
+  gap:5px;
+  width:max-content;
+  max-width:100%;
+  font-size:1.02rem;
+  color:#245f7b;
+}
+.login-showcase-foot::after{
+  content:"ENGINEERING TODAY  •  A SAFER TOMORROW";
+  margin-top:18px;
+  color:#6a8292;
+  font-size:.67rem;
+  letter-spacing:.22em;
+  direction:ltr;
+}
+.login-card{
+  position:relative!important;
+  z-index:3!important;
+  align-self:center;
+  width:min(470px,calc(100% - 48px))!important;
+  margin:30px auto!important;
+  padding:clamp(30px,4vw,48px) 38px 30px!important;
+  border:1px solid rgba(226,237,244,.95)!important;
+  border-radius:26px!important;
+  background:rgba(255,255,255,.96)!important;
+  box-shadow:0 24px 68px rgba(25,80,108,.14)!important;
+  backdrop-filter:blur(18px);
+}
+.login-card::before{
+  display:none!important;
+}
+.login-card::after{
+  content:""!important;
+  display:none!important;
+}
+.login-logo{
+  width:min(245px,78%)!important;
+  height:104px!important;
+  margin:0 auto 4px!important;
+  object-fit:contain;
+}
+.login-edition{
+  margin:0 auto 12px!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  color:#456f86!important;
+  font-size:.78rem!important;
+  letter-spacing:.03em!important;
+}
+.login-card h1{
+  margin:10px 0 2px!important;
+  color:#0d4c6d!important;
+  font-size:clamp(1.7rem,2.4vw,2.15rem)!important;
+  font-weight:900!important;
+}
+.login-welcome{
+  margin:0 0 20px;
+  color:#6f8492;
+  font-size:.94rem;
+}
+.login-card .form-stack{
+  gap:14px!important;
+  margin-top:0!important;
+}
+.login-card .form-stack label{
+  gap:7px!important;
+  color:#315e76!important;
+  font-size:.84rem!important;
+  text-align:right;
+}
+.login-card input{
+  min-height:54px!important;
+  border:1px solid #c9dae4!important;
+  border-radius:10px!important;
+  background:#fff!important;
+  color:#173d53!important;
+  box-shadow:0 1px 0 rgba(10,70,96,.02) inset;
+}
+.login-card input:focus{
+  border-color:#1589aa!important;
+  box-shadow:0 0 0 4px rgba(21,137,170,.11)!important;
+}
+.login-card .btn.primary{
+  min-height:58px!important;
+  margin-top:8px!important;
+  border-radius:12px!important;
+  background:linear-gradient(100deg,#0b7ea1,#069ab2)!important;
+  box-shadow:0 12px 24px rgba(7,126,161,.20)!important;
+  font-size:1.02rem!important;
+}
+.login-security{
+  margin:17px 0 0;
+  color:#6f8796;
+  font-size:.78rem;
+}
+.login-security::before{
+  content:"🔒";
+  margin-left:7px;
+}
+
+/* DESKTOP APP — clean dashboard from approved reference */
+.app-shell{
+  background:
+    radial-gradient(circle at 20% 0%,rgba(27,157,188,.06),transparent 26rem),
+    linear-gradient(180deg,#f6fbfd,#eef6fa 42%,#f7fbfc)!important;
+}
+.sidebar{
+  width:244px!important;
+  padding:18px 12px!important;
+  background:#f8fbfd!important;
+  color:#5b7484!important;
+  border-left:1px solid #e2edf3!important;
+  box-shadow:none!important;
+}
+.brand{
+  padding:6px 10px 20px!important;
+  border-bottom:1px solid #e8f0f4!important;
+}
+.brand::after{display:none!important}
+.brand img{
+  height:64px!important;
+  padding:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.brand strong{
+  color:#0c4f70!important;
+  font-size:1.18rem!important;
+}
+.brand span{
+  color:#78909e!important;
+}
+.release-chip{
+  color:#79909d!important;
+  border-color:#dde8ee!important;
+  background:#fff!important;
+}
+.nav-link{
+  min-height:44px!important;
+  color:#627a89!important;
+  border:0!important;
+  border-radius:9px!important;
+  background:transparent!important;
+}
+.nav-link:hover{
+  transform:none!important;
+  background:#eef7fa!important;
+  color:#0c7190!important;
+}
+.nav-link.active{
+  color:#fff!important;
+  background:linear-gradient(100deg,#0b8aa8,#08688d)!important;
+  box-shadow:0 8px 19px rgba(8,104,141,.18)!important;
+}
+.nav-link.active::before{display:none!important}
+.sidebar-footer{
+  border-top:1px solid #e5edf2!important;
+}
+.sync-indicator{
+  color:#768b98!important;
+}
+.main-content{
+  width:calc(100% - 244px)!important;
+  margin-right:244px!important;
+  padding:16px 18px 26px!important;
+  background:
+    linear-gradient(rgba(247,251,253,.88),rgba(247,251,253,.92)),
+    url('engineering-pages-bg.jpg') center top/cover fixed no-repeat!important;
+}
+.official-header{
+  min-height:64px!important;
+  margin-bottom:10px!important;
+  padding:8px 14px!important;
+  border:1px solid rgba(221,235,242,.9)!important;
+  border-radius:14px!important;
+  color:#0c5270!important;
+  background:rgba(255,255,255,.91)!important;
+  box-shadow:0 8px 24px rgba(14,83,111,.06)!important;
+  backdrop-filter:blur(10px);
+}
+.official-header::after{display:none!important}
+.official-brand{color:#0c5270!important}
+.official-brand img{
+  width:126px!important;
+  height:43px!important;
+  padding:0!important;
+  background:transparent!important;
+}
+.official-brand small{color:#7a909c!important}
+.official-links a,.official-links .text-btn{
+  color:#557686!important;
+}
+.official-links a:hover,.official-links .text-btn:hover{
+  background:#eef7fa!important;
+}
+.topbar{
+  top:8px!important;
+  min-height:66px!important;
+  margin-bottom:12px!important;
+  border:1px solid #e1edf2!important;
+  border-radius:12px!important;
+  background:rgba(255,255,255,.94)!important;
+  box-shadow:0 8px 22px rgba(25,87,113,.055)!important;
+}
+.topbar::before{
+  width:3px!important;
+  background:linear-gradient(180deg,#f28b22,#0a94b2)!important;
+}
+.topbar h2{
+  color:#0f4e6b!important;
+}
+.profile-summary{
+  border-color:#dceaf0!important;
+  background:#f8fbfd!important;
+}
+.user-avatar{
+  border-color:#d6e6ed!important;
+}
+.notification-bell{
+  background:#f6fafc!important;
+  border-color:#dfeaf0!important;
+}
+
+/* dashboard hero and data cards */
+#dashboard.page.active{
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  overflow:visible!important;
+}
+#dashboard.page.active::before{display:none!important}
+#dashboard .dashboard-brand-hero{
+  position:relative;
+  aspect-ratio:4.8/1!important;
+  min-height:170px;
+  max-height:300px;
+  border:1px solid #dfeaf0;
+  border-radius:15px!important;
+  background:#fff;
+  box-shadow:0 12px 26px rgba(17,83,112,.06)!important;
+}
+#dashboard .dashboard-home-banner{
+  object-fit:cover!important;
+  object-position:center!important;
+}
+#dashboard>.page-heading{
+  margin-top:12px!important;
+  border:1px solid #e2edf2!important;
+  background:rgba(255,255,255,.89)!important;
+  box-shadow:0 8px 20px rgba(17,83,112,.04)!important;
+}
+.metric-grid{
+  grid-template-columns:repeat(6,minmax(125px,1fr))!important;
+  gap:10px!important;
+  margin-bottom:12px!important;
+}
+.metric-card{
+  min-height:102px!important;
+  padding:14px 14px!important;
+  border:1px solid #dfebf0!important;
+  border-radius:13px!important;
+  background:rgba(255,255,255,.94)!important;
+  box-shadow:0 8px 22px rgba(20,87,115,.05)!important;
+}
+.metric-card::before{
+  width:3px!important;
+  background:#1596b4!important;
+}
+.metric-card span{
+  color:#6b8492!important;
+  font-size:.76rem!important;
+}
+.metric-card strong{
+  color:#0c5979!important;
+  font-size:1.78rem!important;
+}
+.panel{
+  border:1px solid #dfebf0!important;
+  border-radius:13px!important;
+  background:rgba(255,255,255,.94)!important;
+  box-shadow:0 8px 22px rgba(20,87,115,.045)!important;
+}
+.table-panel thead th{
+  background:#f1f8fb!important;
+  color:#4e7184!important;
+}
+
+/* internal pages retain identity but use same approved light system */
+.page.active:not(#dashboard){
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.page.active:not(#dashboard)::before{display:none!important}
+.page.active>.page-heading{
+  border:1px solid #e1edf2!important;
+  background:rgba(255,255,255,.93)!important;
+  box-shadow:0 8px 20px rgba(20,87,115,.045)!important;
+}
+.page.active>.page-heading::before{
+  background:linear-gradient(180deg,#f28b22,#1095b2)!important;
+}
+.page.active>.page-heading h2{
+  color:#0e526f!important;
+}
+.page.active .btn.primary{
+  background:linear-gradient(100deg,#0d86a7,#087497)!important;
+}
+
+/* TABLET */
+@media(max-width:1100px){
+  .login-stage{
+    grid-template-columns:minmax(0,1.35fr) minmax(355px,.75fr);
+  }
+  .login-showcase{
+    padding-inline:32px;
+  }
+  .login-feature-row{
+    width:94%;
+  }
+  .metric-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  }
+}
+
+/* MOBILE */
+@media(max-width:900px){
+  .login-screen{
+    overflow:auto!important;
+    background:
+      linear-gradient(rgba(250,253,255,.82),rgba(245,251,253,.94)),
+      url('engineering-pages-bg.jpg') center/cover fixed no-repeat!important;
+  }
+  .login-stage{
+    min-height:100svh;
+    grid-template-columns:1fr;
+    align-content:start;
+  }
+  .login-showcase{
+    order:2;
+    min-height:420px;
+    padding:28px 20px 34px;
+    background:
+      linear-gradient(180deg,rgba(248,253,255,.20),rgba(248,253,255,.58)),
+      url('asas-home-banner-mobile.png') center/cover no-repeat;
+  }
+  .login-showcase-top,
+  .login-feature-row{
+    display:none;
+  }
+  .login-showcase-copy{
+    width:100%;
+    margin:0 auto auto;
+    transform:none;
+  }
+  .login-showcase-kicker{
+    font-size:1.35rem;
+  }
+  .login-showcase-copy h2{
+    font-size:3.3rem;
+  }
+  .login-showcase-copy p{
+    font-size:1rem;
+  }
+  .login-showcase-foot{
+    margin-top:auto;
+    font-size:.94rem;
+  }
+  .login-card{
+    order:1;
+    width:min(520px,calc(100% - 24px))!important;
+    margin:12px auto 0!important;
+    padding:26px 20px 22px!important;
+    border-radius:22px!important;
+    box-shadow:0 16px 42px rgba(16,82,110,.12)!important;
+  }
+  .login-logo{
+    width:min(230px,72%)!important;
+    height:88px!important;
+  }
+  .login-card h1{
+    font-size:1.65rem!important;
+  }
+  .login-card input,
+  .login-card .btn.primary{
+    min-height:52px!important;
+  }
+
+  .sidebar{
+    width:min(310px,86vw)!important;
+    background:#f8fbfd!important;
+    box-shadow:-12px 0 34px rgba(8,64,88,.14)!important;
+  }
+  .main-content{
+    width:100%!important;
+    margin-right:0!important;
+    padding:9px 9px 18px!important;
+    background:
+      linear-gradient(rgba(248,252,254,.94),rgba(248,252,254,.96)),
+      url('engineering-pages-bg.jpg') center top/cover no-repeat!important;
+  }
+  .official-header{
+    display:none!important;
+  }
+  .topbar{
+    position:sticky!important;
+    top:5px!important;
+    min-height:60px!important;
+    padding:8px 9px!important;
+    margin-bottom:8px!important;
+    border-radius:12px!important;
+  }
+  #menuBtn{
+    background:#eef7fa!important;
+    color:#0b6f8f!important;
+  }
+  .topbar-actions{
+    gap:6px!important;
+  }
+  .profile-summary{
+    padding:4px!important;
+    border:0!important;
+    background:transparent!important;
+  }
+  .profile-summary span{
+    display:none!important;
+  }
+  .user-avatar{
+    width:37px!important;
+    height:37px!important;
+  }
+  #dashboard .dashboard-brand-hero{
+    aspect-ratio:auto!important;
+    min-height:250px!important;
+    max-height:320px!important;
+    border-radius:13px!important;
+  }
+  #dashboard .dashboard-home-banner{
+    object-fit:cover!important;
+  }
+  #dashboard>.page-heading{
+    padding:12px!important;
+    border-radius:12px!important;
+  }
+  .metric-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+  }
+  .metric-card{
+    min-height:98px!important;
+    padding:12px!important;
+  }
+  .metric-card strong{
+    font-size:1.55rem!important;
+  }
+  .dashboard-grid{
+    grid-template-columns:1fr!important;
+  }
+  .decision-kpi-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  .page.active{
+    padding:0!important;
+  }
+  .page.active>.page-heading{
+    padding:12px!important;
+    border-radius:12px!important;
+  }
+}
+
+@media(max-width:560px){
+  .login-showcase{
+    min-height:365px;
+  }
+  .login-card{
+    margin-top:8px!important;
+  }
+  .login-edition{
+    font-size:.7rem!important;
+  }
+  .login-welcome{
+    font-size:.86rem;
+  }
+  .login-showcase-copy{
+    display:none;
+  }
+  .login-feature-row{
+    display:none;
+  }
+  .login-showcase-foot{
+    margin-top:auto;
+  }
+  #dashboard .dashboard-brand-hero{
+    min-height:225px!important;
+  }
+  .metric-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  .panel{
+    padding:12px!important;
+  }
+  .table-panel{
+    overflow:auto!important;
+  }
+}
+
+@media(max-width:390px){
+  .metric-grid{
+    grid-template-columns:1fr!important;
+  }
+  .login-card{
+    width:calc(100% - 14px)!important;
+    padding-inline:16px!important;
+  }
+}
+
