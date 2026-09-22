@@ -2211,8 +2211,10 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'لم يتم التصفير: حساب المدير الحالي غير موجود أو غير نشط'}, 409)
                 if manager['role'] not in {'admin','quality_manager'}:
                     return self.send_json({'error': 'لم يتم التصفير: الحساب الحالي ليس مدير النظام أو مدير الجودة'}, 409)
-                keep_rows = [manager]
-                keep_ids = [manager['id']]
+                keep_rows = connection.execute(
+                    'select id,username,full_name,role from users order by id'
+                ).fetchall()
+                keep_ids = [row['id'] for row in keep_rows]
                 os.makedirs(BACKUP_DIR, exist_ok=True)
                 stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
                 backup_name = 'before-operational-reset-' + stamp + '.sqlite3'
@@ -2232,19 +2234,13 @@ class H(BaseHTTPRequestHandler):
                             deleted[table] = connection.execute('select count(*) from '+table).fetchone()[0]
                             connection.execute('delete from '+table)
                             connection.execute("delete from sqlite_sequence where name=?", (table,))
-                    placeholders = ','.join('?' for _ in keep_ids)
-                    deleted['users'] = connection.execute('select count(*) from users where id not in ('+placeholders+')', keep_ids).fetchone()[0]
-                    connection.execute('delete from users where id not in ('+placeholders+')', keep_ids)
+                    deleted['users'] = 0
                     connection.commit()
                 except Exception:
                     connection.rollback()
                     raise
                 finally:
                     connection.execute('PRAGMA foreign_keys=ON')
-                for token, open_session in list(SESSIONS.items()):
-                    account = open_session.get('user', open_session)
-                    if account.get('id') != manager['id']:
-                        SESSIONS.pop(token, None)
                 publish_event('system', 'operational_reset', 0)
                 return self.send_json({'ok': True, 'backup': backup_name, 'preserved_users': [dict(row) for row in keep_rows], 'deleted': deleted, 'queued': 0})
 
