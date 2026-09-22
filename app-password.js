@@ -659,8 +659,10 @@ function goBackPage() {
 
 async function login(event) {
   event.preventDefault();
+  const form = event.currentTarget || $('loginForm');
+  const submit = form && form.querySelector('button[type="submit"]');
+  const originalLabel = submit ? submit.innerHTML : '';
   try {
-    const form = event.currentTarget || $('loginForm');
     const usernameInput = form && form.querySelector('[name="username"], #loginUsername');
     const passwordInput = form && form.querySelector('[name="password"], #loginPassword');
     if (!usernameInput || !passwordInput) throw new Error('تعذر تحميل حقول الدخول. حدّث الصفحة ثم أعد المحاولة.');
@@ -668,6 +670,8 @@ async function login(event) {
     const password = passwordInput.value;
     if (!username || !password) throw new Error('أدخل رقم الجوال أو اسم المستخدم وكلمة المرور.');
     usernameInput.value = username;
+    setText($('loginMessage'), '');
+    if (submit) { submit.disabled = true; submit.setAttribute('aria-busy','true'); submit.textContent = 'جارٍ تسجيل الدخول…'; }
     if (STATIC_MODE) return await completeLogin(await api('/api/login', {method:'POST',body:JSON.stringify({username:username,password:password})}));
     const result = await api('/api/auth/login', {method:'POST',body:JSON.stringify({username:username,password:password})});
     centralAccessToken = result.token;
@@ -675,7 +679,10 @@ async function login(event) {
     $('loginPassword').value = '';
     await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone,avatar_data_url:result.user.avatar_data_url}});
   } catch (error) {
-    setText($('loginMessage'), error.message);
+    const message = error && error.message ? error.message : 'تعذر تسجيل الدخول. أعد المحاولة.';
+    setText($('loginMessage'), message === 'Failed to fetch' ? 'تعذر الاتصال بخادم النظام. تحقق من الإنترنت ثم أعد المحاولة.' : message);
+  } finally {
+    if (submit) { submit.disabled = false; submit.removeAttribute('aria-busy'); submit.innerHTML = originalLabel; }
   }
 }
 
