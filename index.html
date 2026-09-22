@@ -10,21 +10,21 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <meta name="asas-ui-release" content="10-8-8-refresh-control">
+  <meta name="asas-ui-release" content="10-8-9-button-save-fix">
   <script>
     (function () {
-      var baseRelease = '10-8-8-refresh-control';
+      var baseRelease = '10-8-9-button-save-fix';
       var requested = new URLSearchParams(location.search).get('release') || '';
       var safe = /^[A-Za-z0-9._-]{1,80}$/.test(requested) ? requested : baseRelease;
       window.ASAS_UI_RELEASE = safe;
       document.documentElement.setAttribute('data-release', safe);
     })();
   </script>
-  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-8-8-refresh-control">
+  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-8-9-button-save-fix">
   <script>
     (function () {
       var link = document.getElementById('asasMainStyle');
-      var release = window.ASAS_UI_RELEASE || '10-8-8-refresh-control';
+      var release = window.ASAS_UI_RELEASE || '10-8-9-button-save-fix';
       if (link) link.href = 'style.css?v=' + encodeURIComponent(release);
     })();
   </script>
@@ -46,7 +46,7 @@
       </section>
       <div class="login-card">
         <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-        <span class="login-edition">ASAS LIMS · V10.8.8</span>
+        <span class="login-edition">ASAS LIMS · V10.8.9</span>
         <h1>تسجيل الدخول</h1>
         <p class="login-welcome">مرحباً بك في نظام إدارة المختبرات</p>
         <form id="loginForm" class="form-stack">
@@ -76,7 +76,7 @@
         <img src="logo.png" alt="شعار شركة مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.8.8 · Refresh Control</small>
+        <small class="release-chip">V10.8.9 · Button Save Fix</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
@@ -576,14 +576,14 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="runtime-config.js?v=10-8-8-refresh-control"></script>
-  <script src="i18n.js?v=10-8-8-refresh-control"></script>
-  <script src="app-password.js?v=10-8-8-refresh-control"></script>
-  <script src="quality-management.js?v=10-8-8-refresh-control"></script>
-  <script src="branch-map.js?v=10-8-8-refresh-control"></script>
+  <script src="runtime-config.js?v=10-8-9-button-save-fix"></script>
+  <script src="i18n.js?v=10-8-9-button-save-fix"></script>
+  <script src="app-password.js?v=10-8-9-button-save-fix"></script>
+  <script src="quality-management.js?v=10-8-9-button-save-fix"></script>
+  <script src="branch-map.js?v=10-8-9-button-save-fix"></script>
 <script>
     (function () {
-      var release = window.ASAS_UI_RELEASE || '10-8-8-refresh-control';
+      var release = window.ASAS_UI_RELEASE || '10-8-9-button-save-fix';
       var releaseKey = 'asas_lims_last_ui_release';
       var previousRelease = '';
       try { previousRelease = localStorage.getItem(releaseKey) || ''; } catch (_error) {}
