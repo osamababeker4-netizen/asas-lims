@@ -153,8 +153,8 @@ const UI_TRANSLATIONS = {
   "أدخل رقم الرخصة أولاً": "Enter the licence number first",
   "أدخل رمز OTP مكوّناً من 6 أرقام.": "Enter a six-digit verification code.",
   "أدخل نقطتين صحيحتين على الأقل للبروكتور": "Enter at least two valid Proctor points",
-  "أساس LIMS": "ASAS LIMS",
-  "أساس LIMS | إدارة المختبر والمشاريع": "ASAS LIMS | Laboratory and project management",
+  "TECHNO LIMS": "TECHNO LIMS",
+  "TECHNO LIMS | إدارة المختبر والمشاريع": "TECHNO LIMS | Laboratory and project management",
   "أسفلت": "Asphalt",
   "أضف تواريخ بداية واستحقاق للمشاريع لإظهار خارطة الطريق.": "Add project start and due dates to display the roadmap.",
   "أضف جهازاً واحداً أو استورد كل الأجهزة والمعايرات من ملف Excel/CSV دفعة واحدة.": "Add equipment individually or import equipment and calibration records from Excel/CSV.",
@@ -487,7 +487,7 @@ const UI_TRANSLATIONS = {
   "تم حفظ وثيقة الجودة": "Quality document saved",
   "تم ربط ملفات الاختبار بدليل الجودة": "Test files linked to the quality catalog",
   "تم رفع المرفق وحفظه": "Attachment uploaded and saved",
-  "تم نسخ المسودة؛ الصقها في مجتمع مختبر أساس بعد المراجعة": "Draft copied; review it before pasting into the ASAS community",
+  "تم نسخ المسودة؛ الصقها في مجتمع تيكنو سويل لاب بعد المراجعة": "Draft copied; review it before pasting into the TECHNO community",
   "تمت إضافة المستخدم وتفعيله ومزامنته فورًا": "User added, activated and synchronized",
   "تمت تعبئة بيانات الزيارة السابقة": "Previous visit details loaded",
   "تنبيه تشغيلي:": "Operational note:",
@@ -499,7 +499,7 @@ const UI_TRANSLATIONS = {
   "توثيق اختبارات الكفاءة ونتائجها وملفات تقاريرها.": "Document proficiency tests, results and report files.",
   "توثيق الزيارة والعينة وبيانات الموقع قبل بدء المعالجة.": "Record the visit, sample and site details before processing.",
   "تُحفظ بيانات التصريح مع الزيارة. فتح البوابة لا يرسل بيانات تلقائياً ولا يتجاوز صلاحيات حساب بلدي.": "Permit details are saved with the visit. Opening the portal does not send data automatically or bypass Balady account permissions.",
-  "تُنشأ تلقائيًا من العمليات المهمة. راجعها ثم انسخها وانشرها يدويًا في مجتمع مختبر أساس.": "Created automatically from key operations. Review, copy and manually share in the ASAS WhatsApp community.",
+  "تُنشأ تلقائيًا من العمليات المهمة. راجعها ثم انسخها وانشرها يدويًا في مجتمع تيكنو سويل لاب.": "Created automatically from key operations. Review, copy and manually share in the ASAS WhatsApp community.",
   "ث)": "s)",
   "ثبات وانسياب مارشال": "Marshall stability and flow",
   "جارٍ الحفظ والمزامنة…": "Saving and synchronizing…",
@@ -533,7 +533,7 @@ const UI_TRANSLATIONS = {
   "حفظ الوثيقة": "Save document",
   "حفظ في الزيارة": "Save to visit",
   "حفظ ومزامنة المستخدم": "Save and sync user",
-  "حقائق مختبر أساس": "ASAS Laboratory facts",
+  "حقائق تيكنو سويل لاب": "TECHNO Soil Lab facts",
   "خارطة الطريق": "Roadmap",
   "خبرة فنية": "Technical expertise",
   "خدمة رمز التحقق غير مهيأة على الخادم.": "The verification service is not configured on the server.",
@@ -584,10 +584,10 @@ const UI_TRANSLATIONS = {
   "سنوات الخبرة": "Years of experience",
   "سينشئ النظام مهمة للفني ومسودة واتساب قابلة للمراجعة.": "The system will create a technician task and a WhatsApp draft for review.",
   "سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.": "The system automatically creates the full official test plan for the selected material.",
-  "شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية": "ASAS Laboratory Company for Technical Consultations and Engineering Laboratories",
-  "شركة مختبر أساس. جميع الحقوق محفوظة.": "ASAS Laboratory Company. All rights reserved.",
+  "شركة تيكنو سويل لاب للاختبارات والتربة والتحليل الفيزيائي": "TECHNO Soil Lab for Technical Consultations and Engineering Laboratories",
+  "شركة تيكنو سويل لاب. جميع الحقوق محفوظة.": "TECHNO Soil Lab. All rights reserved.",
   "شريكك الاستراتيجي في كل اختبارات مشروعك": "Your strategic partner for project testing",
-  "شعار مختبر أساس": "ASAS Laboratory logo",
+  "شعار تيكنو سويل لاب": "TECHNO Soil Lab logo",
   "صف": "Row",
   "صف غير صالح": "Invalid row",
   "طابور المزامنة": "Sync queue",
@@ -600,7 +600,7 @@ const UI_TRANSLATIONS = {
   "عميل": "Client",
   "عميل جديد": "New client",
   "عن الشركة": "About the company",
-  "عن مختبر أساس": "About ASAS",
+  "عن تيكنو سويل لاب": "About ASAS",
   "عنوان أمر العمل": "Work order title",
   "عينة": "Sample",
   "عينة ·": "sample ·",
@@ -677,10 +677,10 @@ const UI_TRANSLATIONS = {
   "محتوى الهواء بالطريقة الحجمية": "Air content by volumetric method",
   "محتوى الهواء بطريقة الضغط": "Air content by pressure",
   "محلي": "Local",
-  "مختبر أساس": "ASAS Laboratory",
-  "مختبر أساس للاستشارات الفنية والمختبرات الهندسية": "ASAS Laboratory for Technical Consultations and Engineering Laboratories",
-  "مختبر أساس للاستشارات الفنية والمختبرات الهندسية — إدارة تشغيلية آمنة للمشاريع والاختبارات والتقارير.": "ASAS Laboratory — secure operations management for projects, tests and reports.",
-  "مختبر أساس معتمد من المركز السعودي للاعتماد SAAC": "ASAS Laboratory is accredited by the Saudi Accreditation Center (SAAC)",
+  "تيكنو سويل لاب": "TECHNO Soil Lab",
+  "تيكنو سويل لاب للاستشارات الفنية والمختبرات الهندسية": "TECHNO Soil Lab for Technical Consultations and Engineering Laboratories",
+  "تيكنو سويل لاب للاستشارات الفنية والمختبرات الهندسية — إدارة تشغيلية آمنة للمشاريع والاختبارات والتقارير.": "TECHNO Soil Lab — secure operations management for projects, tests and reports.",
+  "تيكنو سويل لاب معتمد من المركز السعودي للاعتماد SAAC": "TECHNO Soil Lab is accredited by the Saudi Accreditation Center (SAAC)",
   "مختبر هندسي سعودي متخصص في الجسات والدراسات الجيوتقنية واختبارات مواد البناء، يدعم القرار الهندسي بنتائج دقيقة وتقارير فنية موثوقة.": "A Saudi engineering laboratory specializing in geotechnical studies and construction material testing, supporting decisions with accurate results and reliable technical reports.",
   "مخطط": "Planned",
   "مدير": "Manager",
@@ -738,7 +738,7 @@ const UI_TRANSLATIONS = {
   "من موقع أساس الرسمي": "From the official ASAS website",
   "منتهي": "Expired",
   "منخفضة": "Low",
-  "منصة أساس لإدارة المختبر": "ASAS Laboratory Management Platform",
+  "منصة أساس لإدارة المختبر": "TECHNO Soil Lab Management Platform",
   "مهمتنا": "Our mission",
   "مواصفة ASTM (PDF أو Word)": "ASTM specification (PDF or Word)",
   "مواصفة ASTM وأوراق العمل وملفات Excel للنتائج مرتبطة بكل اختبار وتدار من قسم الجودة.": "ASTM specifications, worksheets and results spreadsheets linked to each test and managed by Quality.",
@@ -764,7 +764,7 @@ const UI_TRANSLATIONS = {
   "نوع التصريح": "Permit type",
   "هذا التغيير يخص حسابك المسجّل فقط.": "This change applies only to your signed-in account.",
   "هذه الصفحة مرجعية لبيانات الشركة العامة. تظل بيانات المشاريع والعملاء والعينات والنتائج ضمن صفحات النظام المحمية وسجل التدقيق.": "This page contains public company information. Projects, clients, samples and results remain in protected system pages and the audit log.",
-  "هوية مختبر أساس": "ASAS Laboratory identity",
+  "هوية تيكنو سويل لاب": "TECHNO Soil Lab identity",
   "وثائق الجودة": "Quality documents",
   "ورقة عمل": "Worksheet",
   "وزن العينة الجافة": "Dry sample weight",
@@ -808,7 +808,7 @@ const UI_TRANSLATIONS = {
   "مرفوضة": "Rejected",
   "مرفوض": "Rejected",
   "معتمدة": "Approved",
-  "شركة مختبر أساس": "ASAS Laboratory Company",
+  "شركة تيكنو سويل لاب": "TECHNO Soil Lab",
   "إعدادات النظام": "System settings",
   "الهوية العامة، التقارير، التواصل، الحماية والتفضيلات التشغيلية.": "Identity, reports, communications, security and operational preferences.",
   "هوية المختبر": "Laboratory identity",
@@ -856,7 +856,7 @@ const UI_TRANSLATIONS = {
 // UI strings are translated; saved values and escaped user content are preserved.
 const uiTextMemory = new WeakMap();
 const uiAttributeMemory = new WeakMap();
-let uiLanguage = localStorage.getItem('asas_lims_language') === 'en' ? 'en' : 'ar';
+let uiLanguage = localStorage.getItem('techno_lims_language') === 'en' ? 'en' : 'ar';
 const uiPattern = new RegExp(Object.keys(UI_TRANSLATIONS).sort((a,b)=>b.length-a.length).map(s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'),'g');
 function translateUI(value) {
   return String(value == null ? '' : value).replace(uiPattern, function(match,offset,whole) {
@@ -915,7 +915,7 @@ function setLanguage(lang) {
   uiLanguage=lang==='en'?'en':'ar';
   document.documentElement.lang=uiLanguage;
   document.documentElement.dir=uiLanguage==='en'?'ltr':'rtl';
-  localStorage.setItem('asas_lims_language',uiLanguage);
+  localStorage.setItem('techno_lims_language',uiLanguage);
   applyUI(document.body);
-  document.title=uiLanguage==='en'?'ASAS LIMS | Laboratory and project management':'أساس LIMS | إدارة المختبر والمشاريع';
+  document.title=uiLanguage==='en'?'TECHNO LIMS | Laboratory and project management':'TECHNO LIMS | إدارة المختبر والمشاريع';
 }
