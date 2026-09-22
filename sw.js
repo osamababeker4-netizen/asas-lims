@@ -1,14 +1,14 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-8-8-refresh-control';
+const CACHE_NAME = 'asas-lims-pwa-v10-8-9-button-save-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './style.css?v=10-8-8-refresh-control',
-  './app-password.js?v=10-8-8-refresh-control',
-  './quality-management.js?v=10-8-8-refresh-control',
-  './branch-map.js?v=10-8-8-refresh-control',
-  './i18n.js?v=10-8-8-refresh-control',
-  './runtime-config.js?v=10-8-8-refresh-control',
+  './style.css?v=10-8-9-button-save-fix',
+  './app-password.js?v=10-8-9-button-save-fix',
+  './quality-management.js?v=10-8-9-button-save-fix',
+  './branch-map.js?v=10-8-9-button-save-fix',
+  './i18n.js?v=10-8-9-button-save-fix',
+  './runtime-config.js?v=10-8-9-button-save-fix',
   './field-test-guide.html',
   './manifest.webmanifest',
   './logo.png',
