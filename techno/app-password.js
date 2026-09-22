@@ -1,0 +1,3100 @@
+'use strict';
+
+const $ = function(id) { return document.getElementById(id); };
+const API_BASE_URL = String(window.LIMS_API_BASE_URL || '').replace(/\/+$/, '');
+const STATIC_MODE = location.hostname.endsWith('github.io') && !API_BASE_URL;
+const SAUDI_TIME_ZONE = 'Asia/Riyadh';
+const SAUDI_LOCALE = 'ar-SA-u-ca-gregory';
+function saudiNow() { return new Date().toLocaleString(SAUDI_LOCALE, {timeZone:SAUDI_TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}); }
+function saudiToday() { const parts=new Intl.DateTimeFormat('en-CA',{timeZone:SAUDI_TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()); const values={}; parts.forEach(function(p){values[p.type]=p.value;}); return values.year+'-'+values.month+'-'+values.day; }
+function saudiDisplay(value) { if (!value) return '—'; const raw=String(value); const normalized=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw) ? raw.replace(' ','T')+'Z' : raw; const date=new Date(normalized); return Number.isNaN(date.getTime()) ? raw : date.toLocaleString(SAUDI_LOCALE,{timeZone:SAUDI_TIME_ZONE,dateStyle:'medium',timeStyle:'medium',hour12:false}); }
+function normalizeLoginId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (!/^[+\d\s().-]+$/.test(raw)) return raw;
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  while (digits.startsWith('966966')) digits = digits.slice(3);
+  if (digits.startsWith('966')) return '+' + digits;
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  if (digits.startsWith('5') && digits.length === 9) return '+966' + digits;
+  return raw;
+}
+function updateSaudiClock(){ const el=$('saudiClock'); if(el) setText(el,'توقيت السعودية: '+saudiNow()); }
+const STORAGE_KEY = 'techno_lims_v1083';
+const PROJECT_STATUSES = ['مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل'];
+const BOARD_STATUSES = ['مخطط', 'نشط', 'قيد المراجعة', 'موقوف', 'مكتمل'];
+const PRIORITIES = ['منخفضة', 'متوسطة', 'عالية', 'حرجة'];
+const WORK_ORDER_STATUSES = ['مفتوح', 'قيد التنفيذ', 'بانتظار المراجعة', 'موقوف', 'مكتمل'];
+const ROLE_NAMES = {admin:'مدير النظام',general_manager:'المدير العام',technical_manager:'المدير الفني',laboratory_manager:'مدير المختبر',quality_manager:'مدير الجودة',quality_officer:'مسؤول الجودة',calibration_officer:'مسؤول المعايرة',document_controller:'مسؤول الوثائق',manager:'مدير',technician:'فني مختبر',field:'مفتش ميداني',quality:'الجودة (قديم)'};
+const QUALITY_ACCESS_ROLES = ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'];
+const ATTENDANCE_MANAGER_ROLES = ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'];
+const COUNTRY_CODES = [{code:'+966',name:'السعودية 🇸🇦'},{code:'+971',name:'الإمارات 🇦🇪'},{code:'+973',name:'البحرين 🇧🇭'},{code:'+965',name:'الكويت 🇰🇼'},{code:'+974',name:'قطر 🇶🇦'},{code:'+968',name:'عُمان 🇴🇲'},{code:'+20',name:'مصر 🇪🇬'},{code:'+249',name:'السودان 🇸🇩'},{code:'+962',name:'الأردن 🇯🇴'},{code:'+967',name:'اليمن 🇾🇪'}];
+const OFFICIAL_WHATSAPP_URL = 'https://chat.whatsapp.com/LxqH7L6GorGEhMfUTYthgG?s=sh&p=a&mlu=4&ilr=4';
+const OFFICIAL_TELEGRAM_URL = 'https://t.me/+xPEyC5xPw8w5MjE0';
+const FIELD_MANUAL_REF = '/api/field/manual';
+const FIELD_MANUAL_TITLE = 'الدليل الشامل للأعمال المدنية للبنية التحتية — 2024 / 1446 — الإصدار الأول';
+// الكتالوج الرسمي الموحد: يظهر في الموقع المركزي، ويطابق التطبيق الميداني.
+const OFFICIAL_TEST_CATALOG = Object.freeze({
+  'تربة':[
+    ['D6913','التدرج الحبيبي بالغرابيل','Sieve Analysis'],['D7928','التدرج الحبيبي للهيدروميتر','Hydrometer Analysis'],['D2216','المحتوى المائي','Water Content'],['D4318','حدود أتربرج (LL / PL / PI)','Atterberg Limits'],['D854','الكثافة النوعية لحبيبات التربة','Specific Gravity'],['D698','الدمك القياسي (Standard Proctor)','Standard Proctor'],['D1557','الدمك المعدل (Modified Proctor)','Modified Proctor'],['D1883','نسبة التحمل كاليفورنيا CBR','California Bearing Ratio'],['D1556','كثافة الموقع بطريقة مخروط الرمل','Sand Cone Density'],['D6938','كثافة ورطوبة الموقع بالطريقة النووية','Nuclear Density and Moisture'],['D2487','تصنيف التربة الموحد USCS','USCS Classification'],['D2435','الانضغاط والهبوط أحادي البعد','One-Dimensional Consolidation'],['D3080','القص المباشر','Direct Shear'],['D2166','الانضغاط غير المحصور UCS','Unconfined Compression'],['D2850','الضغط ثلاثي المحاور غير الموحد UU','Triaxial UU'],['D4767','الضغط ثلاثي المحاور الموحد CU/CD','Triaxial CU/CD'],['D5084','النفاذية / التوصيل الهيدروليكي','Hydraulic Conductivity'],['D4546','الانتفاخ والانهيار','Swell and Collapse'],['D4972','الأس الهيدروجيني pH للتربة','Soil pH'],['D2974','المحتوى العضوي','Organic Content']
+  ],
+  'خرسانة':[
+    ['C172','أخذ عينات الخرسانة الطازجة','Sampling Fresh Concrete'],['C143','الهبوط Slump','Slump'],['C1064','درجة حرارة الخرسانة الطازجة','Fresh Concrete Temperature'],['C138','الكثافة والعائد ومحتوى الهواء الوزني','Density Yield and Air Content'],['C231','محتوى الهواء بطريقة الضغط','Air Content by Pressure'],['C173','محتوى الهواء بالطريقة الحجمية','Air Content by Volumetric Method'],['C31','تجهيز ومعالجة العينات في الموقع','Making and Curing Specimens'],['C39','مقاومة الضغط للأسطوانات','Compressive Strength'],['C78','مقاومة الانحناء للكمرة','Flexural Strength'],['C496','مقاومة الشد بالانشطار','Splitting Tensile Strength'],['C469','معامل المرونة ونسبة بواسون','Elastic Modulus'],['C42','فحص اللباب الخرساني','Concrete Cores'],['C403','زمن الشك بالاختراق','Time of Setting'],['C597','النبضات فوق الصوتية UPV','Ultrasonic Pulse Velocity'],['C642','الكثافة والامتصاص والفراغات','Density Absorption and Voids'],['C157','الانكماش الطولي المتصلب','Length Change'],['C1202','نفاذية أيونات الكلوريد السريعة RCPT','Rapid Chloride Permeability'],['C1152','كلوريد الخرسانة المتصلبة','Water-Soluble Chloride'],['C666','مقاومة التجميد والذوبان','Freeze-Thaw Resistance'],['C1260','قابلية التفاعل القلوي للركام','Alkali Reactivity'],['C876','جهد نصف الخلية لتآكل حديد التسليح','Half-Cell Corrosion Potential'],['C1876','المقاومة الكهربائية الحجمية للخرسانة','Bulk Electrical Resistivity of Concrete'],['EN14630','عمق الكربنة في الخرسانة المتصلدة','Carbonation Depth in Hardened Concrete','EN 14630']
+  ],
+  'أسفلت':[
+    ['D979','أخذ عينات الخلطات الأسفلتية','Sampling Asphalt Mixtures'],['D6926','تحضير عينات مارشال','Marshall Specimen Preparation'],['D6927','ثبات وانسياب مارشال','Marshall Stability and Flow'],['D2041','الكثافة النوعية العظمى النظرية Rice','Maximum Theoretical Specific Gravity'],['D2726','الكثافة النوعية والكثافة الظاهرية','Bulk Specific Gravity'],['D3203','الفراغات الهوائية في الخلطات','Air Voids'],['D6307','محتوى الأسفلت بفرن الإشعال','Asphalt Content by Ignition'],['D5444','التدرج الميكانيكي للركام المستخلص','Extracted Aggregate Gradation'],['D4867','الحساسية للرطوبة / الشد غير المباشر','Moisture Susceptibility'],['D6931','الكثافة في الموقع بالطريقة النووية','In-Place Density'],['D3549','السماكة أو الارتفاع للعينة المدموكة','Thickness of Compacted Specimens'],['D1188','الكثافة النوعية للعينات اللبية','Core Density'],['D6928','معامل المرونة للخلطات الأسفلتية','Resilient Modulus'],['D5','اختراق الرابط الأسفلتي','Bitumen Penetration'],['D36','نقطة تليّن الرابط الأسفلتي','Softening Point'],['D4402','اللزوجة الدورانية للرابط الأسفلتي','Rotational Viscosity'],['D2872','التقادم قصير الأجل RTFO','Rolling Thin-Film Oven'],['D6648','القص الديناميكي للرابط DSR','Dynamic Shear Rheometer'],['MC1-RC2','التحقق من نوع ومعدل رش MC-1 / RC-2','MC-1 / RC-2 Grade and Spray Rate Verification','ASTM D2027 / D2028 + Project Specification']
+  ],
+  'الحقل وNDT':[
+    ['D7091','سماكة الطلاء الجاف على المعادن DFT','Dry Film Thickness on Metals'],['D6132','سماكة الطلاء الجاف بالموجات فوق الصوتية','Ultrasonic Dry Film Thickness'],['D5162','كشف انقطاعات وعيوب العزل الكهربائي للطلاء','Coating Holiday Detection'],['G57','المقاومة النوعية للتربة بطريقة الأقطاب الأربعة','Soil Resistivity by Four-Electrode Method'],['D6431','المسح الجيوفيزيائي بالمقاومة الكهربائية المستمرة','Direct-Current Resistivity Survey'],['D2412','صلابة مواسير الفايبر تحت الحمل الخارجي','Pipe Stiffness under External Loading'],['D2290','مقاومة الشد الحلقية لمواسير الفايبر','Apparent Hoop Tensile Strength'],['D2584','فقد الاشتعال ومحتوى الراتنج لمواسير الفايبر','Ignition Loss and Resin Content']
+  ]
+});
+const TEST_FIELDS = {
+  D1883:[['cbr254','CBR عند 2.54 mm','%'],['cbr508','CBR عند 5.08 mm','%'],['swelling','الانتفاخ','%']],
+  D2216:[['wet_mass','وزن العينة الرطبة','g'],['dry_mass','وزن العينة الجافة','g']],
+  D4318:[['LL','حد السيولة LL','%'],['PL','حد اللدونة PL','%'],['PI','مؤشر اللدونة PI','%']],
+  C136:[['sample_mass','كتلة العينة','g'],['FM','معامل النعومة','']],
+  C39:[['load','الحمل الأقصى','kN'],['area','مساحة المقطع','mm²'],['strength','مقاومة الضغط','MPa']],
+  C143:[['slump','الهبوط','mm']],
+  D2041:[['mass_dry','كتلة العينة الجافة','g'],['mass_submerged','الكتلة المغمورة','g'],['Gmm','Gmm','']],
+  D1557:[['mdd','أقصى كثافة جافة','kg/m³'],['omc','المحتوى المائي الأمثل','%']],
+  D2487:[['group_symbol','رمز تصنيف USCS','','text'],['fines','نسبة المواد الناعمة','%']],
+  D6926:[['blows','عدد الضربات لكل وجه',''],['specimen_height','ارتفاع العينة','mm']],
+  D6927:[['stability','ثبات مارشال','kN'],['flow','انسياب مارشال','mm']],
+  C597:[['path_length','طول مسار النبضة','mm'],['transit_time','زمن العبور','µs'],['pulse_velocity','سرعة النبضة','m/s']],
+  C876:[['potential','فرق الجهد','mV'],['grid_point','نقطة شبكة القياس','']],
+  C1876:[['resistance','المقاومة المقاسة','Ω'],['resistivity','المقاومة الكهربائية الحجمية','kΩ·cm']],
+  EN14630:[['depth_1','عمق الكربنة 1','mm'],['depth_2','عمق الكربنة 2','mm'],['depth_avg','متوسط عمق الكربنة','mm']],
+  D6132:[['reading_count','عدد القراءات',''],['DFT_avg','متوسط السماكة الجافة','µm']],
+  D7091:[['reading_count','عدد القراءات',''],['DFT_avg','متوسط السماكة','µm']],
+  D5162:[['test_voltage','جهد الفحص','V'],['holidays','عدد عيوب العزل',''],['area','المساحة المفحوصة','m²']],
+  G57:[['probe_spacing','تباعد الأقطاب','m'],['resistance','المقاومة المقاسة','Ω'],['soil_resistivity','المقاومة النوعية للتربة','Ω·m']],
+  D6431:[['array_spacing','تباعد مصفوفة الأقطاب','m'],['apparent_resistivity','المقاومة النوعية الظاهرية','Ω·m'],['survey_length','طول المسار','m']],
+  D2412:[['load','الحمل','N/m'],['deflection','الانحراف','%'],['pipe_stiffness','صلابة الأنبوب','kPa']],
+  D2290:[['maximum_load','الحمل الأقصى','N'],['hoop_strength','مقاومة الشد الحلقية','MPa']],
+  D2584:[['initial_mass','الكتلة الابتدائية','g'],['residue_mass','كتلة المتبقي','g'],['ignition_loss','فقد الاشتعال','%']],
+  'MC1-RC2':[['grade','رمز الدرجة MC-1 / RC-2','','text'],['spray_rate','معدل الرش الفعلي','L/m²'],['specified_rate','معدل الرش المطلوب','L/m²']],
+  'ROAD-PROFILER':[['IRI','IRI','m/km'],['roughness','وعورة الطريق',''],['distance','المسافة','km']],
+  'GRB-ROUGHNESS':[['roughness','وعورة الأسفلت','']]
+};
+
+const FIELD_GUIDES = Object.freeze([
+  {category:'خرسانة',code:'C597',type:'إجراء ميداني',title:'فحص الخرسانة بالموجات فوق الصوتية وكشف مناطق التعشيش',standard:'ASTM C597 + ACI 228.2R'},
+  {category:'خرسانة',code:'C876',type:'ورقة عمل',title:'تآكل حديد التسليح واختبار نصف الخلية',standard:'ASTM C876'},
+  {category:'خرسانة',code:'EN14630',type:'إجراء مختبري',title:'اختبار الكربنة للأنوية الخرسانية',standard:'EN 14630'},
+  {category:'تربة',code:'D4318',type:'ملخص مواصفة',title:'حدود أتربرج وتصنيف اللدونة',standard:'ASTM D4318'},
+  {category:'تربة',code:'D1883',type:'ورقة عمل',title:'CBR وحساب النتيجة ونسبة التحسن بالجيوسيستم',standard:'ASTM D1883 + Project Specification'},
+  {category:'تربة',code:'D1557',type:'إجراء مختبري',title:'البروكتور المعدل وتحديد MDD / OMC',standard:'ASTM D1557'},
+  {category:'تربة',code:'D2487',type:'دليل تصنيف',title:'تصنيف التربة الموحد USCS',standard:'ASTM D2487'},
+  {category:'أسفلت',code:'D6927',type:'إجراء مختبري',title:'اختبار مارشال: التحضير والثبات والانسياب',standard:'ASTM D6926 / D6927'},
+  {category:'أسفلت',code:'MC1-RC2',type:'نموذج ميداني',title:'معدل رش MC-1 وRC-2 والتحقق من الدرجة',standard:'ASTM D2027 / D2028 + Project Specification'},
+  {category:'الحقل وNDT',code:'D7091',type:'إجراء ميداني',title:'سماكة الطلاء الجاف DFT والتحقق من جهاز القياس',standard:'ASTM D7091 / D6132'},
+  {category:'الحقل وNDT',code:'D5162',type:'إجراء ميداني',title:'فحص عيوب العزل الكهربائي للطلاء Holiday Test',standard:'ASTM D5162'},
+  {category:'الحقل وNDT',code:'G57',type:'إجراء ومعايرة',title:'مقاومة التربة والمسح الكهربائي والتحقق من الجهاز',standard:'ASTM G57 / D6431'},
+  {category:'الحقل وNDT',code:'D2412',type:'حزمة مواسير',title:'اختبارات مواسير الفايبر: الصلابة والشد الحلقي ومحتوى الراتنج',standard:'ASTM D2412 / D2290 / D2584'}
+]);
+
+let catalog = [];
+let dashboard = null;
+let qualityData = {documents:[],proficiency:[],staff:[]};
+let currentUser = null;
+let centralAccessToken = sessionStorage.getItem('techno_lims_access_token') || '';
+let notificationItems = [];
+let pendingOtpLogin = null;
+let projectView = 'table';
+let fieldTests = [];
+let fieldLat = null;
+let fieldLng = null;
+let fieldAccuracy = null;
+let fieldPhotos = [];
+let fieldGuideCategory = 'الكل';
+let fieldTestSearchTerm = '';
+let documentLibraryRows = [];
+let documentGroupFilter = 'الكل';
+let documentSelectedIds = new Set();
+let documentLibrarySearchTerm = '';
+let toastTimer = null;
+let activeAttachmentObjectUrl = '';
+let activePageId = 'dashboard';
+let pageHistory = [];
+let navigatingBack = false;
+let refreshInFlight = null;
+let realtimeTimer = null;
+let userUpdatesChannel = null;
+let eventStream = null;
+let eventAbortController = null;
+let attendanceDate = saudiToday();
+const AUTH_ERRORS = {
+  invalid_credentials:'اسم المستخدم أو كلمة المرور غير صحيحة.',
+  phone_not_configured:'لا يوجد رقم جوال دولي مفعّل لهذا الحساب. تواصل مع مدير النظام.',
+  otp_provider_not_configured:'خدمة رمز التحقق غير مهيأة على الخادم.',
+  otp_provider_error:'تعذر إرسال رمز التحقق حالياً. حاول لاحقاً أو تواصل مع مدير النظام.',
+  otp_whatsapp_unavailable:'تعذر الإرسال عبر WhatsApp. جرّب SMS أو الاتصال الصوتي، أو فعّل WhatsApp Verify في Twilio.',
+  otp_call_unavailable:'تعذر الإرسال عبر الاتصال الصوتي. جرّب SMS أو تحقق من إعدادات Twilio.',
+  otp_sms_unavailable:'تعذر إرسال SMS حالياً. جرّب الاتصال الصوتي أو تواصل مع مدير النظام.',
+  invalid_otp_channel:'طريقة التحقق غير مدعومة.',
+  invalid_otp:'رمز التحقق غير صحيح أو منتهي الصلاحية.',
+  otp_resend_too_soon:'تم إرسال رمز مؤخراً. انتظر قليلاً ثم أعد المحاولة.'
+};
+let otpResendTimer = null;
+
+function esc(value) {
+  return String(value === null || value === undefined ? '' : value).replace(/[&<>"'\u0600-\u06ff]/g, function(char) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char] || '&#x'+char.codePointAt(0).toString(16)+';';
+  });
+}
+
+function statusClass(value) {
+  return String(value || '').replace(/\s+/g, '_');
+}
+
+function statusChip(value) {
+  return '<span class="status ' + statusClass(value) + '">' + escUI(value || '—') + '</span>';
+}
+
+function testResultMeta(value) {
+  const raw = String(value || '').trim();
+  if (raw === 'ناجح') return {label:'ناجح',icon:'✅',tone:'success'};
+  if (raw === 'راسب') return {label:'راسب',icon:'❌',tone:'danger'};
+  if (raw === 'قيد الإجراء') return {label:'قيد الإجراء',icon:'⏳',tone:'progress'};
+  return {label:raw || 'غير محدد',icon:'○',tone:'neutral'};
+}
+
+function testResultBadge(value) {
+  const meta = testResultMeta(value);
+  return '<span class="test-result-badge '+meta.tone+'"><span class="test-result-icon">'+meta.icon+'</span>'+escUI(meta.label)+'</span>';
+}
+
+function priorityChip(value) {
+  return '<span class="priority ' + statusClass(value) + '">' + escUI(value || 'متوسطة') + '</span>';
+}
+
+function today() {
+  return saudiToday();
+}
+
+function localDB() {
+  let data;
+  try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (error) { data = null; }
+  if (!data) {
+    data = {users:[],clients:[],projects:[],workOrders:[],samples:[],tests:[],reports:[],equipment:[],visits:[],catalog:[],audit:[],trash:[],syncQueue:[],settings:{},inventory:[],orderRequests:[]};
+  }
+  ['users','clients','projects','workOrders','samples','tests','reports','equipment','visits','catalog','audit','trash','syncQueue','inventory','orderRequests'].forEach(function(key) {
+    if (!Array.isArray(data[key])) data[key] = [];
+  });
+  data.catalog = mergeOfficialCatalog(data.catalog);
+  data.settings = data.settings || {};
+  if (!data.settings.whatsapp_group_url || data.settings.whatsapp_group_url === 'https://chat.whatsapp.com/CWalJYwXsocKtYiqsJsMSh') {
+    data.settings.whatsapp_group_url = 'https://chat.whatsapp.com/LxqH7L6GorGEhMfUTYthgG?s=sh&p=a&mlu=4&ilr=4';
+  }
+  return data;
+}
+
+function saveLocal(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  return data;
+}
+
+function defaultCatalog() {
+  return Object.entries(OFFICIAL_TEST_CATALOG).flatMap(function(entry) {
+    const category = entry[0], tests = entry[1];
+    return tests.map(function(test, index) { return {id:index + 1,code:test[0],name_ar:test[1],name_en:test[2] || test[1],category:category,standard:test[3] || ('ASTM ' + test[0]),version:'معتمد'}; });
+  });
+}
+
+function mergeOfficialCatalog(existing) {
+  const rows = Array.isArray(existing) ? existing.slice() : [];
+  defaultCatalog().forEach(function(official) {
+    const current = rows.find(function(row) { return row.code === official.code; });
+    if (current) Object.assign(current, official, {id:current.id});
+    else rows.push(Object.assign({}, official, {id:localId(rows)}));
+  });
+  return rows;
+}
+
+function localId(items) {
+  return items.length ? Math.max.apply(null, items.map(function(item) { return Number(item.id) || 0; })) + 1 : 1;
+}
+
+function localAudit(data, action, entity, details) {
+  data.audit.unshift({id:localId(data.audit),created_at:saudiNow(),full_name:currentUser ? currentUser.full_name : 'محلي',action:action,entity:entity,details:details});
+}
+
+const IMPACTFUL_AUDIT_ENTITIES = ['client','project','work_order','sample','test','report','field_visit','equipment','quality_document','user'];
+
+function impactfulAuditRows(rows) {
+  return (rows || []).filter(function(item) { return IMPACTFUL_AUDIT_ENTITIES.indexOf(item.entity) >= 0 && !/^حذف\s/.test(String(item.action||'')); });
+}
+
+function localQueue(data, entity, entityId, operation) {
+  data.syncQueue.unshift({id:localId(data.syncQueue),entity:entity,entity_id:entityId,operation:operation,status:'queued',attempts:0,created_at:saudiNow()});
+}
+
+function localProjectRows(data) {
+  return data.projects.map(function(project) {
+    const client = data.clients.find(function(item) { return item.id === Number(project.client_id); });
+    const orders = data.workOrders.filter(function(item) { return item.project_id === project.id; });
+    const samples = data.samples.filter(function(item) { return item.project_id === project.id; });
+    const tests = data.tests.filter(function(item) { return samples.some(function(sample) { return sample.id === Number(item.sample_id); }); });
+    const reports = data.reports.filter(function(item) { return tests.some(function(test) { return test.id === Number(item.test_id); }); });
+    return Object.assign({}, project, {client_name:client ? client.name : '',work_orders_count:orders.length,samples_count:samples.length,tests_count:tests.length,reports_count:reports.length});
+  });
+}
+
+function localDashboard(data) {
+  const projects = localProjectRows(data);
+  const orders = data.workOrders.map(function(order) {
+    const project = data.projects.find(function(item) { return item.id === Number(order.project_id); });
+    return Object.assign({}, order, {project_name:project ? project.name : '',project_code:project ? project.code : ''});
+  });
+  const samples = data.samples.map(function(sample) {
+    const project = data.projects.find(function(item) { return item.id === Number(sample.project_id); });
+    return Object.assign({}, sample, {project_name:project ? project.name : '',project_code:project ? project.code : ''});
+  });
+  const tests = data.tests.map(function(test) {
+    const sample = data.samples.find(function(item) { return item.id === Number(test.sample_id); });
+    const testCatalog = data.catalog.find(function(item) { return item.id === Number(test.catalog_id); }) || {};
+    return Object.assign({}, test, {sample_no:sample ? sample.sample_no : '',code:testCatalog.code,name_ar:testCatalog.name_ar,standard:testCatalog.standard});
+  });
+  const reports = data.reports.map(function(report) {
+    const test = tests.find(function(item) { return item.id === Number(report.test_id); }) || {};
+    return Object.assign({}, report, {test_no:test.test_no,name_ar:test.name_ar,sample_no:test.sample_no});
+  });
+  return {
+    counts:{projects:projects.length,work_orders:orders.length,samples:samples.length,tests:tests.length,reports:reports.length,equipment:data.equipment.length,field_visits:data.visits.length,sync_queue:data.syncQueue.length},
+    projects:projects,work_orders:orders,clients:data.clients.slice().reverse(),samples:samples.slice().reverse().map(function(sample) { return Object.assign({}, sample, {planned_tests_count:(sample.test_plan || []).length}); }),tests:tests.slice().reverse(),reports:reports.slice().reverse(),equipment:data.equipment.slice().reverse(),audit:impactfulAuditRows(data.audit).slice(0,150),activity:impactfulAuditRows(data.audit).slice(0,15),sync:data.syncQueue,
+    alerts:{
+      blocked_projects:projects.filter(function(item) { return item.status === 'موقوف'; }),
+      overdue_work_orders:orders.filter(function(item) { return item.due_date && item.due_date < today() && item.status !== 'مكتمل'; }),
+      awaiting_review:projects.filter(function(item) { return item.status === 'قيد المراجعة'; })
+    }
+  };
+}
+
+function staticWorkspace(data, projectId) {
+  const project = localProjectRows(data).find(function(item) { return item.id === Number(projectId); });
+  if (!project) return null;
+  const samples = data.samples.filter(function(item) { return item.project_id === project.id; });
+  const tests = data.tests.filter(function(item) { return samples.some(function(sample) { return sample.id === Number(item.sample_id); }); });
+  return {
+    project:project,
+    work_orders:data.workOrders.filter(function(item) { return item.project_id === project.id; }),
+    samples:samples,
+    tests:tests.map(function(test) { const cat = data.catalog.find(function(item) { return item.id === Number(test.catalog_id); }) || {}; const sample = samples.find(function(item) { return item.id === Number(test.sample_id); }) || {}; return Object.assign({}, test, {name_ar:cat.name_ar,standard:cat.standard,sample_no:sample.sample_no}); }),
+    results:tests.flatMap(function(test) { return Object.keys(test.results || {}).map(function(key) { return {test_no:test.test_no,name_ar:'نتيجة اختبار',field_name:key,value:test.results[key],unit:''}; }); }),
+    reports:data.reports.filter(function(item) { return tests.some(function(test) { return test.id === Number(item.test_id); }); }),
+    field_visits:data.visits.filter(function(item) { return item.project_id === project.id; })
+  };
+}
+
+function staticApi(path, options) {
+  const data = localDB();
+  const body = options && options.body ? JSON.parse(options.body) : {};
+  if (path === '/api/login') {
+    const loginId = String(body.username || '').trim();
+    const user = data.users.find(function(item) { return (item.username === loginId || item.phone === loginId) && item.password === String(body.password || '') && item.active; });
+    if (!user) throw new Error(data.users.length ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : 'أنشئ حساب المدير المحلي أولاً');
+    currentUser = {id:user.id,username:user.username,full_name:user.full_name,role:user.role,phone:user.phone || '',avatar_data_url:user.avatar_data_url || ''};
+    localStorage.setItem(STORAGE_KEY + '_session', JSON.stringify(currentUser));
+    return {ok:true,user:currentUser};
+  }
+  if (path === '/api/logout') {
+    localStorage.removeItem(STORAGE_KEY + '_session');
+    currentUser = null;
+    return {ok:true};
+  }
+  if (path === '/api/audit/delete') {
+    if (!currentUser || ['admin','quality_manager'].indexOf(currentUser.role) < 0) throw new Error('الحذف متاح لمدير النظام ومدير الجودة فقط');
+    const before=data.audit.length;data.audit=data.audit.filter(function(item){return item.id!==Number(body.id);});
+    if(data.audit.length===before)throw new Error('سجل التدقيق غير موجود');saveLocal(data);return {ok:true,deleted:1};
+  }
+  if (path === '/api/audit/clear') {
+    if (!currentUser || ['admin','quality_manager'].indexOf(currentUser.role) < 0) throw new Error('الحذف متاح لمدير النظام ومدير الجودة فقط');
+    const count=data.audit.length;data.audit=[];saveLocal(data);return {ok:true,deleted:count};
+  }
+  if (path === '/api/trash') {
+    if(!currentUser||['admin','general_manager','manager','quality_manager'].indexOf(currentUser.role)<0)throw new Error('غير مصرح');
+    return data.trash.slice().reverse().map(function(item){return {id:item.id,entity_type:item.entity_type,original_id:item.original_id,label:item.label,deleted_at:item.deleted_at,deleted_by_name:item.deleted_by_name};});
+  }
+  if (path.indexOf('/api/trash/item')===0) {
+    const id=Number(new URL(path,'https://local.invalid').searchParams.get('id'));const item=data.trash.find(function(row){return row.id===id;});if(!item)throw new Error('العنصر غير موجود في السلة');return item;
+  }
+  if (path === '/api/trash/restore') {
+    const item=data.trash.find(function(row){return row.id===Number(body.id);});if(!item)throw new Error('العنصر غير موجود في السلة');const p=item.payload;
+    if(item.entity_type==='project'){data.projects.push(p.record);data.workOrders=data.workOrders.concat(p.workOrders||[]);data.samples=data.samples.concat(p.samples||[]);data.tests=data.tests.concat(p.tests||[]);data.reports=data.reports.concat(p.reports||[]);}
+    if(item.entity_type==='work_order')data.workOrders.push(p.record);
+    if(item.entity_type==='equipment')data.equipment.push(p.record);
+    if(item.entity_type==='client'){data.clients.push(p.record);data.projects.forEach(function(row){if((p.linked_projects||[]).indexOf(row.id)>=0)row.client_id=p.original_id;});}
+    if(item.entity_type==='sample'){data.samples.push(p.record);data.tests=data.tests.concat(p.tests||[]);data.reports=data.reports.concat(p.reports||[]);}
+    if(item.entity_type==='test'){data.tests.push(p.record);data.reports=data.reports.concat(p.reports||[]);}
+    if(item.entity_type==='report')data.reports.push(p.record);
+    data.trash=data.trash.filter(function(row){return row.id!==item.id;});localQueue(data,item.entity_type,item.original_id,'restore');localAudit(data,'استعادة من السلة',item.entity_type,item.label);saveLocal(data);return {ok:true,restored:1};
+  }
+  if (path === '/api/trash/delete') {
+    if(!currentUser||['admin','quality_manager'].indexOf(currentUser.role)<0)throw new Error('الحذف النهائي متاح لمدير النظام ومدير الجودة فقط');const before=data.trash.length;data.trash=data.trash.filter(function(row){return row.id!==Number(body.id);});if(before===data.trash.length)throw new Error('العنصر غير موجود في السلة');saveLocal(data);return {ok:true,deleted:1};
+  }
+  if (path === '/api/sync/reset') {
+    if(!currentUser||['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)<0)throw new Error('ليس لديك صلاحية إعادة بدء المزامنة');const count=data.syncQueue.length;data.syncQueue=[];saveLocal(data);return {ok:true,deleted:count,queued:0};
+  }
+  if (path === '/api/records/delete') {
+    if (!currentUser || ['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role) < 0) throw new Error('ليس لديك صلاحية حذف السجلات');
+    const entity=String(body.entity||'');const id=Number(body.id);let label='';let payload={entity_type:entity,original_id:id};
+    if (!id) throw new Error('معرف السجل مطلوب');
+    if (entity === 'project') {
+      const item=data.projects.find(function(row){return row.id===id;});if(!item)throw new Error('المشروع غير موجود');label=item.code;payload.record=JSON.parse(JSON.stringify(item));payload.workOrders=data.workOrders.filter(function(row){return Number(row.project_id)===id;}).map(function(row){return JSON.parse(JSON.stringify(row));});payload.samples=data.samples.filter(function(row){return Number(row.project_id)===id;}).map(function(row){return JSON.parse(JSON.stringify(row));});const sampleIds=payload.samples.map(function(row){return row.id;});payload.tests=data.tests.filter(function(row){return sampleIds.indexOf(Number(row.sample_id))>=0;}).map(function(row){return JSON.parse(JSON.stringify(row));});const testIds=payload.tests.map(function(row){return row.id;});payload.reports=data.reports.filter(function(row){return testIds.indexOf(Number(row.test_id))>=0;}).map(function(row){return JSON.parse(JSON.stringify(row));});data.reports=data.reports.filter(function(row){return testIds.indexOf(Number(row.test_id))<0;});data.tests=data.tests.filter(function(row){return sampleIds.indexOf(Number(row.sample_id))<0;});data.samples=data.samples.filter(function(row){return Number(row.project_id)!==id;});data.workOrders=data.workOrders.filter(function(row){return Number(row.project_id)!==id;});data.visits.forEach(function(row){if(Number(row.project_id)===id)row.project_id=null;if(sampleIds.indexOf(Number(row.sample_id))>=0)row.sample_id=null;});data.projects=data.projects.filter(function(row){return row.id!==id;});
+    } else if (entity === 'work_order') {
+      const item=data.workOrders.find(function(row){return row.id===id;});if(!item)throw new Error('أمر العمل غير موجود');label=item.order_no;payload.record=JSON.parse(JSON.stringify(item));data.workOrders=data.workOrders.filter(function(row){return row.id!==id;});
+    } else if (entity === 'equipment') {
+      const item=data.equipment.find(function(row){return row.id===id;});if(!item)throw new Error('الجهاز غير موجود');label=item.name;payload.record=JSON.parse(JSON.stringify(item));data.equipment=data.equipment.filter(function(row){return row.id!==id;});
+    } else if (entity === 'client') {
+      const item=data.clients.find(function(row){return row.id===id;});if(!item)throw new Error('العميل غير موجود');label=item.name;payload.record=JSON.parse(JSON.stringify(item));payload.linked_projects=data.projects.filter(function(row){return Number(row.client_id)===id;}).map(function(row){return row.id;});
+      data.projects.forEach(function(project){if(Number(project.client_id)===id)project.client_id=null;});
+      data.clients=data.clients.filter(function(row){return row.id!==id;});
+    } else if (entity === 'sample') {
+      const item=data.samples.find(function(row){return row.id===id;});if(!item)throw new Error('العينة غير موجودة');label=item.sample_no;payload.record=JSON.parse(JSON.stringify(item));payload.tests=data.tests.filter(function(test){return Number(test.sample_id)===id;}).map(function(row){return JSON.parse(JSON.stringify(row));});
+      const testIds=data.tests.filter(function(test){return Number(test.sample_id)===id;}).map(function(test){return test.id;});
+      payload.reports=data.reports.filter(function(report){return testIds.indexOf(Number(report.test_id))>=0;}).map(function(row){return JSON.parse(JSON.stringify(row));});
+      data.reports=data.reports.filter(function(report){return testIds.indexOf(Number(report.test_id))<0;});
+      data.tests=data.tests.filter(function(test){return Number(test.sample_id)!==id;});
+      data.samples=data.samples.filter(function(row){return row.id!==id;});
+    } else if (entity === 'test') {
+      const item=data.tests.find(function(row){return row.id===id;});if(!item)throw new Error('الاختبار غير موجود');label=item.test_no;payload.record=JSON.parse(JSON.stringify(item));payload.reports=data.reports.filter(function(report){return Number(report.test_id)===id;}).map(function(row){return JSON.parse(JSON.stringify(row));});
+      data.reports=data.reports.filter(function(report){return Number(report.test_id)!==id;});
+      data.tests=data.tests.filter(function(row){return row.id!==id;});
+    } else if (entity === 'report') {
+      const item=data.reports.find(function(row){return row.id===id;});if(!item)throw new Error('التقرير غير موجود');label=item.report_no;payload.record=JSON.parse(JSON.stringify(item));
+      data.reports=data.reports.filter(function(row){return row.id!==id;});
+    } else throw new Error('نوع السجل غير قابل للحذف');
+    const names={client:'عميل',project:'مشروع',work_order:'أمر عمل',sample:'عينة',test:'اختبار',report:'تقرير',equipment:'جهاز',quality_document:'وثيقة جودة'};data.trash.push({id:localId(data.trash),entity_type:entity,original_id:id,label:label,payload:payload,deleted_at:saudiNow(),deleted_by_name:currentUser.full_name||currentUser.username});
+    localQueue(data,entity,id,'delete');localAudit(data,'حذف '+names[entity],entity,label);saveLocal(data);return {ok:true,deleted:1};
+  }
+  if (path === '/api/auth/change-password') {
+    const user = data.users.find(function(item) { return item.id === currentUser.id; });
+    if (!user || user.password !== String(body.current_password || '')) throw new Error('كلمة المرور الحالية غير صحيحة');
+    if (!String(body.new_password || '')) throw new Error('كلمة المرور الجديدة مطلوبة');
+    if (body.new_password !== body.confirm_password) throw new Error('تأكيد كلمة المرور غير مطابق');
+    user.password = body.new_password; localAudit(data,'تغيير كلمة المرور الذاتية','user',user.id,user.username); saveLocal(data); return {ok:true};
+  }
+  if (path === '/api/profile/update') {
+    const user = data.users.find(function(item) { return item.id === currentUser.id; });
+    if (!user) throw new Error('المستخدم غير موجود');
+    const fullName = String(body.full_name || '').trim(); if (!fullName) throw new Error('الاسم الكامل مطلوب');
+    user.full_name = fullName; user.avatar_data_url = body.avatar_data_url || '';
+    currentUser.full_name = fullName; currentUser.avatar_data_url = user.avatar_data_url;
+    localStorage.setItem(STORAGE_KEY + '_session', JSON.stringify(currentUser)); saveLocal(data); return {ok:true,user:currentUser};
+  }
+  if (!currentUser) throw new Error('غير مسجل الدخول');
+  if (path === '/api/catalog') return data.catalog;
+  if (path === '/api/dashboard') return localDashboard(data);
+  if (path === '/api/projects') {
+    if (!options || !options.method || options.method === 'GET') return localProjectRows(data);
+    const id = localId(data.projects);
+    const project = Object.assign({id:id,code:'PR-' + String(id).padStart(6,'0'),status:'مخطط',priority:'متوسطة',progress:0,created_at:saudiNow()}, body);
+    project.client_id = project.client_id ? Number(project.client_id) : null;
+    project.manager_id = project.manager_id ? Number(project.manager_id) : null;
+    project.progress = Math.min(100,Math.max(0,Number(project.progress) || 0));
+    data.projects.push(project); localQueue(data,'project',id,'create'); localAudit(data,'إضافة مشروع','project',project.code + ' - ' + project.name); saveLocal(data);
+    return {ok:true,id:id,code:project.code};
+  }
+  if (path === '/api/projects/update') {
+    const project = data.projects.find(function(item) { return item.id === Number(body.id); });
+    if (!project) throw new Error('المشروع غير موجود');
+    Object.assign(project, body, {client_id:body.client_id ? Number(body.client_id) : null,manager_id:body.manager_id ? Number(body.manager_id) : null,progress:Math.min(100,Math.max(0,Number(body.progress) || 0))});
+    localQueue(data,'project',project.id,'update'); localAudit(data,'تعديل مشروع','project',project.code); saveLocal(data); return {ok:true};
+  }
+  if (path === '/api/projects/status') {
+    const project = data.projects.find(function(item) { return item.id === Number(body.id); });
+    if (!project) throw new Error('المشروع غير موجود');
+    project.status = body.status; if (body.status === 'معتمد') project.progress = 100;
+    localQueue(data,'project',project.id,'status'); localAudit(data,'تغيير حالة مشروع','project',project.code + ' → ' + body.status); saveLocal(data); return {ok:true};
+  }
+  if (path.indexOf('/api/projects/') === 0 && path.endsWith('/workspace')) {
+    return staticWorkspace(data, path.split('/')[3]);
+  }
+  if (path === '/api/work-orders') {
+    if (!options || !options.method || options.method === 'GET') return data.workOrders;
+    if(body.action==='update'){
+      const order=data.workOrders.find(function(x){return x.id===Number(body.id);});if(!order)throw new Error('أمر العمل غير موجود');
+      Object.keys(body).forEach(function(key){if(['action','id'].indexOf(key)<0)order[key]=body[key];});order.project_id=Number(order.project_id);order.assigned_to=order.assigned_to?Number(order.assigned_to):null;localQueue(data,'work_order',order.id,'update');localAudit(data,'تحديث أمر عمل','work_order',order.order_no);saveLocal(data);return {ok:true,id:order.id,updated:true};
+    }
+    const id = localId(data.workOrders);
+    const order = Object.assign({id:id,order_no:'WO-' + String(id).padStart(6,'0'),status:'مفتوح',priority:'متوسطة',created_at:saudiNow()}, body, {project_id:Number(body.project_id)});
+    data.workOrders.push(order); localQueue(data,'work_order',id,'create'); localAudit(data,'إضافة أمر عمل','work_order',order.order_no + ' - ' + order.title); saveLocal(data); return {ok:true,id:id,order_no:order.order_no};
+  }
+  if (path === '/api/clients') {
+    if(body.action==='update'){const item=data.clients.find(function(x){return x.id===Number(body.id);});if(!item)throw new Error('العميل غير موجود');Object.assign(item,{name:body.name,phone:body.phone,email:body.email});localQueue(data,'client',item.id,'update');localAudit(data,'تحديث عميل','client',item.name);saveLocal(data);return {ok:true,id:item.id,updated:true};}
+    const id = localId(data.clients); data.clients.push(Object.assign({id:id},body)); localAudit(data,'إضافة عميل','client',body.name); saveLocal(data); return {ok:true,id:id};
+  }
+  if (path === '/api/samples') {
+    if(body.action==='update'){const item=data.samples.find(function(x){return x.id===Number(body.id);});if(!item)throw new Error('العينة غير موجودة');Object.assign(item,{project_id:body.project_id?Number(body.project_id):null,material:body.material,received_date:body.received_date,source:body.source,notes:body.notes});localQueue(data,'sample',item.id,'update');localAudit(data,'تحديث عينة','sample',item.sample_no);saveLocal(data);return {ok:true,id:item.id,updated:true};}
+    const id = localId(data.samples); const sample = Object.assign({id:id,status:'قيد الاختبار',project_id:body.project_id ? Number(body.project_id) : null},body);
+    sample.test_plan = data.catalog.filter(function(item) { return item.category === sample.material; }).map(function(item) { return {catalog_id:item.id,code:item.code,name_ar:item.name_ar,status:'مخطط'}; });
+    data.samples.push(sample); localQueue(data,'sample',id,'create'); localAudit(data,'إضافة عينة وخطة اختبارات تلقائية','sample',body.sample_no + ' (' + sample.test_plan.length + ' اختباراً)'); saveLocal(data); return {ok:true,id:id,planned_count:sample.test_plan.length};
+  }
+  if (path === '/api/samples/batch') {
+    const rows = Array.isArray(body.samples) ? body.samples : [];
+    const created = [], skipped = [];
+    rows.forEach(function(row) {
+      try {
+        const sampleNo = String(row.sample_no || '').trim();
+        if (!sampleNo) throw new Error('رقم العينة مطلوب');
+        if (data.samples.some(function(item){return item.sample_no === sampleNo;})) throw new Error('رقم العينة موجود بالفعل');
+        const id = localId(data.samples);
+        const sample = Object.assign({id:id,status:'قيد الاختبار',project_id:row.project_id ? Number(row.project_id) : null,received_date:row.received_date || today()},row);
+        sample.test_plan = data.catalog.filter(function(item){return item.category === sample.material;}).map(function(item){return {catalog_id:item.id,code:item.code,name_ar:item.name_ar,status:'مخطط'};});
+        data.samples.push(sample); localQueue(data,'sample',id,'create'); created.push({id:id,sample_no:sampleNo,planned_count:sample.test_plan.length});
+      } catch(error) { skipped.push({sample_no:row && row.sample_no || '',error:error.message}); }
+    });
+    localAudit(data,'إضافة دفعة عينات','sample_batch','تمت إضافة '+created.length+' وتجاوز '+skipped.length); saveLocal(data);
+    return {ok:true,created:created,skipped:skipped,created_count:created.length,skipped_count:skipped.length};
+  }
+  if (path === '/api/inventory') {
+    if (!options || !options.method || options.method === 'GET') return data.inventory;
+    const qty = Number(body.quantity || 0); if (qty < 0) throw new Error('لا يمكن إنشاء رصيد مخزون سالب');
+    const id=localId(data.inventory); data.inventory.push(Object.assign({id:id,quantity:qty,min_quantity:Number(body.min_quantity||0),created_at:saudiNow()},body));
+    localAudit(data,'إضافة صنف مخزون','inventory',String(body.name||id)); saveLocal(data); return {ok:true,id:id};
+  }
+  if (path === '/api/inventory/issue') {
+    const item=data.inventory.find(function(x){return x.id===Number(body.id);}); if(!item)throw new Error('الصنف غير موجود');
+    const qty=Number(body.quantity||0); if(qty<=0)throw new Error('أدخل كمية صرف صحيحة'); if(Number(item.quantity||0)<qty)throw new Error('لا يمكن الصرف بالسالب أو تجاوز الرصيد المتاح');
+    item.quantity=Number(item.quantity||0)-qty; localAudit(data,'صرف مخزون','inventory',String(item.name||item.id)+' - '+qty); saveLocal(data); return {ok:true,quantity:item.quantity};
+  }
+  if (path === '/api/order-requests') {
+    if (!options || !options.method || options.method === 'GET') return data.orderRequests;
+    const id=localId(data.orderRequests); data.orderRequests.push(Object.assign({id:id,status:'pending',created_at:saudiNow(),created_by:currentUser.id},body));
+    localAudit(data,'إنشاء طلب','order_request',String(body.title||id)); saveLocal(data); return {ok:true,id:id};
+  }
+  if (path === '/api/order-requests/status') {
+    const item=data.orderRequests.find(function(x){return x.id===Number(body.id);}); if(!item)throw new Error('الطلب غير موجود');
+    item.status=body.status; item.reviewed_by=currentUser.id; item.reviewed_at=saudiNow(); localAudit(data,'تغيير حالة طلب','order_request',String(item.id)+' → '+item.status); saveLocal(data); return {ok:true};
+  }
+  if (path === '/api/equipment') {
+    if(body.action==='update'){
+      const item=data.equipment.find(function(x){return x.id===Number(body.id);});if(!item)throw new Error('الجهاز غير موجود');
+      Object.keys(body).forEach(function(key){if(['action','id'].indexOf(key)<0)item[key]=body[key];});localAudit(data,'تحديث جهاز','equipment',item.name);saveLocal(data);return {ok:true,id:item.id,updated:true};
+    }
+    const id = localId(data.equipment); data.equipment.push(Object.assign({id:id,status:'ساري'},body)); localAudit(data,'إضافة جهاز','equipment',body.name); saveLocal(data); return {ok:true,id:id};
+  }
+  if(path==='/api/sync/run'){
+    const count=data.syncQueue.length;data.syncQueue=[];localAudit(data,'تنفيذ المزامنة','sync',String(count));saveLocal(data);return {ok:true,synced:count,failed:0};
+  }
+  if (path === '/api/tests/generic' || path === '/api/tests/proctor') {
+    const id = localId(data.tests); const code = body.standard_code || (data.catalog.find(function(item) { return item.id === Number(body.catalog_id); }) || {}).code; const cat = data.catalog.find(function(item) { return item.code === code; }) || {};
+    const test = {id:id,test_no:body.test_no || 'TST-' + String(id).padStart(6,'0'),sample_id:Number(body.sample_id),catalog_id:cat.id,status:'مكتمل',results:body.results || {mdd:body.mdd,omc:body.omc},mdd:body.mdd,omc:body.omc};
+    data.tests.push(test); const reportId = localId(data.reports); const report = {id:reportId,report_no:'AST-R-' + String(reportId).padStart(6,'0'),test_id:id,status:'مسودة',issued_at:saudiNow()}; data.reports.push(report); localQueue(data,'test',id,'create'); localAudit(data,'إضافة اختبار','test',test.test_no); saveLocal(data); return {ok:true,test_id:id,report_no:report.report_no};
+  }
+  if (path.indexOf('/api/report/') === 0) {
+    const test = data.tests.find(function(item) { return item.id === Number(path.split('/').pop()); }) || {}; const report = data.reports.find(function(item) { return item.test_id === test.id; }) || {}; const cat = data.catalog.find(function(item) { return item.id === test.catalog_id; }) || {}; const sample = data.samples.find(function(item) { return item.id === Number(test.sample_id); }) || {};
+    return Object.assign({},report,test,{name_ar:cat.name_ar,standard:cat.standard,sample_no:sample.sample_no,data:{inputs:{},results:test.results || {}},lab_name:'تيكنو سويل لاب'});
+  }
+  if (path === '/api/reports/status') {
+    const report = data.reports.find(function(item) { return item.id === Number(body.id); }); if (!report) throw new Error('التقرير غير موجود'); report.status = body.status; localAudit(data,'تغيير حالة تقرير','report',report.report_no + ' → ' + body.status); saveLocal(data); return {ok:true};
+  }
+  if (path === '/api/field/search') {
+    const license = decodeURIComponent((path.split('license=')[1] || '')); return data.visits.filter(function(item) { return item.license_no === license; }).slice(-20).reverse();
+  }
+  if (path === '/api/field/recent') return data.visits.slice().reverse().slice(0,30);
+  if (path === '/api/field/visits') {
+    const id = localId(data.visits); data.visits.push(Object.assign({id:id,status:'مسودة',created_at:saudiNow(),full_name:currentUser.full_name},body,{project_id:body.project_id ? Number(body.project_id) : null,sample_id:body.sample_id ? Number(body.sample_id) : null})); localQueue(data,'field_visit',id,'create'); localAudit(data,'إضافة زيارة ميدانية','field_visit',body.license_no); saveLocal(data); return {ok:true,id:id};
+  }
+  if (path === '/api/field/status') {
+    const visit = data.visits.find(function(item) { return item.id === Number(body.id); }); if (!visit) throw new Error('الزيارة غير موجودة'); visit.status = body.status; localAudit(data,'تغيير حالة زيارة','field_visit',String(visit.id)); saveLocal(data); return {ok:true};
+  }
+  if (path === '/api/users') {
+    if (!options || !options.method || options.method === 'GET') return data.users.map(function(item) { return {id:item.id,username:item.username,full_name:item.full_name,role:item.role,phone:item.phone || '',avatar_data_url:item.avatar_data_url || '',active:item.active,created_at:item.created_at}; });
+  }
+  if (path === '/api/users/create') {
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '');
+    if (!username || !String(body.full_name || '').trim() || !password) throw new Error('أكمل بيانات المستخدم وكلمة المرور');
+    if (data.users.some(function(item) { return item.username === username; })) throw new Error('اسم المستخدم مستخدم بالفعل');
+    const id = localId(data.users); data.users.push({id:id,username:username,password:password,full_name:String(body.full_name).trim(),role:body.role || 'technician',phone:String(body.phone || '').trim(),avatar_data_url:body.avatar_data_url || '',active:1,created_at:saudiNow()}); localQueue(data,'user',id,'create'); localAudit(data,'إضافة مستخدم','user',username); saveLocal(data); return {ok:true,id:id,sync:'queued'};
+  }
+  if (path === '/api/users/update') {
+    const user = data.users.find(function(item) { return item.id === Number(body.id); }); if (!user) throw new Error('المستخدم غير موجود');
+    const password = String(body.password || '');
+    if (!String(body.full_name || '').trim()) throw new Error('الاسم الكامل مطلوب');
+    user.full_name = String(body.full_name).trim(); user.role = body.role || user.role; user.phone = String(body.phone || '').trim(); user.avatar_data_url = body.avatar_data_url || user.avatar_data_url || ''; user.active = body.active ? 1 : 0;
+    if (password) user.password = password;
+    localQueue(data,'user',user.id,'update'); localAudit(data,'تعديل مستخدم','user',user.username); saveLocal(data); return {ok:true,id:user.id,sync:'queued'};
+  }
+  if (path === '/api/settings') return data.settings || {};
+  if (path === '/api/communication-links') return {whatsapp_group_url:(data.settings||{}).whatsapp_group_url||'',telegram_url:(data.settings||{}).telegram_url||''};
+  if (path === '/api/settings/update') { data.settings = Object.assign({},data.settings || {},body); saveLocal(data); return {ok:true}; }
+  throw new Error('المسار غير مدعوم في العرض الثابت');
+}
+
+async function api(path, options) {
+  const opts = options || {};
+  if (STATIC_MODE) return staticApi(path, opts);
+  const headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
+  if (centralAccessToken) headers.Authorization = 'Bearer ' + centralAccessToken;
+  const response = await fetch(API_BASE_URL + path, Object.assign({}, opts, {credentials:'include', headers:headers}));
+  let payload = {};
+  try { payload = await response.json(); } catch (error) { throw new Error('استجابة غير صالحة من الخادم'); }
+  if (response.status === 401 && currentUser) {
+    stopLiveUpdates();
+    centralAccessToken = '';
+    sessionStorage.removeItem('techno_lims_access_token');
+    currentUser = null;
+    $('app').classList.add('hidden');
+    $('login').classList.remove('hidden');
+    $('loginForm').classList.remove('hidden');
+    $('loginPassword').value = '';
+    setText($('loginMessage'), 'انتهت جلسة الحماية. سجّل الدخول مجددًا ثم أضف أو عدّل المستخدم.');
+  }
+  if (!response.ok) throw new Error(AUTH_ERRORS[payload.error] || payload.error || 'تعذر تنفيذ العملية');
+  if (currentUser && String(opts.method || 'GET').toUpperCase() !== 'GET' && path !== '/api/logout') {
+    publishLiveUpdate(path);
+    setTimeout(function(){if(currentUser)refresh().catch(function(){});},0);
+  }
+  return payload;
+}
+
+function showToast(message, isError) {
+  const toast = $('toast');
+  setText(toast, message);
+  toast.className = 'toast ' + (isError ? 'error' : 'success');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { toast.className = 'toast hidden'; }, 4200);
+}
+
+function modal(html) {
+  const body = $('modalBody');
+  setHtml(body, html);
+  body.querySelectorAll('form').forEach(function(form) {
+    form.querySelectorAll('button').forEach(function(button) {
+      if (!button.hasAttribute('type')) {
+        button.type = button.hasAttribute('data-modal-close') ? 'button' : 'submit';
+      }
+    });
+  });
+  $('modal').classList.remove('hidden');
+}
+
+function closeModal() {
+  $('modal').classList.add('hidden');
+  setHtml($('modalBody'), '');
+  if (activeAttachmentObjectUrl) {
+    URL.revokeObjectURL(activeAttachmentObjectUrl);
+    activeAttachmentObjectUrl = '';
+  }
+}
+
+function fieldValue(form, key) {
+  const element = form.elements[key];
+  return element ? element.value.trim() : '';
+}
+
+function optionList(items, selected, label, value) {
+  return items.map(function(item) {
+    const itemValue = value(item);
+    return '<option value="' + esc(itemValue) + '"' + (String(itemValue) === String(selected || '') ? ' selected' : '') + '>' + ((typeof item === 'string' || item.name_ar) ? escUI(label(item)) : esc(label(item))) + '</option>';
+  }).join('');
+}
+
+function updateBackButton() {
+  const button=$('pageBack');
+  if(!button)return;
+  button.classList.toggle('hidden',activePageId==='dashboard');
+}
+
+function navigate(page) {
+  if (page === 'documentCenter') page = 'quality';
+  if (page === 'quality' && (!currentUser || QUALITY_ACCESS_ROLES.indexOf(currentUser.role) < 0)) {
+    showToast('هذا القسم متاح فقط للمستخدمين المخولين بالجودة والوثائق.', true);
+    page = 'dashboard';
+  }
+  const previous=activePageId;
+  if(page!==previous && previous && !navigatingBack) {
+    pageHistory.push(previous);
+    if(pageHistory.length>30) pageHistory.shift();
+  }
+  if (page === 'field') setTimeout(fillFieldReadyOptions,0);
+  if (page === 'attendance') setTimeout(function(){loadAttendance().catch(function(error){showToast(error.message,true);});},0);
+  document.querySelectorAll('.page').forEach(function(element) { element.classList.remove('active'); });
+  const target = $(page);
+  if (!target) return;
+  activePageId=page;
+  target.classList.add('active');
+  document.querySelectorAll('.nav-link[data-page]').forEach(function(button) { button.classList.toggle('active', button.dataset.page === page); });
+  const nav = document.querySelector('.nav-link[data-page="' + page + '"]');
+  const nestedTitles = {documentCenter:'مركز الملفات',equipment:'الأجهزة والمعايرة'};
+  setText($('pageTitle'), nav ? ((uiTextMemory.get(nav.firstChild) || {}).ar || nav.textContent).trim() : (nestedTitles[page] || 'TECHNO LIMS'));
+  setText($('pageKicker'), page === 'projects' ? 'تنفيذ ومتابعة' : 'إدارة المختبر');
+  updateBackButton();
+  $('sidebar').classList.remove('open');
+  closeProfileMenu();
+  if (page === 'settings') loadSystemSettings();
+  if (page === 'communications') loadCommunicationLinks();
+  if (page === 'quality') {
+    loadDocumentCenter();
+    if (typeof window.refreshQualityControl === 'function') window.refreshQualityControl().catch(function(error){showToast(error.message||'تعذر تحديث بيانات ضبط الجودة',true);});
+  }
+  if (page === 'trash') loadTrash();
+}
+
+function goBackPage() {
+  let target='dashboard';
+  while(pageHistory.length){
+    const candidate=pageHistory.pop();
+    if(candidate && candidate!==activePageId){target=candidate;break;}
+  }
+  navigatingBack=true;
+  navigate(target);
+  navigatingBack=false;
+  updateBackButton();
+}
+
+async function login(event) {
+  event.preventDefault();
+  try {
+    const form = event.currentTarget || $('loginForm');
+    const usernameInput = form && form.querySelector('[name="username"], #loginUsername');
+    const passwordInput = form && form.querySelector('[name="password"], #loginPassword');
+    if (!usernameInput || !passwordInput) throw new Error('تعذر تحميل حقول الدخول. حدّث الصفحة ثم أعد المحاولة.');
+    const username = normalizeLoginId(usernameInput.value);
+    const password = passwordInput.value;
+    if (!username || !password) throw new Error('أدخل رقم الجوال أو اسم المستخدم وكلمة المرور.');
+    usernameInput.value = username;
+    if (STATIC_MODE) return await completeLogin(await api('/api/login', {method:'POST',body:JSON.stringify({username:username,password:password})}));
+    const result = await api('/api/auth/login', {method:'POST',body:JSON.stringify({username:username,password:password})});
+    centralAccessToken = result.token;
+    sessionStorage.setItem('techno_lims_access_token', centralAccessToken);
+    $('loginPassword').value = '';
+    await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone,avatar_data_url:result.user.avatar_data_url}});
+  } catch (error) {
+    setText($('loginMessage'), error.message);
+  }
+}
+
+async function verifyOtpLogin(event) {
+  event.preventDefault();
+  if (!pendingOtpLogin) return;
+  try {
+    const otp = $('loginOtp').value.trim();
+    if (!/^\d{6}$/.test(otp)) throw new Error('أدخل رمز OTP مكوّناً من 6 أرقام.');
+    const result = await api('/api/auth/verify', {method:'POST',body:JSON.stringify({username:pendingOtpLogin.username,otp:otp})});
+    centralAccessToken = result.token;
+    sessionStorage.setItem('techno_lims_access_token', centralAccessToken);
+    pendingOtpLogin = null;
+    await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone,avatar_data_url:result.user.avatar_data_url}});
+  } catch (error) { setText($('loginMessage'), error.message); }
+}
+
+function setOtpResendCooldown(seconds) {
+  const button = $('resendOtp');
+  clearInterval(otpResendTimer);
+  let remaining = seconds;
+  button.disabled = true;
+  setText(button, 'إعادة الإرسال (' + remaining + ' ث)');
+  otpResendTimer = setInterval(function() {
+    remaining -= 1;
+    if (remaining <= 0) {
+      clearInterval(otpResendTimer);
+      button.disabled = false;
+      setText(button, 'إعادة إرسال الرمز');
+    } else setText(button, 'إعادة الإرسال (' + remaining + ' ث)');
+  }, 1000);
+}
+
+function chooseOtpChannel(channel, message) {
+  if (!pendingOtpLogin) return;
+  $('loginUsername').value = pendingOtpLogin.username;
+  setText($('loginMessage'), message);
+  $('loginForm').classList.remove('hidden');
+  $('otpForm').classList.add('hidden');
+  $('loginForm').dataset.otpChannel = channel;
+  $('loginPassword').focus();
+}
+
+async function completeLogin(result) {
+  currentUser = result.user;
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  applyCurrentUserIdentity(result.user);
+  // The API authorizes both administrators and managers to manage users.
+  // Keep the navigation aligned with that server-side permission so a
+  // manager is not blocked by a hidden page despite being authorized.
+  $('usersNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager'].indexOf(result.user.role) < 0);
+  $('settingsNav').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
+  $('manageCommunicationLinks').classList.toggle('hidden', ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(result.user.role) < 0);
+  $('qualityNav').classList.toggle('hidden', QUALITY_ACCESS_ROLES.indexOf(result.user.role) < 0);
+  $('trashNav').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager'].indexOf(result.user.role) < 0);
+  $('companyVaultCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager'].indexOf(result.user.role) < 0);
+  $('qualityEquipmentCard').classList.toggle('hidden', ['admin','general_manager','manager','quality_manager','technical_manager','laboratory_manager'].indexOf(result.user.role) < 0);
+  await loadCatalog(); await refresh(); startLiveUpdates(); navigate('dashboard');
+}
+
+async function logout() {
+  stopLiveUpdates();
+  try { await api('/api/logout', {method:'POST'}); } catch (error) {}
+  centralAccessToken = ''; sessionStorage.removeItem('techno_lims_access_token'); location.reload();
+}
+
+async function bootstrapStaticAdmin() {
+  $('staticSetup').classList.add('hidden');
+  $('staticSetupForm').classList.remove('hidden');
+  $('setupUsername').focus();
+}
+
+async function submitStaticAdmin(event) {
+  event.preventDefault();
+  const username = $('setupUsername').value.trim();
+  const name = $('setupFullName').value.trim();
+  const password = $('setupPassword').value;
+  const confirmation = $('setupPasswordConfirm').value;
+  if (!username || !name) return setText($('loginMessage'), 'أدخل اسم المستخدم والاسم الكامل.');
+  if (!password) return setText($('loginMessage'), 'أدخل كلمة المرور التي تريدها.');
+  if (password !== confirmation) return setText($('loginMessage'), 'تأكيد كلمة المرور غير مطابق.');
+  const data = localDB();
+  if (data.users.length) return setText($('loginMessage'), 'الحساب المحلي موجود بالفعل. سجّل الدخول.');
+  const phone = $('setupPhone').value.trim();
+  if (phone && !/^\+\d{8,15}$/.test(phone)) return setText($('loginMessage'), 'رقم الجوال يجب أن يكون بصيغة دولية مثل +9665XXXXXXXX.');
+  data.users.push({id:1,username:username.trim(),password:password,full_name:name.trim(),phone:phone,role:'admin',active:1,created_at:saudiNow()});
+  saveLocal(data);
+  $('staticSetupForm').classList.add('hidden');
+  $('loginUsername').value = username;
+  $('loginPassword').value = '';
+  setText($('loginMessage'), 'تم إنشاء الحساب المحلي. سجّل الدخول الآن.');
+}
+
+async function loadCatalog() {
+  catalog = await api('/api/catalog');
+  renderCatalog();
+}
+
+function applyCurrentUserIdentity(user) {
+  if (!user) return;
+  currentUser = Object.assign({}, currentUser || {}, user);
+  setText($('currentUsername'), currentUser.full_name || currentUser.username || 'مستخدم');
+  setText($('currentUser'), ROLE_NAMES[currentUser.role] || currentUser.role || 'مستخدم');
+  setText($('dashboardWelcomeName'), currentUser.full_name || currentUser.username || 'مستخدم');
+  $('currentUserAvatar').src = currentUser.avatar_data_url || 'techno-logo.svg';
+  updateProfileMenuAccess();
+}
+
+async function refreshCurrentUserIdentity() {
+  if (STATIC_MODE || !currentUser) return;
+  try { applyCurrentUserIdentity(await api('/api/me')); }
+  catch (error) { if (error.message !== 'مسار غير معروف') throw error; }
+}
+
+async function refresh() {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async function() {
+    await refreshCurrentUserIdentity();
+    dashboard = await api('/api/dashboard');
+    renderDashboard();
+    renderProjects();
+    renderWorkOrders();
+    renderClients();
+    renderSamples();
+    renderTests();
+    renderReports();
+    renderEquipment();
+    renderAudit();
+    renderSystemNotifications();
+    if (currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','calibration_officer','document_controller','quality'].indexOf(currentUser.role) >= 0) {
+      await renderQuality();
+      if (activePageId === 'quality') {
+        await loadDocumentCenter();
+        if (typeof window.refreshQualityControl === 'function') await window.refreshQualityControl();
+      }
+    }
+    if (currentUser && ['admin','general_manager','manager','quality_manager'].indexOf(currentUser.role) >= 0) await renderUsers();
+    if (activePageId === 'attendance') await loadAttendance();
+  })();
+  try { return await refreshInFlight; } finally { refreshInFlight = null; }
+}
+
+function publishLiveUpdate(entity) {
+  if (userUpdatesChannel) userUpdatesChannel.postMessage({entity:entity,at:Date.now()});
+}
+
+function stopLiveUpdates() {
+  if (realtimeTimer) clearInterval(realtimeTimer);
+  realtimeTimer = null;
+  if (eventStream) eventStream.close();
+  eventStream = null;
+  if (eventAbortController) eventAbortController.abort();
+  eventAbortController = null;
+  if (userUpdatesChannel) userUpdatesChannel.close();
+  userUpdatesChannel = null;
+}
+
+async function startAuthorizedEventStream() {
+  if (!API_BASE_URL || !centralAccessToken || !currentUser) return;
+  eventAbortController = new AbortController();
+  const controller = eventAbortController;
+  try {
+    const response = await fetch(API_BASE_URL + '/api/events',{headers:{Authorization:'Bearer '+centralAccessToken},credentials:'include',signal:controller.signal});
+    if(!response.ok||!response.body)throw new Error('تعذر فتح قناة المزامنة');
+    const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
+    while(currentUser&&!controller.signal.aborted){const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop()||'';if(lines.some(function(line){return line.indexOf('data: ')===0;}))refresh().catch(function(){});}
+  } catch(error) { /* يعاد الاتصال أدناه ما لم يسجل المستخدم الخروج. */ }
+  if (!controller.signal.aborted && currentUser) setTimeout(startAuthorizedEventStream,1000);
+}
+
+function startLiveUpdates() {
+  stopLiveUpdates();
+  if (STATIC_MODE) return;
+  if ('BroadcastChannel' in window) {
+    userUpdatesChannel = new BroadcastChannel('techno-lims-central-updates');
+    userUpdatesChannel.onmessage = function() {
+      if (currentUser) refresh().catch(function() {});
+    };
+  }
+  // EventSource is enabled only for the same Render origin. It uses the
+  // HttpOnly session cookie, never exposes an access token in a URL, and
+  // causes every connected device to refresh immediately after user changes.
+  if (!API_BASE_URL || new URL(API_BASE_URL || location.origin, location.origin).origin === location.origin) {
+    eventStream = new EventSource((API_BASE_URL || '') + '/api/events');
+    eventStream.onmessage = function() {
+      if (currentUser) refresh().catch(function() {});
+    };
+    eventStream.onerror = function() { /* EventSource reconnects automatically. */ };
+  } else startAuthorizedEventStream();
+  // Same-browser updates are immediate. The short visible-page refresh keeps
+  // separate devices aligned with the central service without sending secrets.
+  realtimeTimer = setInterval(function() {
+    if (currentUser && !document.hidden) refresh().catch(function() {});
+  }, 5000);
+}
+
+async function syncNow(showMessage) { const button=$('syncNow');if(button){button.disabled=true;setText(button,'جارٍ المزامنة…');}try{await loadCatalog();await refresh();if(showMessage!==false)showToast('اكتملت المزامنة الآن');}finally{if(button){button.disabled=false;setText(button,'مزامنة الآن');}} }
+
+function buildSystemNotifications(){
+  if(!dashboard)return [];
+  const d=dashboard,items=[],day=today(),push=function(item){items.push(Object.assign({tone:'warning',route:'dashboard',solution:'فتح السجل ومعالجة السبب ثم حفظ التعديل.'},item));};
+  (d.alerts.overdue_work_orders||[]).forEach(function(x){push({key:'order-'+x.id,type:'workOrder',id:x.id,tone:'danger',title:'أمر عمل متأخر: '+x.order_no,detail:(x.title||'')+' · الاستحقاق '+(x.due_date||'غير محدد'),route:'workOrders',solution:'حدّث المسؤول أو الموعد أو الحالة وسجّل الإجراء.'});});
+  (d.alerts.blocked_projects||[]).forEach(function(x){push({key:'project-'+x.id,type:'project',id:x.id,tone:'danger',title:'مشروع متوقف: '+x.code,detail:x.name||'',route:'projects',solution:'راجع سبب التوقف وحدّث الحالة وخطة التنفيذ.'});});
+  (d.alerts.awaiting_review||[]).forEach(function(x){push({key:'review-'+(x.entity||'item')+'-'+(x.id||x.code),type:x.entity==='report'?'reports':'project',id:x.id,tone:'warning',title:'عنصر ينتظر المراجعة',detail:(x.code||x.name||x.entity||'')+' · يحتاج قرار اعتماد',route:x.entity==='report'?'reports':'projects',solution:'افتح دورة المراجعة واتخذ الإجراء المخوّل.'});});
+  (d.equipment||[]).forEach(function(x){const due=x.calibrated_to||x.next_calibration||'';if(!due&&!x.last_calibration)push({key:'equipment-missing-'+x.id,type:'equipment',id:x.id,tone:'danger',title:'جهاز بلا تاريخ معايرة',detail:(x.equipment_code||'جهاز #'+x.id)+' — '+x.name,route:'equipment',solution:'أدخل آخر معايرة والمعايرة القادمة.'});else if(due&&due<day)push({key:'equipment-expired-'+x.id,type:'equipment',id:x.id,tone:'danger',title:'جهاز تجاوز المعايرة',detail:(x.equipment_code||'جهاز #'+x.id)+' — انتهت '+due,route:'equipment',solution:'أوقف الاستخدام وحدّث المعايرة والشهادة.'});});
+  (d.work_orders||[]).filter(function(x){return x.status!=='مكتمل'&&!x.assigned_to&&!x.assignee_name;}).forEach(function(x){push({key:'unassigned-'+x.id,type:'workOrder',id:x.id,title:'أمر عمل بلا مسؤول',detail:x.order_no+' — '+x.title,route:'workOrders',solution:'عيّن الفني المسؤول وموعد الاستحقاق.'});});
+  (d.sync||[]).forEach(function(x){push({key:'sync-'+x.id,type:'sync_queue',id:x.id,tone:x.last_error?'danger':'warning',title:x.last_error?'تعثر في المزامنة':'عملية تنتظر المزامنة',detail:x.entity+' #'+x.entity_id+' · '+x.operation,route:'dashboard',solution:x.last_error?'راجع الخطأ ثم أعد المحاولة.':'نفّذ طابور المزامنة بالترتيب.'});});
+  return items;
+}
+
+function renderSystemNotifications(){
+  const list=$('notificationList'),count=$('notificationCount');if(!list||!count)return;
+  notificationItems=buildSystemNotifications();const readAt=Number(localStorage.getItem(STORAGE_KEY+'_notifications_read')||0),stamp=Number(localStorage.getItem(STORAGE_KEY+'_notifications_stamp')||0);const fingerprint=notificationItems.map(function(x){return x.key;}).join('|');let currentStamp=stamp;
+  if(localStorage.getItem(STORAGE_KEY+'_notifications_fingerprint')!==fingerprint){currentStamp=Date.now();localStorage.setItem(STORAGE_KEY+'_notifications_fingerprint',fingerprint);localStorage.setItem(STORAGE_KEY+'_notifications_stamp',String(currentStamp));}
+  const unread=currentStamp>readAt?notificationItems.length:0;setText(count,unread>99?'99+':unread);count.classList.toggle('hidden',!unread);
+  setHtml(list,notificationItems.length?notificationItems.map(function(x,index){return '<button class="notification-item '+esc(x.tone)+'" type="button" data-notification-index="'+index+'"><i></i><span><strong>'+esc(x.title)+'</strong><small>'+esc(x.detail)+'</small><em>المسار: '+escUI(x.route)+' · الحل: '+esc(x.solution)+'</em></span></button>';}).join(''):'<div class="decision-empty success">النظام سليم ولا توجد تنبيهات تشغيلية.</div>');
+}
+
+function toggleNotificationPanel(force){const panel=$('notificationPanel'),button=$('notificationToggle');if(!panel||!button)return;const open=typeof force==='boolean'?force:panel.classList.contains('hidden');panel.classList.toggle('hidden',!open);button.setAttribute('aria-expanded',open?'true':'false');if(open)renderSystemNotifications();}
+function markNotificationsRead(){localStorage.setItem(STORAGE_KEY+'_notifications_read',String(Date.now()));renderSystemNotifications();}
+function openNotificationItem(index){const item=notificationItems[Number(index)];if(!item)return;toggleNotificationPanel(false);markNotificationsRead();const id=Number(item.id);if(item.type==='sync_queue')return openSyncWorkQueue();if(item.type==='equipment'){const row=(dashboard.equipment||[]).find(function(x){return x.id===id;});navigate('equipment');if(row)openEquipmentForm(row);return;}if(item.type==='workOrder'){const row=(dashboard.work_orders||[]).find(function(x){return x.id===id;});navigate('workOrders');if(row)openWorkOrderForm(row.project_id,row);return;}if(item.type==='project'){navigate('projects');return openProjectForm(id);}if(item.type==='reports'){navigate('reports');return reviewReport(id);}navigate(item.route||'dashboard');}
+
+
+function attendanceManagerAccess() {
+  return !!(currentUser && ATTENDANCE_MANAGER_ROLES.indexOf(currentUser.role) >= 0);
+}
+
+function attendanceGps() {
+  return new Promise(function(resolve,reject) {
+    if (!navigator.geolocation) return reject(new Error('هذا الجهاز لا يدعم تحديد الموقع.'));
+    navigator.geolocation.getCurrentPosition(function(position) {
+      resolve({
+        latitude:Number(position.coords.latitude),
+        longitude:Number(position.coords.longitude),
+        accuracy:Number(position.coords.accuracy || 0)
+      });
+    }, function(error) {
+      const messages={1:'تم رفض إذن الموقع. اسمح للموقع من إعدادات المتصفح ثم أعد المحاولة.',2:'تعذر تحديد الموقع حالياً.',3:'انتهت مهلة تحديد الموقع.'};
+      reject(new Error(messages[error.code] || 'تعذر تحديد الموقع.'));
+    }, {enableHighAccuracy:true,timeout:15000,maximumAge:15000});
+  });
+}
+
+function attendanceMapUrl(latitude, longitude) {
+  return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(String(latitude)+','+String(longitude));
+}
+
+function attendanceStateLabel(record) {
+  if (!record || !record.check_in_at) return 'غير مسجل';
+  if (record.check_out_at || record.status === 'completed') return 'انصرف';
+  return 'حاضر';
+}
+
+function renderMyAttendance(payload) {
+  const record=(payload&&payload.record)||null;
+  const workDate=(payload&&payload.work_date)||attendanceDate||saudiToday();
+  const isToday=workDate===saudiToday();
+  setText($('attendanceStatus'),attendanceStateLabel(record));
+  setText($('attendanceCheckInTime'),record&&record.check_in_at?saudiDisplay(record.check_in_at):'—');
+  setText($('attendanceCheckOutTime'),record&&record.check_out_at?saudiDisplay(record.check_out_at):'—');
+  setText($('attendanceLastLocationAt'),record&&record.last_location_at?saudiDisplay(record.last_location_at):'—');
+  setText($('attendanceAccuracy'),record&&record.last_accuracy!==null&&record.last_accuracy!==undefined?Math.round(Number(record.last_accuracy))+' m':'—');
+  const checkIn=$('attendanceCheckIn'), update=$('attendanceUpdateLocation'), checkOut=$('attendanceCheckOut');
+  if(checkIn)checkIn.disabled=!isToday||!!(record&&record.check_in_at);
+  if(update)update.disabled=!isToday||!(record&&record.check_in_at)||!!(record&&record.check_out_at);
+  if(checkOut)checkOut.disabled=!isToday||!(record&&record.check_in_at)||!!(record&&record.check_out_at);
+  const loc=$('attendanceLocationCard');
+  if(loc){
+    if(record&&record.last_latitude!==null&&record.last_longitude!==null){
+      setHtml(loc,'<div><strong>آخر موقع مسجل</strong><small>'+esc(saudiDisplay(record.last_location_at))+' · دقة '+esc(Math.round(Number(record.last_accuracy||0)))+' m</small></div><a class="btn secondary" target="_blank" rel="noopener noreferrer" href="'+esc(attendanceMapUrl(record.last_latitude,record.last_longitude))+'">فتح في الخريطة</a>');
+    } else setHtml(loc,'<span>لم يتم تسجيل موقع بعد.</span>');
+  }
+  const events=(payload&&payload.events)||[];
+  const eventNames={check_in:'تسجيل حضور',heartbeat:'تحديث موقع',check_out:'تسجيل انصراف'};
+  const box=$('attendanceEvents');
+  if(box)setHtml(box,events.length?events.map(function(item){return '<div class="attendance-event"><strong>'+esc(eventNames[item.event_type]||item.event_type)+'</strong><span>'+esc(saudiDisplay(item.captured_at))+'</span><small>GPS '+esc(Math.round(Number(item.accuracy||0)))+' m'+(item.note?' · '+esc(item.note):'')+'</small></div>';}).join(''):'<div class="empty-state">لا توجد أحداث موقع لهذا اليوم.</div>');
+}
+
+function renderAttendanceTeam(records, locations, workDate) {
+  const tbody=$('attendanceTeamTable'), panel=$('attendanceManagerPanel');
+  if(!tbody||!panel)return;
+  if(!attendanceManagerAccess()){panel.classList.add('hidden');return;}
+  panel.classList.remove('hidden');
+  const recordMap={};(records||[]).forEach(function(row){recordMap[String(row.user_id)]=row;});
+  const isToday=workDate===saudiToday();
+  const rows=[];
+  (locations||[]).forEach(function(person){
+    const record=recordMap[String(person.user_id)]||{};
+    rows.push(Object.assign({},person,record,{last_latitude:isToday?person.last_latitude:record.last_latitude,last_longitude:isToday?person.last_longitude:record.last_longitude,last_location_at:isToday?person.last_location_at:record.last_location_at,last_accuracy:isToday?person.last_accuracy:record.last_accuracy}));
+    delete recordMap[String(person.user_id)];
+  });
+  Object.keys(recordMap).forEach(function(key){rows.push(recordMap[key]);});
+  setText($('attendanceTeamCount'),String(rows.length));
+  setHtml(tbody,rows.length?rows.map(function(row){
+    const map=row.last_latitude!==null&&row.last_latitude!==undefined&&row.last_longitude!==null&&row.last_longitude!==undefined?'<a class="text-btn" target="_blank" rel="noopener noreferrer" href="'+esc(attendanceMapUrl(row.last_latitude,row.last_longitude))+'">الخريطة</a>':'—';
+    return '<tr><td><strong>'+esc(row.full_name||row.username||'—')+'</strong><small>@'+esc(row.username||'')+'</small></td><td>'+esc(ROLE_NAMES[row.role]||row.role||'—')+'</td><td>'+statusChip(attendanceStateLabel(row))+'</td><td>'+esc(row.check_in_at?saudiDisplay(row.check_in_at):'—')+'</td><td>'+esc(row.check_out_at?saudiDisplay(row.check_out_at):'—')+'</td><td>'+esc(row.last_location_at?saudiDisplay(row.last_location_at):'—')+(row.last_accuracy!==null&&row.last_accuracy!==undefined?'<small>GPS '+esc(Math.round(Number(row.last_accuracy)))+' m</small>':'')+'</td><td>'+map+'</td></tr>';
+  }).join(''):'<tr><td colspan="7"><div class="empty-state">لا توجد سجلات لهذا التاريخ.</div></td></tr>');
+}
+
+async function loadAttendance() {
+  if(!currentUser||!$('attendanceDate'))return;
+  const date=$('attendanceDate').value||attendanceDate||saudiToday();
+  attendanceDate=date;$('attendanceDate').value=date;
+  const mine=await api('/api/attendance/me?date='+encodeURIComponent(date));
+  renderMyAttendance(mine);
+  if(attendanceManagerAccess()){
+    const results=await Promise.all([api('/api/attendance?date='+encodeURIComponent(date)),api('/api/personnel/locations')]);
+    renderAttendanceTeam(results[0].records||[],results[1]||[],date);
+  } else renderAttendanceTeam([],[],date);
+}
+
+async function attendanceAction(action) {
+  const labels={checkIn:'الحضور',location:'الموقع',checkOut:'الانصراف'};
+  const buttons={checkIn:$('attendanceCheckIn'),location:$('attendanceUpdateLocation'),checkOut:$('attendanceCheckOut')};
+  const button=buttons[action]; if(button)button.disabled=true;
+  try{
+    const location=await attendanceGps();
+    const body={latitude:location.latitude,longitude:location.longitude,accuracy:location.accuracy,note:($('attendanceNote')&&$('attendanceNote').value||'').trim()};
+    const path=action==='checkIn'?'/api/attendance/check-in':(action==='checkOut'?'/api/attendance/check-out':'/api/attendance/location');
+    await api(path,{method:'POST',body:JSON.stringify(body)});
+    showToast('تم تسجيل '+labels[action]+' بنجاح');
+    await loadAttendance();
+  } finally { if(button)button.disabled=false; }
+}
+
+function renderDashboard() {
+  if (!dashboard) return;
+  setText($('metricProjects'), dashboard.projects.filter(function(item) { return ['نشط','قيد المراجعة','موقوف'].indexOf(item.status) >= 0; }).length);
+  setText($('metricOrders'), dashboard.counts.work_orders || 0);
+  setText($('metricSamples'), dashboard.counts.samples || 0);
+  setText($('metricReports'), dashboard.counts.reports || 0);
+  setText($('metricReview'), (dashboard.alerts.awaiting_review || []).length);
+  setText($('metricSync'), dashboard.counts.sync_queue || 0);
+  const att=dashboard.attendance_summary||{};
+  const rate=Number(att.rate)||0;
+  setText($('dashboardAttendanceRate'), rate+'%');
+  setText($('dashboardAttendanceRingValue'), rate+'%');
+  setText($('dashboardAttendanceCaption'), (Number(att.registered)||0)+' من '+(Number(att.active_users)||0)+' مسجل');
+  setText($('dashboardPresent'), att.present||0);
+  setText($('dashboardCheckedOut'), att.checked_out||0);
+  setText($('dashboardNotRegistered'), att.not_registered||0);
+  if($('dashboardAttendanceRing')) $('dashboardAttendanceRing').style.setProperty('--attendance-pct',String(rate));
+  setText($('dashboardCalibrationDue'), dashboard.calibration_due_count||0);
+  const tests=dashboard.tests||[];
+  const categoryCount=function(names){return tests.filter(function(t){return names.indexOf(String(t.category||''))>=0;}).length;};
+  setText($('dashConcreteCount'),categoryCount(['خرسانة','الخرسانة','Concrete']));
+  setText($('dashSoilCount'),categoryCount(['تربة','التربة','Soil']));
+  setText($('dashAsphaltCount'),categoryCount(['أسفلت','الأسفلت','Asphalt']));
+  setText($('dashFieldCount'),categoryCount(['الحقل وNDT','ميداني','Field'])+(Number(dashboard.counts.field_visits)||0));
+  if($('dashboardToday')) setText($('dashboardToday'),new Intl.DateTimeFormat('ar-SA',{weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(new Date()));
+  if($('dashboardRecentRows')){
+    setHtml($('dashboardRecentRows'),(dashboard.samples||[]).slice(0,5).map(function(s){
+      return '<tr><td><strong>'+esc(s.sample_no||'—')+'</strong></td><td>'+esc(s.project_name||s.project_code||'—')+'</td><td>'+escUI(s.material||s.sample_type||'—')+'</td><td>'+statusChip(s.status||'—')+'</td><td>'+esc(saudiDisplay(s.received_at||s.created_at||''))+'</td></tr>';
+    }).join('')||'<tr><td colspan="5" class="empty">لا توجد عينات مسجلة بعد.</td></tr>');
+  }
+  const pending = dashboard.counts.sync_queue || 0;
+  setText($('syncIndicator'), 'المزامنة المباشرة: متصلة' +
+    (pending ? ' · ' + pending + ' عملية مسجلة' : ''));
+  const priorities = [];
+  (dashboard.alerts.overdue_work_orders || []).forEach(function(item) { priorities.push('<div class="priority-item overdue"><strong>أمر متأخر: ' + esc(item.order_no) + ' — ' + esc(item.title) + '</strong><small>' + esc(item.project_code) + ' · استحقاق ' + esc(item.due_date) + '</small></div>'); });
+  (dashboard.alerts.blocked_projects || []).forEach(function(item) { priorities.push('<div class="priority-item blocked"><strong>مشروع متوقف: ' + esc(item.code) + ' — ' + esc(item.name) + '</strong><small>الأولوية ' + escUI(item.priority) + (item.due_date ? ' · الاستحقاق ' + esc(item.due_date) : '') + '</small></div>'); });
+  (dashboard.alerts.awaiting_review || []).forEach(function(item) { priorities.push('<div class="priority-item"><strong>ينتظر المراجعة: ' + esc(item.code || item.name) + '</strong><small>' + esc(item.name || item.entity) + '</small></div>'); });
+  setHtml($('priorityList'), priorities.join('') || '<div class="empty">لا توجد أولويات متأخرة أو عوائق حالياً.</div>');
+  setHtml($('activityList'), (dashboard.activity || []).map(function(item) { return '<div class="timeline-item"><strong>' + escUI(item.action) + '</strong><small>' + esc(saudiDisplay(item.created_at)) + ' · ' + esc(item.details || '') + '</small></div>'; }).join('') || '<div class="empty">لا توجد عمليات بعد.</div>');
+  setHtml($('dashboardProjects'), dashboard.projects.slice(0,6).map(function(project) {
+    return '<button class="compact-project text-btn" type="button" data-project-open="' + project.id + '"><h4>' + esc(project.code) + ' — ' + esc(project.name) + '</h4><p>' + statusChip(project.status) + ' · ' + esc(project.samples_count) + ' عينة · ' + esc(project.reports_count) + ' تقرير</p></button>';
+  }).join('') || '<div class="empty">ابدأ بإضافة مشروع.</div>');
+  renderDecisionIntelligence();
+  renderOperationalWorkspace();
+}
+
+function renderOperationalWorkspace(){
+  if(!$('operationalTaskList')||!dashboard)return;
+  const tasks=dashboard.operational_tasks||[],day=today();
+  const overdue=tasks.filter(function(t){return t.due_date&&t.due_date<day&&t.status!=='مكتملة';});
+  setText($('taskOpenCount'),tasks.filter(function(t){return t.status==='جديدة';}).length);
+  setText($('taskActiveCount'),tasks.filter(function(t){return t.status==='قيد التنفيذ';}).length);
+  setText($('taskOverdueCount'),overdue.length);
+  setText($('taskDoneCount'),tasks.filter(function(t){return t.status==='مكتملة';}).length);
+  setHtml($('operationalTaskList'),tasks.slice(0,12).map(function(t){
+    const late=t.due_date&&t.due_date<day&&t.status!=='مكتملة';
+    return '<article class="operational-task '+(late?'is-overdue':'')+'"><div><strong>'+esc(t.title)+'</strong><small>'+esc(t.project_code||'عام')+' · '+esc(t.assignee_name||'غير مسند')+(t.due_date?' · '+esc(t.due_date):'')+'</small></div><span class="task-priority">'+escUI(t.priority)+'</span><select data-task-status="'+t.id+'"><option'+(t.status==='جديدة'?' selected':'')+'>جديدة</option><option'+(t.status==='قيد التنفيذ'?' selected':'')+'>قيد التنفيذ</option><option'+(t.status==='مكتملة'?' selected':'')+'>مكتملة</option><option'+(t.status==='مؤجلة'?' selected':'')+'>مؤجلة</option></select></article>';
+  }).join('')||'<div class="empty">لا توجد مهام تنفيذية. حوّل أول توصية إلى مهمة مسندة.</div>');
+}
+
+function openOperationalTaskForm(prefill){
+  prefill=prefill||{};
+  const users=(dashboard.users_active||[]).map(function(u){return '<option value="'+u.id+'">'+esc(u.full_name||u.username)+'</option>';}).join('');
+  const projects=(dashboard.projects||[]).map(function(p){return '<option value="'+p.id+'">'+esc(p.code+' — '+p.name)+'</option>';}).join('');
+  const priority=prefill.priority==='عاجل'?'حرجة':prefill.priority==='عالي'?'عالية':'متوسطة';
+  modal('<h2>مهمة تنفيذية جديدة</h2><p>تُحفظ المهمة في قاعدة البيانات وتظهر في لوحة المتابعة والتنبيهات.</p><form id="operationalTaskForm"><div class="modal-grid"><label>عنوان المهمة<input name="title" required value="'+esc(prefill.title||'')+'"></label><label>المسؤول<select name="assigned_to"><option value="">غير مسند</option>'+users+'</select></label><label>المشروع<select name="project_id"><option value="">مهمة عامة</option>'+projects+'</select></label><label>الأولوية<select name="priority"><option'+(priority==='منخفضة'?' selected':'')+'>منخفضة</option><option'+(priority==='متوسطة'?' selected':'')+'>متوسطة</option><option'+(priority==='عالية'?' selected':'')+'>عالية</option><option'+(priority==='حرجة'?' selected':'')+'>حرجة</option></select></label><label>تاريخ الاستحقاق<input name="due_date" type="date"></label><label>المصدر<input name="source_type" value="'+esc(prefill.source_type||'manual')+'" readonly></label></div><label>الوصف<textarea name="description">'+esc(prefill.detail||'')+'</textarea></label><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ وإسناد المهمة</button></div></form>');
+}
+async function saveOperationalTask(form){const payload=Object.fromEntries(new FormData(form).entries());await api('/api/operational-tasks',{method:'POST',body:JSON.stringify(payload)});closeModal();await refresh();showToast('تم إنشاء المهمة وإضافتها للمتابعة');}
+async function updateOperationalTaskStatus(id,status){await api('/api/operational-tasks',{method:'POST',body:JSON.stringify({action:'update',id:Number(id),status:status})});await refresh();showToast('تم تحديث حالة المهمة');}
+
+
+function decisionPercent(done,total){
+  const d=Number(done)||0,t=Number(total)||0;
+  return t>0?Math.max(0,Math.min(100,Math.round((d/t)*100))):0;
+}
+
+function decisionNormalize(value){
+  return String(value||'').trim().toLowerCase().replace(/[\s\-_]+/g,' ');
+}
+
+function decisionIntelligenceModel(){
+  const d=dashboard||{},projects=d.projects||[],orders=d.work_orders||[],samples=d.samples||[],tests=d.tests||[],reports=d.reports||[],equipment=d.equipment||[],clients=d.clients||[];
+  const currentDay=today();
+  const completeOrders=orders.filter(function(item){return item.status==='مكتمل';});
+  const completeTests=tests.filter(function(item){return item.status==='مكتمل'||item.status==='معتمد'||Boolean(item.completed_at)||Boolean(item.approved_at);});
+  const approvedReports=reports.filter(function(item){return item.status==='معتمد'||Boolean(item.approved_by);});
+  const projectProgress=projects.length?Math.round(projects.reduce(function(sum,item){return sum+Math.max(0,Math.min(100,Number(item.progress)||0));},0)/projects.length):0;
+
+  const overdueOrders=orders.filter(function(item){return item.due_date&&item.due_date<currentDay&&item.status!=='مكتمل';});
+  const blockedProjects=projects.filter(function(item){return item.status==='موقوف';});
+  const awaitingReview=(d.alerts&&d.alerts.awaiting_review)||[];
+  const criticalProjects=projects.filter(function(item){return item.priority==='حرجة'&&item.status!=='مكتمل';});
+  const expiredCalibration=equipment.filter(function(item){const date=item.calibrated_to||item.next_calibration||'';return date&&date<currentDay;});
+  const missingCalibration=equipment.filter(function(item){return !(item.calibrated_to||item.next_calibration||item.last_calibration);});
+
+  const issues=[];
+  const addIssue=function(key,label,count,severity,detail){if(count>0)issues.push({key:key,label:label,count:count,severity:severity||'warning',detail:detail||''});};
+  addIssue('project_due','مشاريع نشطة بلا تاريخ استحقاق',projects.filter(function(item){return item.status!=='مكتمل'&&!item.due_date;}).length,'warning','أضف موعدًا حتى تعمل المتابعة والتنبيهات بدقة.');
+  addIssue('order_assignee','أوامر عمل بلا مسؤول',orders.filter(function(item){return item.status!=='مكتمل'&&!item.assigned_to&&!item.assignee_name;}).length,'danger','إسناد المسؤول يمنع ضياع المهام.');
+  addIssue('order_due','أوامر عمل بلا موعد',orders.filter(function(item){return item.status!=='مكتمل'&&!item.due_date;}).length,'warning','أضف موعدًا للاستحقاق والمتابعة.');
+  addIssue('sample_project','عينات غير مرتبطة بمشروع',samples.filter(function(item){return !item.project_id;}).length,'warning','اربط العينة بمشروعها للحفاظ على سلسلة التتبع.');
+  addIssue('test_technician','اختبارات غير مسندة لفني',tests.filter(function(item){return !item.technician_id&&!item.technician_name&&item.status!=='مكتمل'&&item.status!=='معتمد';}).length,'danger','إسناد الاختبار يوضح المسؤولية وحالة التنفيذ.');
+  addIssue('report_date','تقارير بلا تاريخ إصدار',reports.filter(function(item){return !item.issued_at;}).length,'warning','التاريخ مطلوب للتتبع والتقارير الإدارية.');
+  addIssue('equipment_calibration','أجهزة بلا تاريخ معايرة',missingCalibration.length,'danger','أكمل بيانات المعايرة قبل الاعتماد التشغيلي.');
+  addIssue('equipment_expired','أجهزة تجاوزت تاريخ المعايرة',expiredCalibration.length,'danger','أوقف الاستخدام غير المصرح وجدول المعايرة.');
+
+  const clientGroups={};
+  clients.forEach(function(item){const key=decisionNormalize(item.name);if(key)(clientGroups[key]||(clientGroups[key]=[])).push(item);});
+  const duplicateClients=Object.keys(clientGroups).filter(function(key){return clientGroups[key].length>1;}).reduce(function(sum,key){return sum+clientGroups[key].length-1;},0);
+  addIssue('duplicate_clients','أسماء عملاء مكررة',duplicateClients,'warning','راجع التكرار قبل الدمج حتى لا تفقد الروابط.');
+
+  const inconsistentProjects=projects.filter(function(item){return PROJECT_STATUSES.indexOf(item.status)<0;}).length;
+  const inconsistentOrders=orders.filter(function(item){return WORK_ORDER_STATUSES.indexOf(item.status)<0;}).length;
+  addIssue('status_consistency','حالات غير متوافقة مع القوائم المعتمدة',inconsistentProjects+inconsistentOrders,'danger','وحّد القيم قبل التحليل.');
+
+  const projectHealth=projects.map(function(project){
+    let score=0,reasons=[];
+    if(project.status==='موقوف'){score+=5;reasons.push('متوقف');}
+    if(project.due_date&&project.due_date<currentDay&&project.status!=='مكتمل'){score+=4;reasons.push('متأخر');}
+    if(project.priority==='حرجة'){score+=3;reasons.push('أولوية حرجة');}
+    else if(project.priority==='عالية'){score+=2;reasons.push('أولوية عالية');}
+    if(!project.due_date&&project.status!=='مكتمل'){score+=1;reasons.push('بلا استحقاق');}
+    if((Number(project.progress)||0)<25&&['نشط','قيد المراجعة'].indexOf(project.status)>=0){score+=2;reasons.push('تقدم منخفض');}
+    if(project.status==='قيد المراجعة'){score+=1;reasons.push('بانتظار مراجعة');}
+    return {
+      id:project.id,code:project.code,name:project.name,progress:Number(project.progress)||0,status:project.status,
+      score:score,reasons:reasons,tone:score>=6?'danger':score>=3?'warning':'success',
+      label:score>=6?'حرج':score>=3?'يحتاج متابعة':'مستقر'
+    };
+  }).sort(function(a,b){return b.score-a.score||a.progress-b.progress;});
+
+  const recommendations=[];
+  const addRec=function(priority,title,detail,page,action){recommendations.push({priority:priority,title:title,detail:detail,page:page||'',action:action||''});};
+  if(overdueOrders.length)addRec('عاجل','معالجة أوامر العمل المتأخرة',overdueOrders.length+' أمر عمل تجاوز موعده ويحتاج تحديث حالة أو إجراء تصحيحي.','workOrders','overdue_orders');
+  if(expiredCalibration.length)addRec('عاجل','معالجة الأجهزة المتجاوزة للمعايرة',expiredCalibration.length+' جهاز تجاوز تاريخ المعايرة المسجل.','equipment','equipment_expired');
+  if(awaitingReview.length)addRec('عالي','إنهاء المراجعات المعلقة',awaitingReview.length+' عنصر ينتظر المراجعة أو الاعتماد.','quality');
+  const unassigned=orders.filter(function(item){return item.status!=='مكتمل'&&!item.assigned_to&&!item.assignee_name;}).length;
+  if(unassigned)addRec('عالي','إسناد المسؤوليات',unassigned+' أمر عمل مفتوح بدون مسؤول محدد.','workOrders','order_assignee');
+  if(issues.length)addRec('متوسط','تنظيف البيانات قبل التحليل',issues.reduce(function(sum,item){return sum+item.count;},0)+' ملاحظة جودة بيانات تؤثر على دقة المؤشرات.','dashboard','data_cleaning');
+  if((d.counts&&d.counts.sync_queue)||0)addRec('متوسط','تنفيذ المزامنة',String(d.counts.sync_queue)+' عملية في طابور المزامنة.','dashboard','sync_queue');
+  if(!recommendations.length)addRec('مستقر','لا توجد إجراءات حرجة حالياً','استمر في متابعة المؤشرات والمراجعات الدورية.','dashboard');
+
+  const statusCounts={};
+  projects.forEach(function(item){statusCounts[item.status]=(statusCounts[item.status]||0)+1;});
+  const summary=[
+    'يوجد '+projects.length+' مشروعًا بمتوسط تقدم '+projectProgress+'%، منها '+criticalProjects.length+' مشروع بأولوية حرجة و'+blockedProjects.length+' مشروع متوقف.',
+    'تم إغلاق '+completeOrders.length+' من أصل '+orders.length+' أمر عمل، ويوجد '+overdueOrders.length+' أمر متأخر.',
+    'تم إنجاز/اعتماد '+completeTests.length+' من أصل '+tests.length+' اختبار، واعتماد '+approvedReports.length+' من أصل '+reports.length+' تقرير.',
+    'تم رصد '+issues.reduce(function(sum,item){return sum+item.count;},0)+' ملاحظة جودة بيانات و'+expiredCalibration.length+' جهاز متجاوز للمعايرة.'
+  ];
+
+  return {
+    generated_at:saudiNow(),project_progress:projectProgress,
+    work_order_rate:decisionPercent(completeOrders.length,orders.length),
+    test_rate:decisionPercent(completeTests.length,tests.length),
+    report_rate:decisionPercent(approvedReports.length,reports.length),
+    data_issue_count:issues.reduce(function(sum,item){return sum+item.count;},0),
+    critical_count:overdueOrders.length+blockedProjects.length+awaitingReview.length+expiredCalibration.length,
+    summary:summary,issues:issues,project_health:projectHealth,recommendations:recommendations,status_counts:statusCounts,
+    raw:{projects:projects.length,orders:orders.length,samples:samples.length,tests:tests.length,reports:reports.length,equipment:equipment.length,
+      overdue_orders:overdueOrders.length,blocked_projects:blockedProjects.length,awaiting_review:awaitingReview.length,expired_calibration:expiredCalibration.length}
+  };
+}
+
+function decisionToneLabel(tone){
+  return tone==='danger'?'حرج':tone==='warning'?'تنبيه':'سليم';
+}
+
+function renderDecisionIntelligence(){
+  if(!$('decisionIntelligenceCenter')||!dashboard)return;
+  const model=decisionIntelligenceModel();
+  window.__ASAS_DECISION_INTELLIGENCE=model;
+  setText($('decisionProjectProgress'),model.project_progress+'%');
+  setText($('decisionWorkOrderRate'),model.work_order_rate+'%');
+  setText($('decisionTestRate'),model.test_rate+'%');
+  setText($('decisionReportRate'),model.report_rate+'%');
+  setText($('decisionDataIssueCount'),model.data_issue_count);
+  setText($('decisionCriticalCount'),model.critical_count);
+
+  setHtml($('decisionExecutiveSummary'),model.summary.map(function(line){return '<p>'+esc(line)+'</p>';}).join(''));
+  setHtml($('decisionDataQuality'),model.issues.length?model.issues.map(function(item){
+    return '<article class="decision-list-row '+item.severity+'"><span class="decision-count">'+esc(item.count)+'</span><div><strong>'+esc(item.label)+'</strong><small>'+esc(item.detail)+'</small></div><div><b>'+esc(decisionToneLabel(item.severity))+'</b><button class="text-btn" type="button" data-decision-issue="'+esc(item.key)+'">عرض السجلات ومعالجتها</button></div></article>';
+  }).join(''):'<div class="decision-empty success">لا توجد ملاحظات جودة بيانات ضمن الفحوص الحالية.</div>');
+
+  const healthRows=model.project_health.slice(0,6);
+  setHtml($('decisionProjectHealth'),healthRows.length?healthRows.map(function(item){
+    return '<button class="decision-list-row project '+item.tone+'" type="button" data-project-open="'+item.id+'"><span class="decision-health">'+esc(item.label)+'</span><div><strong>'+esc(item.code)+' — '+esc(item.name)+'</strong><small>'+esc(item.status)+' · '+esc(item.progress)+'%'+(item.reasons.length?' · '+esc(item.reasons.join('، ')):'')+'</small></div><span class="decision-mini-progress"><i style="width:'+Math.max(0,Math.min(100,item.progress))+'%"></i></span></button>';
+  }).join(''):'<div class="decision-empty">لا توجد مشاريع مسجلة بعد.</div>');
+
+  setHtml($('decisionRecommendations'),model.recommendations.map(function(item,index){
+    return '<article class="decision-list-row recommendation"><span class="decision-step">'+(index+1)+'</span><div><strong>'+esc(item.title)+'</strong><small>'+esc(item.detail)+'</small></div><b>'+esc(item.priority)+'</b><div class="recommendation-actions"><button class="text-btn" type="button" data-decision-action="'+esc(item.action||'')+'" data-decision-page="'+esc(item.page||'dashboard')+'">فتح القسم</button><button class="text-btn" type="button" data-recommendation-task="'+index+'">تحويل إلى مهمة</button></div></article>';
+  }).join(''));
+}
+
+function decisionIssueRecords(key){
+  const d=dashboard||{},day=today(),rows=[];
+  const add=function(items,type,label,problem,solution){items.forEach(function(item){rows.push({id:item.id,type:type,label:label(item),problem:problem(item),solution:solution});});};
+  if(key==='equipment_calibration')add((d.equipment||[]).filter(function(x){return !(x.calibrated_to||x.next_calibration||x.last_calibration);}), 'equipment', function(x){return (x.equipment_code||'جهاز #'+x.id)+' — '+x.name;}, function(x){return 'الرقم التسلسلي: '+(x.serial_no||'غير مسجل')+' · القسم: '+(x.section||'غير محدد');}, 'أدخل تاريخ آخر معايرة وتاريخ المعايرة القادمة ثم احفظ السجل.');
+  if(key==='equipment_expired')add((d.equipment||[]).filter(function(x){const date=x.calibrated_to||x.next_calibration||'';return date&&date<day;}), 'equipment', function(x){return (x.equipment_code||'جهاز #'+x.id)+' — '+x.name;}, function(x){return 'انتهت المعايرة في '+(x.calibrated_to||x.next_calibration);}, 'أوقف استخدام الجهاز، وجدول المعايرة، ثم حدّث تاريخ المعايرة القادمة.');
+  if(key==='project_due')add((d.projects||[]).filter(function(x){return x.status!=='مكتمل'&&!x.due_date;}),'project',function(x){return x.code+' — '+x.name;},function(){return 'مشروع نشط بلا تاريخ استحقاق.';},'افتح المشروع وأضف تاريخ الاستحقاق.');
+  if(key==='order_assignee')add((d.work_orders||[]).filter(function(x){return x.status!=='مكتمل'&&!x.assigned_to&&!x.assignee_name;}),'workOrder',function(x){return x.order_no||'أمر #'+x.id;},function(x){return (x.project_code||'')+' · بلا مسؤول';},'افتح أمر العمل وحدد المسؤول.');
+  if(key==='order_due')add((d.work_orders||[]).filter(function(x){return x.status!=='مكتمل'&&!x.due_date;}),'workOrder',function(x){return x.order_no||'أمر #'+x.id;},function(){return 'أمر مفتوح بلا موعد.';},'افتح أمر العمل وحدد موعد الاستحقاق.');
+  if(key==='overdue_orders')add((d.work_orders||[]).filter(function(x){return x.due_date&&x.due_date<day&&x.status!=='مكتمل';}),'workOrder',function(x){return x.order_no||'أمر #'+x.id;},function(x){return 'متأخر منذ '+x.due_date;},'حدّث الحالة أو الموعد وسجّل الإجراء التصحيحي.');
+  if(key==='sample_project')add((d.samples||[]).filter(function(x){return !x.project_id;}),'samples',function(x){return x.sample_no||'عينة #'+x.id;},function(){return 'العينة غير مرتبطة بمشروع.';},'افتح العينات واربطها بالمشروع الصحيح.');
+  if(key==='test_technician')add((d.tests||[]).filter(function(x){return !x.technician_id&&!x.technician_name&&x.status!=='مكتمل'&&x.status!=='معتمد';}),'tests',function(x){return x.test_no||'اختبار #'+x.id;},function(){return 'لا يوجد فني مسؤول.';},'افتح الاختبار وحدد الفني المسؤول.');
+  if(key==='report_date')add((d.reports||[]).filter(function(x){return !x.issued_at;}),'reports',function(x){return x.report_no||'تقرير #'+x.id;},function(){return 'تاريخ الإصدار غير مسجل.';},'افتح التقرير وأكمل دورة الإصدار.');
+  if(key==='duplicate_clients'){
+    const groups={};(d.clients||[]).forEach(function(x){const name=decisionNormalize(x.name);if(name)(groups[name]||(groups[name]=[])).push(x);});
+    Object.keys(groups).forEach(function(name){if(groups[name].length>1)add(groups[name].slice(1),'clients',function(x){return x.name+' — عميل #'+x.id;},function(){return 'اسم مكرر مع سجل عميل آخر.';},'راجع الارتباطات ثم وحّد بيانات العميل من قسم العملاء.');});
+  }
+  if(key==='status_consistency'){
+    add((d.projects||[]).filter(function(x){return PROJECT_STATUSES.indexOf(x.status)<0;}),'project',function(x){return x.code+' — '+x.name;},function(x){return 'حالة مشروع غير معتمدة: '+x.status;},'اختر حالة معتمدة من نموذج المشروع.');
+    add((d.work_orders||[]).filter(function(x){return WORK_ORDER_STATUSES.indexOf(x.status)<0;}),'workOrder',function(x){return x.order_no||'أمر #'+x.id;},function(x){return 'حالة أمر غير معتمدة: '+x.status;},'اختر حالة معتمدة من أمر العمل.');
+  }
+  return rows;
+}
+
+function openDecisionIssue(key){
+  if(key==='data_cleaning'){const model=decisionIntelligenceModel();return modal('<h2>مركز تنظيف البيانات</h2><p>اختر نوع المشكلة لعرض السجلات الفعلية وتصحيحها من مصدرها.</p><div class="decision-drill-list">'+model.issues.map(function(x){return '<button class="decision-list-row '+x.severity+'" type="button" data-decision-issue="'+esc(x.key)+'"><span class="decision-count">'+x.count+'</span><div><strong>'+esc(x.label)+'</strong><small>'+esc(x.detail)+'</small></div></button>';}).join('')+'</div>');}
+  if(key==='sync_queue')return openSyncWorkQueue();
+  const rows=decisionIssueRecords(key),issue=(decisionIntelligenceModel().issues||[]).find(function(x){return x.key===key;});
+  if(!rows.length){navigate((key.indexOf('equipment')===0)?'equipment':'dashboard');return showToast('لا توجد سجلات متأثرة حالياً');}
+  modal('<h2>'+(issue?esc(issue.label):'السجلات المتأثرة')+'</h2><p>'+(issue?esc(issue.detail):'افتح السجل لمعالجة السبب الفعلي.')+'</p><div class="decision-drill-list">'+rows.map(function(row){return '<article class="decision-drill-row"><div><strong>'+esc(row.label)+'</strong><small>'+esc(row.problem)+'</small><p>'+esc(row.solution)+'</p></div><button class="btn primary" type="button" data-decision-record="'+esc(row.type)+'" data-record-id="'+row.id+'">فتح ومعالجة</button></article>';}).join('')+'</div>');
+}
+
+function openSyncWorkQueue(){const rows=(dashboard&&dashboard.sync)||[];modal('<h2>طابور المزامنة الفعلي</h2><p>راجع العمليات المسجلة ثم نفّذها بالترتيب. لا تُحذف السجلات المتعثرة.</p><div class="decision-drill-list">'+(rows.map(function(x){return '<article class="decision-drill-row"><div><strong>'+esc(x.entity)+' #'+esc(x.entity_id)+' · '+esc(x.operation)+'</strong><small>الحالة: '+esc(x.status)+' · المحاولات: '+esc(x.attempts||0)+'</small>'+(x.last_error?'<p>'+esc(x.last_error)+'</p>':'')+'</div></article>';}).join('')||'<div class="decision-empty success">لا توجد عمليات معلقة.</div>')+'</div>'+(rows.length?'<div class="modal-actions"><button class="btn primary" type="button" data-sync-run>تنفيذ المزامنة الآن</button></div>':''));}
+async function runSyncQueue(){const result=await api('/api/sync/run',{method:'POST',body:'{}'});closeModal();await refresh();showToast('اكتملت '+result.synced+' عملية'+(result.failed?'، وتعذرت '+result.failed:''),Boolean(result.failed));if(result.failed)openSyncWorkQueue();}
+
+function decisionReportMarkup(model){
+  const issues=model.issues.length?model.issues.map(function(item){return '<tr><td>'+esc(item.label)+'</td><td>'+esc(item.count)+'</td><td>'+esc(decisionToneLabel(item.severity))+'</td><td>'+esc(item.detail)+'</td></tr>';}).join(''):'<tr><td colspan="4">لا توجد ملاحظات ضمن الفحوص الحالية.</td></tr>';
+  const recommendations=model.recommendations.map(function(item,index){return '<tr><td>'+(index+1)+'</td><td>'+esc(item.priority)+'</td><td>'+esc(item.title)+'</td><td>'+esc(item.detail)+'</td></tr>';}).join('');
+  return '<section class="decision-report"><header><img src="techno-logo.svg" alt="تيكنو سويل لاب"><div><span>TECHNO LIMS · Decision Intelligence</span><h2>التقرير الإداري التشغيلي</h2><p>تم الإنشاء: '+esc(model.generated_at)+'</p></div></header>'+
+    '<h3>الملخص التنفيذي</h3><div class="decision-report-summary">'+model.summary.map(function(line){return '<p>'+esc(line)+'</p>';}).join('')+'</div>'+
+    '<h3>مؤشرات الأداء</h3><div class="decision-report-kpis"><span>تقدم المشاريع <b>'+model.project_progress+'%</b></span><span>إغلاق أوامر العمل <b>'+model.work_order_rate+'%</b></span><span>إنجاز الاختبارات <b>'+model.test_rate+'%</b></span><span>اعتماد التقارير <b>'+model.report_rate+'%</b></span></div>'+
+    '<h3>جودة البيانات</h3><div class="engineering-table-wrap"><table><thead><tr><th>الملاحظة</th><th>العدد</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>'+issues+'</tbody></table></div>'+
+    '<h3>الإجراءات المقترحة</h3><div class="engineering-table-wrap"><table><thead><tr><th>#</th><th>الأولوية</th><th>الإجراء</th><th>التفاصيل</th></tr></thead><tbody>'+recommendations+'</tbody></table></div>'+
+    '<p class="decision-report-note">هذا التقرير يعتمد على بيانات النظام المسجلة وقت الإنشاء ولا يفترض معلومات غير موجودة. يجب مراجعة المسؤول قبل اتخاذ القرار النهائي.</p></section>';
+}
+
+function openDecisionIntelligenceReport(){
+  const model=decisionIntelligenceModel();
+  modal('<div class="decision-report-modal"><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button><button class="btn secondary" type="button" data-decision-report-export>تصدير Excel</button><button class="btn primary" type="button" data-decision-report-print>طباعة / حفظ PDF</button></div>'+decisionReportMarkup(model)+'</div>');
+}
+
+function printDecisionIntelligenceReport(){
+  document.body.classList.add('decision-print-mode');
+  window.print();
+  setTimeout(function(){document.body.classList.remove('decision-print-mode');},300);
+}
+
+function exportDecisionIntelligence(){
+  const model=decisionIntelligenceModel();
+  if(!window.XLSX||!XLSX.utils)throw new Error('مكتبة Excel غير جاهزة في المتصفح');
+  const workbook=XLSX.utils.book_new();
+  const summaryRows=[
+    ['البند','القيمة'],
+    ['تاريخ الإنشاء',model.generated_at],
+    ['متوسط تقدم المشاريع',model.project_progress+'%'],
+    ['نسبة إغلاق أوامر العمل',model.work_order_rate+'%'],
+    ['نسبة إنجاز الاختبارات',model.test_rate+'%'],
+    ['نسبة اعتماد التقارير',model.report_rate+'%'],
+    ['مشاكل جودة البيانات',model.data_issue_count],
+    ['الإجراءات الحرجة',model.critical_count],
+    ['عدد المشاريع',model.raw.projects],
+    ['عدد أوامر العمل',model.raw.orders],
+    ['عدد العينات',model.raw.samples],
+    ['عدد الاختبارات',model.raw.tests],
+    ['عدد التقارير',model.raw.reports],
+    ['عدد الأجهزة',model.raw.equipment]
+  ];
+  XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet(summaryRows),'Executive Summary');
+  XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(model.issues.map(function(item){return {'الملاحظة':item.label,'العدد':item.count,'الحالة':decisionToneLabel(item.severity),'الإجراء المقترح':item.detail};})),'Data Quality');
+  XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(model.project_health.map(function(item){return {'كود المشروع':item.code,'المشروع':item.name,'الحالة':item.status,'التقدم %':item.progress,'التقييم':item.label,'الأسباب':item.reasons.join('، ')};})),'Project Health');
+  XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(model.recommendations.map(function(item,index){return {'#':index+1,'الأولوية':item.priority,'الإجراء':item.title,'التفاصيل':item.detail};})),'Next Actions');
+  XLSX.writeFile(workbook,'TECHNO_Decision_Intelligence_'+today()+'.xlsx');
+  showToast('تم تصدير تحليل الإدارة إلى Excel');
+}
+
+function filteredProjects() {
+  const search = $('projectSearch').value.trim().toLowerCase();
+  const priority = $('projectPriorityFilter').value;
+  return (dashboard ? dashboard.projects : []).filter(function(project) {
+    const text = [project.code,project.name,project.client_name,project.location].join(' ').toLowerCase();
+    return (!search || text.indexOf(search) >= 0) && (!priority || project.priority === priority);
+  });
+}
+
+function renderProjects() {
+  if (!dashboard) return;
+  const projects = filteredProjects();
+  setHtml($('projectsTable'), projects.map(function(project) {
+    const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+    return '<tr><td><strong>' + esc(project.code) + '</strong><small>' + esc(project.name) + '</small></td><td>' + esc(project.client_name || '—') + '<small>' + (project.location ? esc(project.location) : escUI('بدون موقع')) + '</small></td><td>' + priorityChip(project.priority) + '</td><td>' + (project.due_date ? esc(project.due_date) : escUI('غير محدد')) + '</td><td><div class="progress"><span style="width:' + Math.min(100,Math.max(0,Number(project.progress) || 0)) + '%"></span></div><small>' + esc(project.progress || 0) + '%</small></td><td><select class="project-status" data-project-id="' + project.id + '">' + optionList(PROJECT_STATUSES, project.status, function(value) { return value; }, function(value) { return value; }) + '</select></td><td><small>' + esc(project.work_orders_count) + ' أمر · ' + esc(project.samples_count) + ' عينة</small><small>' + esc(project.tests_count) + ' اختبار · ' + esc(project.reports_count) + ' تقرير</small></td><td><div class="row-actions"><button class="text-btn" data-project-open="' + project.id + '" type="button">مساحة العمل</button><button class="text-btn" data-project-edit="' + project.id + '" type="button">تعديل</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="project" data-record-id="'+project.id+'" data-record-label="'+esc(project.code)+'" type="button">حذف</button>':'')+'</div></td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">لا توجد مشاريع مطابقة.</td></tr>');
+  renderBoard(projects);
+  renderRoadmap(projects);
+}
+
+function renderBoard(projects) {
+  setHtml($('projectBoard'), BOARD_STATUSES.map(function(status) {
+    const cards = projects.filter(function(project) { return project.status === status; }).map(function(project) {
+      return '<article class="kanban-card"><h4>' + esc(project.code) + ' — ' + esc(project.name) + '</h4><p>' + (project.client_name ? esc(project.client_name) : escUI('بدون عميل')) + '</p><div class="progress"><span style="width:' + Math.min(100,Number(project.progress) || 0) + '%"></span></div><div class="kanban-meta">' + priorityChip(project.priority) + '<span>' + (project.due_date ? esc(project.due_date) : escUI('بلا تاريخ')) + '</span></div><select class="project-status" data-project-id="' + project.id + '">' + optionList(PROJECT_STATUSES,project.status,function(value) { return value; },function(value) { return value; }) + '</select></article>';
+    }).join('') || '<div class="empty">لا توجد مشاريع</div>';
+    return '<section class="kanban-column"><h3>' + escUI(status) + '</h3><div class="kanban-stack">' + cards + '</div></section>';
+  }).join(''));
+}
+
+function renderRoadmap(projects) {
+  const dated = projects.slice().sort(function(a,b) { return String(a.due_date || '9999').localeCompare(String(b.due_date || '9999')); });
+  setHtml($('projectRoadmap'), dated.map(function(project) {
+    const progress = Math.min(100,Math.max(0,Number(project.progress) || 0));
+    return '<article class="roadmap-row"><div><h4>' + esc(project.code) + ' — ' + esc(project.name) + '</h4><small>' + (project.start_date ? esc(project.start_date) : escUI('بلا بداية')) + ' ← ' + (project.due_date ? esc(project.due_date) : escUI('بلا استحقاق')) + '</small></div><div class="roadmap-track"><span style="width:' + progress + '%"></span></div><div>' + statusChip(project.status) + '<small>' + progress + '% مكتمل</small></div></article>';
+  }).join('') || '<div class="empty">أضف تواريخ بداية واستحقاق للمشاريع لإظهار خارطة الطريق.</div>');
+}
+
+function setProjectView(view) {
+  projectView = view;
+  document.querySelectorAll('.view-btn').forEach(function(button) { button.classList.toggle('active', button.dataset.projectView === view); });
+  $('projectTableView').classList.toggle('hidden', view !== 'table');
+  $('projectBoardView').classList.toggle('hidden', view !== 'board');
+  $('projectRoadmapView').classList.toggle('hidden', view !== 'roadmap');
+}
+
+function renderWorkOrders() {
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+  setHtml($('workOrdersTable'), (dashboard ? dashboard.work_orders : []).map(function(order) {
+    return '<tr><td><strong>' + esc(order.order_no) + '</strong></td><td>' + esc(order.title) + '<small>' + esc(order.description || '') + '</small></td><td>' + esc(order.project_code) + '<small>' + esc(order.project_name) + '</small></td><td>' + (order.assignee_name ? esc(order.assignee_name) : escUI('غير محدد')) + '</td><td>' + priorityChip(order.priority) + '</td><td>' + esc(order.due_date || '—') + '</td><td>' + statusChip(order.status) + '</td><td><div class="row-actions"><button class="text-btn" data-work-order-edit="'+order.id+'" type="button">تعديل ومعالجة</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="work_order" data-record-id="'+order.id+'" data-record-label="'+esc(order.order_no)+'" type="button">حذف</button>':'')+'</div></td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">لا توجد أوامر عمل.</td></tr>');
+}
+
+function renderClients() {
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+  setHtml($('clientsTable'), (dashboard ? dashboard.clients : []).map(function(client) { return '<tr><td>' + esc(client.name) + '</td><td>' + esc(client.phone || '') + '</td><td>' + esc(client.email || '') + '</td><td><div class="row-actions"><button class="text-btn" data-client-edit="'+client.id+'" type="button">تعديل</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="client" data-record-id="'+client.id+'" data-record-label="'+esc(client.name)+'" type="button">حذف</button>':'')+'</div></td></tr>'; }).join('') || '<tr><td colspan="4" class="empty">لا يوجد عملاء.</td></tr>');
+}
+
+function renderSamples() {
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+  setHtml($('samplesTable'), (dashboard ? dashboard.samples : []).map(function(sample) { return '<tr><td><strong>' + esc(sample.sample_no) + '</strong></td><td>' + esc(sample.project_code || '—') + '<small>' + esc(sample.project_name || '') + '</small></td><td>' + escUI(sample.material) + '</td><td>' + esc(sample.planned_tests_count || 0) + ' اختباراً تلقائياً</td><td>' + esc(sample.received_date) + '</td><td>' + statusChip(sample.status) + '</td><td><div class="row-actions"><button class="text-btn" data-sample-edit="'+sample.id+'" type="button">تعديل وربط</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="sample" data-record-id="'+sample.id+'" data-record-label="'+esc(sample.sample_no)+'" type="button">حذف</button>':'')+'</div></td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">لا توجد عينات.</td></tr>');
+}
+
+function renderTests() {
+  setHtml($('testsTable'), (dashboard ? dashboard.tests : []).map(function(test) {
+    const result = test.mdd !== null && test.mdd !== undefined ? 'MDD ' + Number(test.mdd).toFixed(3) + ' / OMC ' + Number(test.omc).toFixed(2) + '%' : '—';
+    const canAssign = currentUser && ['admin','manager','quality_manager'].indexOf(currentUser.role) >= 0;
+    const canDelete = currentUser && ['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role) >= 0;
+    return '<tr><td><strong>' + esc(test.test_no) + '</strong></td><td>' + esc(test.sample_no) + '</td><td>' + escUI(test.name_ar) + '<small>' + esc(test.code) + '</small></td><td>' + esc(test.standard) + '</td><td>' + escUI(test.technician_name || 'غير مسند') + '</td><td>' + esc(result) + '</td><td>' + statusChip(test.status) + '</td><td><div class="row-actions">' + (canAssign ? '<button class="text-btn" data-test-assign="' + test.id + '" type="button">إسناد لفني</button>' : '') + (canDelete?'<button class="text-btn danger-link" data-record-delete="test" data-record-id="'+test.id+'" data-record-label="'+esc(test.test_no)+'" type="button">حذف</button>':'') + '</div></td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">لا توجد اختبارات.</td></tr>');
+}
+
+function renderCatalog() {
+  const query = $('catalogSearch') ? $('catalogSearch').value.toLowerCase() : '';
+  setHtml($('catalogTable'), catalog.filter(function(item) { return [item.code,item.name_ar,item.name_en,item.standard,item.category].join(' ').toLowerCase().indexOf(query) >= 0; }).map(function(item) {
+    const canManage = currentUser && ['admin','general_manager','manager','quality_manager','quality_officer','document_controller','quality'].indexOf(currentUser.role) >= 0;
+    const canDeleteFile = canDeleteUploadedFiles();
+    const resource = function(id,label,name){
+      if(!id)return '';
+      const fileName=name||item.code+'-'+label;
+      return '<span class="catalog-resource-actions"><strong>'+esc(label)+'</strong><button class="text-btn" type="button" data-catalog-file="'+id+'" data-catalog-file-name="'+esc(fileName)+'">فتح</button><button class="text-btn" type="button" data-catalog-download="'+id+'" data-catalog-file-name="'+esc(fileName)+'">تنزيل</button>'+(canDeleteFile?'<button class="text-btn danger-link" type="button" data-catalog-delete="'+id+'" data-catalog-file-name="'+esc(fileName)+'">حذف</button>':'')+'</span>';
+    };
+    const resources = [
+      resource(item.astm_attachment_id,'المواصفة',item.astm_attachment_name||item.code+'-standard.pdf'),
+      resource(item.worksheet_attachment_id,'Work Sheet',item.worksheet_attachment_name||item.code+'-worksheet.xlsx'),
+      resource(item.results_attachment_id,'ملف النتائج',item.results_attachment_name||item.code+'-results.xlsx')
+    ].filter(Boolean).join('');
+    return '<tr><td>' + esc(item.code) + '</td><td>' + escUI(item.name_ar) + '<small>' + esc(item.name_en || '') + '</small></td><td>' + escUI(item.category) + '</td><td>' + esc(item.standard) + '</td><td>' + esc(item.version || '—') + '</td><td><div class="catalog-resources">'+(resources || '—')+(canManage ? '<button class="text-btn" data-catalog-resources="'+item.id+'">إدارة الملفات</button>' : '')+'</div></td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty">لا توجد نتائج.</td></tr>');
+}
+
+function openCatalogResources(id) { const item=catalog.find(function(x){return x.id===Number(id);});if(!item)return;modal('<h2>ملفات '+esc(item.code)+'</h2><p>يمكن رفع المواصفة وورقة العمل وملف النتائج بأي صيغة حتى 100MB، وتفتح الملفات المحفوظة من داخل النظام.</p><form id="catalogResourcesForm"><input type="hidden" name="catalog_id" value="'+item.id+'"><div class="modal-grid"><label>المواصفة<input name="astm" type="file"></label><label>Work Sheet<input name="worksheet" type="file"></label><label>ملف النتائج<input name="results" type="file"></label></div><p class="form-note">الحد التشغيلي لكل ملف 100MB. اترك الحقل فارغًا للإبقاء على الملف الحالي.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الملفات</button></div></form>'); }
+async function submitCatalogResources(form) { const catalogId=form.elements.catalog_id.value; let count=0; for(const type of ['astm','worksheet','results']) { const file=form.elements[type].files[0]; if(!file)continue; if(file.size>100*1024*1024)throw new Error('حجم '+file.name+' يتجاوز 100MB'); const bytes=new Uint8Array(await file.arrayBuffer()); let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/catalog/resources',{method:'POST',body:JSON.stringify({catalog_id:catalogId,resource_type:type,file_name:file.name,file_base64:btoa(binary)})});count++; } if(!count)throw new Error('اختر ملفًا واحدًا على الأقل');closeModal();await refresh();showToast('تم ربط ملفات الاختبار بدليل الجودة'); }
+
+async function openFieldManual(){
+  modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><div class="field-manual-loading">جارٍ تحميل الدليل داخل البرنامج…</div></section>');
+  const headers={};if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+  try{
+    const response=await fetch(API_BASE_URL+FIELD_MANUAL_REF,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
+    if(!response.ok){let message='تعذر تحميل دليل الاختبارات الميدانيه';try{const data=await response.json();message=data.error||message;}catch(_error){}throw new Error(message);}
+    const blob=await response.blob();
+    if(!blob.size||!String(blob.type||'').toLowerCase().includes('pdf'))throw new Error('ملف الدليل غير صالح أو فارغ');
+    if(activeAttachmentObjectUrl)URL.revokeObjectURL(activeAttachmentObjectUrl);
+    activeAttachmentObjectUrl=URL.createObjectURL(blob);
+    modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn primary" type="button" data-field-manual-download>تنزيل الدليل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><iframe class="field-manual-frame" src="'+esc(activeAttachmentObjectUrl)+'#toolbar=1&navpanes=1" title="'+esc(FIELD_MANUAL_TITLE)+'"></iframe></section>');
+    const downloadButton=document.querySelector('[data-field-manual-download]');
+    if(downloadButton)downloadButton.addEventListener('click',function(){
+      downloadAttachmentBlob({original_name:'الدليل الشامل للأعمال المدنية للبنية التحتية.pdf'},blob,activeAttachmentObjectUrl);
+    });
+  }catch(error){
+    modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>'+esc(FIELD_MANUAL_TITLE)+'</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><div class="attachment-original-format field-manual-error"><h3>تعذر تحميل نسخة PDF الآن</h3><p>'+esc(error.message||'تعذر تحميل الدليل')+'</p><button class="btn secondary" type="button" data-field-local-guide>عرض الدليل التشغيلي المحلي داخل البرنامج</button></div></section>');
+    const local=document.querySelector('[data-field-local-guide]');
+    if(local)local.addEventListener('click',function(){
+      modal('<section class="field-manual-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Field Testing Guide</span><h2>دليل الاختبارات الميدانيه</h2><p>نسخة التشغيل المحلية</p></div><div class="attachment-viewer-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header><iframe class="field-manual-frame" src="field-test-guide.html" title="دليل الاختبارات الميدانيه"></iframe></section>');
+    });
+  }
+}
+
+function catalogBatchUploadId(file){
+  const random=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
+  return 'catalog-standard-'+random+'-'+String(file.name||'file').slice(0,60);
+}
+
+async function uploadCatalogStandardsBatch(files){
+  files=Array.from(files||[]);
+  if(!files.length)return;
+  const status=$('catalogStandardsStatus'),button=$('catalogBulkStandardsButton');
+  if(button)button.disabled=true;
+  let linked=0,unmatched=[],failed=[],processed=0;
+  try{
+    for(const file of files){
+      processed+=1;
+      if(status)setText(status,'جارٍ الفرز والربط '+processed+' / '+files.length+' — '+file.name);
+      try{
+        const payload={section:'catalog',file_name:file.name,file_base64:await smartFileBase64(file),upload_id:catalogBatchUploadId(file)};
+        const result=await api('/api/smart-import',{method:'POST',body:JSON.stringify(payload)});
+        linked+=Number(result.matched||0);
+        (result.imported||[]).filter(function(item){return !item.entity_id;}).forEach(function(item){unmatched.push(item.name);});
+        (result.skipped||[]).forEach(function(item){failed.push(item.name+': '+item.reason);});
+      }catch(error){failed.push(file.name+': '+(error.message||'تعذر الرفع'));}
+    }
+    await refresh();
+    const parts=['تم فرز وربط '+linked+' ملف تلقائيًا داخل الاختبارات'];
+    if(unmatched.length)parts.push('غير محسوم: '+unmatched.length);
+    if(failed.length)parts.push('تعذر: '+failed.length);
+    if(status)setText(status,parts.join(' · '));
+    showToast(parts.join(' · '),Boolean(unmatched.length||failed.length));
+  }finally{
+    if(button)button.disabled=false;
+    const input=$('catalogStandardsInput');if(input)input.value='';
+  }
+}
+
+async function chooseCatalogStandards(){
+  if(window.showOpenFilePicker){
+    try{
+      const handles=await window.showOpenFilePicker({multiple:true,startIn:'downloads'});
+      const files=[];for(const handle of handles){try{files.push(await handle.getFile());}catch(error){showToast('تعذر الوصول إلى '+handle.name+'؛ اختر الملف من مكانه الحالي.',true);}}
+      if(files.length)await uploadCatalogStandardsBatch(files);
+      return;
+    }catch(error){if(error&&error.name==='AbortError')return;}
+  }
+  const input=$('catalogStandardsInput');if(input)input.click();
+}
+
+
+function renderReports() {
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+  setHtml($('reportsTable'), (dashboard ? dashboard.reports : []).map(function(report) {
+    return '<tr><td><strong>' + esc(report.report_no) + '</strong></td><td>' + esc(report.sample_no || '') + '<small>' + escUI(report.name_ar) + ' · ' + esc(report.test_no) + '</small></td><td>' + statusChip(report.status) + '</td><td>' + esc(saudiDisplay(report.issued_at)) + '</td><td><div class="row-actions"><button class="text-btn" data-report-print="' + report.test_id + '" type="button">طباعة</button><button class="text-btn" data-report-review="' + report.id + '" type="button">حالة</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="report" data-record-id="'+report.id+'" data-record-label="'+esc(report.report_no)+'" type="button">حذف</button>':'')+'</div></td></tr>';
+  }).join('') || '<tr><td colspan="5" class="empty">لا توجد تقارير.</td></tr>');
+}
+
+function equipmentTone(value, type) {
+  const raw = String(value || '').trim();
+  if (!raw || raw === '—') return 'neutral';
+  const lower = raw.toLowerCase();
+  if (type === 'calibration' && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    const today = saudiToday();
+    if (raw.slice(0,10) < today) return 'danger';
+    const diff = Math.ceil((new Date(raw.slice(0,10)+'T00:00:00Z') - new Date(today+'T00:00:00Z')) / 86400000);
+    return diff <= 30 ? 'warning' : 'success';
+  }
+  if (/منتهي|expired|غير صالح|fail|فشل|راسب/.test(lower)) return 'danger';
+  if (/قيد|مطلوب|تنبيه|warning|due|صيانة/.test(lower)) return 'warning';
+  if (/صالح|ساري|valid|pass|معاير|مطابق/.test(lower)) return 'success';
+  return 'neutral';
+}
+
+function equipmentBadge(value, type) {
+  const raw = String(value || '—');
+  const tone = equipmentTone(raw, type);
+  const icon = tone === 'success' ? '●' : tone === 'warning' ? '▲' : tone === 'danger' ? '×' : '—';
+  return '<span class="equipment-badge '+tone+'"><b>'+icon+'</b>'+escUI(raw)+'</span>';
+}
+
+function renderEquipment() {
+  const rows = dashboard ? dashboard.equipment : [];
+  const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+  setHtml($('equipmentTable'), rows.map(function(item) {
+    const calibration = item.calibrated_to || item.next_calibration || '—';
+    const tones = [equipmentTone(item.verification_status,'verification'),equipmentTone(calibration,'calibration'),equipmentTone(item.maintenance_status,'maintenance')];
+    const rowTone = tones.indexOf('danger') >= 0 ? 'danger' : tones.indexOf('warning') >= 0 ? 'warning' : tones.indexOf('success') >= 0 ? 'success' : 'neutral';
+    return '<tr class="equipment-row state-'+rowTone+'"><td><span class="equipment-code">'+esc(item.equipment_code || '—')+'</span></td><td><strong class="equipment-name">'+esc(item.name)+'</strong></td><td>'+esc(item.serial_no || '—')+'</td><td><span class="equipment-section">'+esc(item.section || '—')+'</span></td><td>'+esc(item.range_text || '—')+'</td><td>'+equipmentBadge(item.verification_status || '—','verification')+'</td><td>'+equipmentBadge(calibration,'calibration')+'</td><td>'+equipmentBadge(item.maintenance_status || '—','maintenance')+'</td><td class="equipment-notes">'+esc(item.notes || '—')+'</td><td><div class="row-actions"><button class="text-btn" data-equipment-edit="'+item.id+'" type="button">تعديل</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</div></td></tr>';
+  }).join('') || '<tr><td colspan="10" class="empty">لا توجد أجهزة.</td></tr>');
+}
+
+function renderAudit() {
+  const canDelete=currentUser&&['admin','quality_manager'].indexOf(currentUser.role)>=0;
+  const clear=$('clearAudit');if(clear)clear.classList.toggle('hidden',!canDelete);
+  setHtml($('auditTable'), (dashboard ? dashboard.audit : []).map(function(item) { return '<tr><td>' + esc(saudiDisplay(item.created_at)) + '</td><td>' + esc(item.full_name || '') + '</td><td>' + escUI(item.action) + '</td><td>' + esc(item.entity || '') + '</td><td>' + esc(item.details || '') + '</td><td>'+(canDelete?'<button class="text-btn danger-link" data-audit-delete="'+item.id+'" type="button">حذف</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="6" class="empty">لا توجد عمليات.</td></tr>');
+}
+
+const TRASH_ENTITY_NAMES={client:'عميل',project:'مشروع',work_order:'أمر عمل',sample:'عينة',test:'اختبار',report:'تقرير',equipment:'جهاز',quality_document:'وثيقة جودة',uploaded_file:'ملف مرفوع',quality_file:'ملف جودة'};
+
+async function loadTrash(){
+  const table=$('trashTable');if(!table)return;
+  setHtml(table,'<tr><td colspan="5" class="empty">جارٍ تحميل سلة المحذوفات…</td></tr>');
+  try{
+    const rows=await api('/api/trash');const canPurge=currentUser&&['admin','quality_manager'].indexOf(currentUser.role)>=0;
+    setHtml(table,rows.map(function(item){const isFile=item.entity_type==='uploaded_file'||item.entity_type==='quality_file';return '<tr><td>'+esc(saudiDisplay(item.deleted_at))+'</td><td>'+esc(TRASH_ENTITY_NAMES[item.entity_type]||item.entity_type)+'</td><td><strong>'+esc(item.label)+'</strong></td><td>'+esc(item.deleted_by_name||'—')+'</td><td><div class="row-actions"><button class="text-btn" data-trash-restore="'+item.id+'" type="button">استعادة</button><button class="text-btn" data-trash-download="'+item.id+'" type="button">'+(isFile?'تنزيل الملف':'تحميل نسخة')+'</button>'+(canPurge?'<button class="text-btn danger-link" data-trash-delete="'+item.id+'" type="button">حذف نهائي</button>':'')+'</div></td></tr>';}).join('')||'<tr><td colspan="5" class="empty">سلة المحذوفات فارغة.</td></tr>');
+  }catch(error){setHtml(table,'<tr><td colspan="5" class="empty">'+esc(error.message)+'</td></tr>');}
+}
+
+async function restoreTrashItem(id){if(!window.confirm('هل تريد استعادة هذا العنصر إلى مكانه السابق؟'))return;await api('/api/trash/restore',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();await loadTrash();showToast('تمت استعادة العنصر بنجاح');}
+async function permanentlyDeleteTrashItem(id){if(!window.confirm('حذف نهائي لا يمكن التراجع عنه. هل تريد المتابعة؟'))return;await api('/api/trash/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await loadTrash();showToast('تم الحذف النهائي');}
+async function downloadTrashItem(id){
+  const item=await api('/api/trash/item?id='+encodeURIComponent(id));
+  if(item.entity_type==='uploaded_file'||item.entity_type==='quality_file'){
+    const headers={};if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+    const response=await fetch(API_BASE_URL+'/api/trash/file?id='+encodeURIComponent(id),{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
+    if(!response.ok){let message='تعذر تحميل الملف من السلة';try{const data=await response.json();message=data.error||message;}catch(_error){}throw new Error(message);}
+    const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=item.label||'TECHNO-deleted-file';link.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);return;
+  }
+  const blob=new Blob([JSON.stringify(item,null,2)],{type:'application/json;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='TECHNO-deleted-'+String(item.entity_type||'record')+'-'+String(item.original_id||id)+'.json';link.click();setTimeout(function(){URL.revokeObjectURL(link.href);},1000);
+}
+
+async function deleteAuditEntry(id){if(!window.confirm('هل تريد حذف هذا السجل نهائياً؟'))return;await api('/api/audit/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف السجل نهائياً');}
+async function clearAuditLog(){if(!window.confirm('هل تريد حذف سجل التدقيق بالكامل؟ لا يمكن التراجع عن هذه العملية.'))return;const result=await api('/api/audit/clear',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' عملية ومزامنة التغيير');}
+async function deleteRecord(entity,id,label){const names={client:'العميل',project:'المشروع',work_order:'أمر العمل',sample:'العينة',test:'الاختبار',report:'التقرير',equipment:'الجهاز',quality_document:'وثيقة الجودة'};if(!window.confirm('هل تريد حذف '+(names[entity]||'السجل')+' '+(label||'')+'؟ سيختفي من النظام وتُحفظ نسخة في سلة المحذوفات.'))return;await api('/api/records/delete',{method:'POST',body:JSON.stringify({entity:entity,id:Number(id)})});await refresh();showToast('تم الحذف ونقل نسخة إلى سلة المحذوفات');}
+
+async function renderUsers() {
+  try {
+    const users = await api('/api/users');
+    setHtml($('usersTable'), users.map(function(user) { return '<tr><td><img class="table-avatar" src="' + esc(user.avatar_data_url || 'techno-logo.svg') + '" alt="صورة المستخدم"></td><td>' + esc(user.username) + '</td><td>' + esc(user.full_name) + '</td><td dir="ltr">' + esc(user.phone || '—') + '</td><td>' + escUI(ROLE_NAMES[user.role] || user.role) + '</td><td>' + (user.active ? 'نشط' : 'موقوف') + '</td><td>' + esc(saudiDisplay(user.created_at)) + '</td><td><button class="text-btn" data-user-edit="' + user.id + '" type="button">تعديل</button></td></tr>'; }).join(''));
+    $('usersTable').dataset.users = JSON.stringify(users);
+  } catch (error) {
+    setHtml($('usersTable'), '<tr><td colspan="8" class="empty">ليس لديك صلاحية عرض المستخدمين.</td></tr>');
+  }
+}
+
+function projectForm(project) {
+  const value = project || {};
+  const clients = dashboard ? dashboard.clients : [];
+  const users = [];
+  return '<h2>' + (project ? 'تعديل مشروع' : 'مشروع جديد') + '</h2><p>الحقول تربط تخطيط المشروع بالتنفيذ والعينات والتقارير دون تغيير البيانات القائمة.</p><form id="projectForm"><div class="modal-grid">' +
+    '<label>اسم المشروع<input name="name" required value="' + esc(value.name || '') + '"></label>' +
+    '<label>العميل<select name="client_id"><option value="">— اختر العميل —</option>' + optionList(clients,value.client_id,function(item){return item.name;},function(item){return item.id;}) + '</select></label>' +
+    '<label>الموقع<input name="location" value="' + esc(value.location || '') + '"></label>' +
+    '<label>الأولوية<select name="priority">' + optionList(PRIORITIES,value.priority || 'متوسطة',function(item){return item;},function(item){return item;}) + '</select></label>' +
+    '<label>تاريخ البداية<input name="start_date" type="date" value="' + esc(value.start_date || '') + '"></label>' +
+    '<label>تاريخ الاستحقاق<input name="due_date" type="date" value="' + esc(value.due_date || '') + '"></label>' +
+    '<label>المقاول<input name="contractor_name" value="' + esc(value.contractor_name || '') + '"></label>' +
+    '<label>الاستشاري<input name="consultant_name" value="' + esc(value.consultant_name || '') + '"></label>' +
+    '<label>معرف مدير المشروع<input name="manager_id" type="number" min="1" value="' + esc(value.manager_id || '') + '"></label>' +
+    '<label>نسبة التقدم<input name="progress" type="number" min="0" max="100" value="' + esc(value.progress || 0) + '"></label>' +
+    '<label style="grid-column:1/-1">الوصف<textarea name="description" rows="3">' + esc(value.description || '') + '</textarea></label>' +
+    '</div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ المشروع</button></div></form>';
+}
+
+function openProjectForm(id) {
+  const project = id ? dashboard.projects.find(function(item) { return item.id === Number(id); }) : null;
+  modal(projectForm(project));
+}
+
+async function submitProjectForm(form) {
+  const payload = {};
+  ['name','client_id','location','priority','start_date','due_date','contractor_name','consultant_name','manager_id','progress','description'].forEach(function(key) { payload[key] = fieldValue(form,key); });
+  const editingId = form.dataset.projectId;
+  await api(editingId ? '/api/projects/update' : '/api/projects', {method:'POST',body:JSON.stringify(editingId ? Object.assign(payload,{id:Number(editingId)}) : payload)});
+  closeModal(); await refresh(); showToast(editingId ? 'تم تعديل المشروع' : 'تم إنشاء المشروع وربطه بطابور المزامنة');
+}
+
+async function openProjectWorkspace(id) {
+  const space = await api('/api/projects/' + id + '/workspace');
+  const p = space.project;
+  const tabs = [
+    ['work_orders','أوامر العمل',space.work_orders],
+    ['samples','العينات',space.samples],
+    ['tests','الاختبارات',space.tests],
+    ['results','النتائج',space.results],
+    ['reports','التقارير',space.reports],
+    ['field_visits','الزيارات',space.field_visits]
+  ];
+  function rows(name, items) {
+    if (!items.length) return '<div class="empty">لا توجد بيانات مرتبطة بعد.</div>';
+    if (name === 'work_orders') return '<table><thead><tr><th>الرقم</th><th>العنوان</th><th>الحالة</th><th>الاستحقاق</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.order_no) + '</td><td>' + esc(item.title) + '</td><td>' + statusChip(item.status) + '</td><td>' + esc(item.due_date || '—') + '</td></tr>'; }).join('') + '</tbody></table>';
+    if (name === 'samples') return '<table><thead><tr><th>العينة</th><th>المادة</th><th>الحالة</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.sample_no) + '</td><td>' + escUI(item.material) + '</td><td>' + statusChip(item.status) + '</td></tr>'; }).join('') + '</tbody></table>';
+    if (name === 'tests') return '<table><thead><tr><th>الاختبار</th><th>العينة</th><th>الاسم</th><th>الحالة</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.test_no) + '</td><td>' + esc(item.sample_no) + '</td><td>' + escUI(item.name_ar) + '</td><td>' + statusChip(item.status) + '</td></tr>'; }).join('') + '</tbody></table>';
+    if (name === 'results') return '<table><thead><tr><th>الاختبار</th><th>البند</th><th>القيمة</th><th>الوحدة</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.test_no) + '</td><td>' + esc(item.field_name) + '</td><td>' + esc(item.value) + '</td><td>' + esc(item.unit || '') + '</td></tr>'; }).join('') + '</tbody></table>';
+    if (name === 'reports') return '<table><thead><tr><th>التقرير</th><th>الاختبار</th><th>الحالة</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.report_no) + '</td><td>' + escUI(item.name_ar || item.test_no) + '</td><td>' + statusChip(item.status) + '</td></tr>'; }).join('') + '</tbody></table>';
+    return '<table><thead><tr><th>الرخصة</th><th>الموقع</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>' + items.map(function(item) { return '<tr><td>' + esc(item.license_no) + '</td><td>' + esc(item.location || '') + '</td><td>' + statusChip(item.status) + '</td><td>' + esc(saudiDisplay(item.created_at)) + '</td></tr>'; }).join('') + '</tbody></table>';
+  }
+  const summary = '<div class="workspace-summary"><div><strong>' + space.work_orders.length + '</strong>أوامر العمل</div><div><strong>' + space.samples.length + '</strong>العينات</div><div><strong>' + space.tests.length + '</strong>الاختبارات</div><div><strong>' + space.results.length + '</strong>النتائج</div><div><strong>' + space.reports.length + '</strong>التقارير</div></div>';
+  const tabButtons = tabs.map(function(tab,index) { return '<button type="button" class="' + (index === 0 ? 'active' : '') + '" data-workspace-tab="' + tab[0] + '">' + tab[1] + ' (' + tab[2].length + ')</button>'; }).join('');
+  modal('<h2>' + esc(p.code) + ' — ' + esc(p.name) + '</h2><p>' + (p.client_name ? esc(p.client_name) : escUI('بدون عميل')) + ' · ' + (p.location ? esc(p.location) : escUI('بدون موقع')) + ' · ' + statusChip(p.status) + '</p>' + summary + '<div class="workspace-tabs">' + tabButtons + '<button type="button" data-work-order-for="' + p.id + '">+ أمر عمل</button></div><div id="workspaceContent" class="workspace-content">' + rows(tabs[0][0],tabs[0][2]) + '</div>');
+  $('modalBody').dataset.workspace = JSON.stringify({tabs:tabs});
+}
+
+function openWorkOrderForm(projectId,record) {
+  record=record||{};const edit=Boolean(record.id);projectId=record.project_id||projectId;
+  const projects = dashboard ? dashboard.projects : [];
+  const technicians = dashboard ? (dashboard.technicians || []) : [];
+  modal('<h2>'+(edit?'تحديث أمر العمل':'أمر عمل جديد')+'</h2><p>كل تعديل يُحفظ في التدقيق ويُضاف للمزامنة.</p><form id="workOrderForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>المشروع<select name="project_id" required><option value="">— اختر المشروع —</option>' + optionList(projects,projectId,function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>عنوان أمر العمل<input name="title" required value="'+esc(record.title||'')+'"></label><label>الأولوية<select name="priority">' + optionList(PRIORITIES,record.priority||'متوسطة',function(item){return item;},function(item){return item;}) + '</select></label><label>الحالة<select name="status">' + optionList(WORK_ORDER_STATUSES,record.status||'مفتوح',function(item){return item;},function(item){return item;}) + '</select></label><label>تاريخ التنفيذ<input name="scheduled_date" type="date" value="'+esc(record.scheduled_date||'')+'"></label><label>تاريخ الاستحقاق<input name="due_date" type="date" value="'+esc(record.due_date||'')+'"></label><label>الفني المكلّف<select name="assigned_to"><option value="">— غير محدد —</option>' + optionList(technicians,record.assigned_to||'',function(item){return item.full_name + ' — ' + item.username;},function(item){return item.id;}) + '</select></label><label style="grid-column:1/-1">الوصف<textarea name="description">'+esc(record.description||'')+'</textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">'+(edit?'حفظ المعالجة':'حفظ أمر العمل')+'</button></div></form>');
+}
+
+async function renderQuality() {
+  try {
+    qualityData = await api('/api/quality');
+    const categoryNames = {procedure:'إجراء',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
+    const qualityRefActions=function(ref,name){
+      if(!ref||ref.indexOf('/api/')!==0)return ref?esc(ref):'—';
+      const label=name||decodeURIComponent(String(ref).split('/').pop()||'quality-file');
+      return '<span class="item-actions"><button class="text-btn" type="button" data-quality-file-ref="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">فتح</button><button class="text-btn" type="button" data-quality-file-download="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" type="button" data-quality-file-delete="'+esc(ref)+'" data-quality-file-name="'+esc(label)+'">حذف</button>':'')+'</span>';
+    };
+    const fileAction=function(item){return qualityRefActions(item.document_ref,item.code||item.title||'quality-file');};
+    const docActions=function(item){return '<div class="row-actions">'+fileAction(item)+'<button class="text-btn" data-quality-document-edit="'+item.id+'" type="button">تعديل</button><button class="text-btn danger-link" data-record-delete="quality_document" data-record-id="'+item.id+'" data-record-label="'+esc(item.code)+'" type="button">حذف</button></div>';};
+    const docs=qualityData.documents||[];
+    setHtml($('qualityDocumentsTable'),docs.map(function(item){return '<tr><td>'+escUI(categoryNames[item.category]||item.category)+'</td><td>'+esc(item.code)+'</td><td>'+esc(item.title)+'</td><td>'+esc(item.revision||'—')+'</td><td>'+statusChip(item.status)+'</td><td>'+fileAction(item)+'</td><td>'+docActions(item)+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد وثائق جودة بعد.</td></tr>');
+    function renderDocList(id,category){
+      const box=$(id);if(!box)return;
+      const rows=docs.filter(function(item){return item.category===category;});
+      setHtml(box,rows.length?rows.map(function(item){return '<div class="qc-record-row"><div><strong>'+esc(item.code)+' — '+esc(item.title)+'</strong><small>'+esc(item.revision||'بدون إصدار')+' · '+escUI(item.status||'—')+'</small></div>'+docActions(item)+'</div>';}).join(''):'<div class="empty-state">لا توجد سجلات بعد.</div>');
+    }
+    renderDocList('qualityProcedureList','procedure');renderDocList('qualityWorksheetList','worksheet');renderDocList('qualityAdminFormList','admin_form');
+    setHtml($('proficiencyTable'), (qualityData.proficiency||[]).map(function(item){return '<tr><td>'+esc(item.test_name)+'</td><td>'+esc(item.material||'—')+'</td><td>'+esc(item.provider||'—')+'</td><td>'+esc(item.participation_date||'—')+'</td><td>'+esc(item.result||'—')+(item.report_ref?'<small>'+qualityRefActions(item.report_ref,'تقرير '+item.test_name)+'</small>':'')+'</td><td>'+esc(item.z_score||'—')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد مشاركات كفاءة بعد.</td></tr>');
+    setHtml($('qualityStaffTable'), (qualityData.staff||[]).map(function(item){const refs=[];if(item.qualification_ref)refs.push(qualityRefActions(item.qualification_ref,'المؤهل — '+item.full_name));if(item.cv_ref)refs.push(qualityRefActions(item.cv_ref,'السيرة الذاتية — '+item.full_name));return '<tr><td>'+esc(item.full_name)+'</td><td>'+esc(item.job_title||'—')+'</td><td>'+esc(item.specialty||'—')+'</td><td>'+esc(item.experience_years||'—')+'</td><td>'+(refs.join('<br>')||'—')+'</td><td>'+(item.active?'نشط':'موقوف')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">لا توجد سجلات موظفين للجودة بعد.</td></tr>');
+    const equipmentRows=dashboard&&dashboard.equipment?dashboard.equipment:[];
+    const canDelete=currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager'].indexOf(currentUser.role)>=0;
+    if($('qualityEquipmentInlineTable'))setHtml($('qualityEquipmentInlineTable'),equipmentRows.map(function(item){return '<tr><td>'+esc(item.equipment_code||'—')+'</td><td>'+esc(item.name)+'</td><td>'+esc(item.serial_no||'—')+'</td><td>'+esc(item.section||'—')+'</td><td>'+esc(item.verification_status||'—')+'</td><td>'+esc(item.calibrated_to||item.next_calibration||'—')+'</td><td><div class="row-actions"><button class="text-btn" data-equipment-edit="'+item.id+'" type="button">تعديل</button>'+(canDelete?'<button class="text-btn danger-link" data-record-delete="equipment" data-record-id="'+item.id+'" data-record-label="'+esc(item.name)+'" type="button">حذف</button>':'')+'</div></td></tr>';}).join('')||'<tr><td colspan="7" class="empty">لا توجد أجهزة بعد.</td></tr>');
+  } catch (error) {
+    ['qualityDocumentsTable','proficiencyTable','qualityStaffTable','qualityEquipmentInlineTable'].forEach(function(id){if($(id))setHtml($(id),'<tr><td colspan="7" class="empty">تعذر تحميل بيانات الجودة.</td></tr>');});
+  }
+}
+
+async function inlineFileBase64(file,maxMb){
+  if(!file)return '';
+  if(file.size>maxMb*1024*1024)throw new Error('حجم '+file.name+' يتجاوز '+maxMb+'MB');
+  const bytes=new Uint8Array(await file.arrayBuffer());let binary='';
+  for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+  return btoa(binary);
+}
+async function submitInlineQualityDocument(form){
+  const data={owner:'شركة تيكنو سويل لاب'};new FormData(form).forEach(function(value,key){if(key!=='quality_file')data[key]=value;});
+  const fixed=form.dataset.inlineQualityDocument;if(fixed&&fixed!=='document')data.category=fixed;
+  const file=form.elements.quality_file&&form.elements.quality_file.files[0];
+  if(file){data.file_name=file.name;data.file_base64=await inlineFileBase64(file,100);}
+  await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تم الحفظ داخل الجودة والوثائق');
+}
+async function submitInlineQualityRecord(form,kind){
+  const endpoint=kind==='proficiency'?'/api/quality/proficiency':'/api/quality/staff';
+  const fileFields=kind==='proficiency'?['quality_file']:['qualification_file','cv_file'];
+  const data={};
+  for(const element of Array.from(form.elements)){if(!element.name||fileFields.indexOf(element.name)>=0)continue;data[element.name]=element.value;}
+  for(const name of fileFields){const input=form.elements[name],file=input&&input.files[0];if(file){data[name+'_name']=file.name;data[name+'_base64']=await inlineFileBase64(file,100);}}
+  await api(endpoint,{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تم حفظ السجل');
+}
+async function submitInlineEquipment(form){
+  const data={};new FormData(form).forEach(function(value,key){data[key]=value;});
+  await api('/api/equipment',{method:'POST',body:JSON.stringify(data)});form.reset();await refresh();showToast('تمت إضافة الجهاز');
+}
+async function submitInlineSmartImport(form){
+  const files=Array.from(form.elements.files.files||[]);if(!files.length)throw new Error('اختر ملفًا واحدًا على الأقل');
+  const section=form.elements.section.value,status=form.querySelector('[data-inline-import-status]');form.__uploadTokens=form.__uploadTokens||{};
+  let ok=0,failed=[];
+  for(let i=0;i<files.length;i+=1){if(status)setText(status,'جارٍ رفع '+(i+1)+' من '+files.length);try{const result=await uploadSmartFile(form,section,files[i]);ok+=(result.imported||[]).length;}catch(error){failed.push(files[i].name+': '+error.message);}}
+  if(status)setText(status,failed.length?'نجح '+ok+' · تعذر '+failed.length+': '+failed.join(' | '):'تم رفع وفرز '+ok+' ملف بنجاح');
+  if(!failed.length)form.reset();await loadDocumentCenter();showToast(failed.length?'اكتمل الرفع مع ملفات متعثرة':'تم الرفع والفرز بنجاح',Boolean(failed.length));
+}
+
+function openQualityForm(kind) {
+  const names = {procedure:'إجراء جودة',worksheet:'ورقة عمل',admin_form:'نموذج إداري'};
+  if (names[kind]) return modal('<h2>إضافة ' + names[kind] + '</h2><form id="qualityDocumentForm"><input type="hidden" name="category" value="' + kind + '"><input type="hidden" name="owner" value="شركة تيكنو سويل لاب"><div class="modal-grid"><label>الكود<input name="code" required placeholder="QMS-P-001"></label><label>العنوان<input name="title" required></label><label>الإصدار<input name="revision" placeholder="Rev. 01"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label><label>رفع ملف<input name="quality_file" type="file"></label><label>رابط بديل (اختياري)<input name="document_ref" type="url"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><p class="form-note">أي صيغة ملف حتى 100MB.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ الوثيقة</button></div></form>');
+  if (kind === 'proficiency') return modal('<h2>إضافة مشاركة اختبار كفاءة</h2><form id="proficiencyForm"><div class="modal-grid"><label>اسم الاختبار<input name="test_name" required></label><label>المادة<input name="material"></label><label>المعيار<input name="standard"></label><label>مقدم الخدمة<input name="provider"></label><label>تاريخ المشاركة<input name="participation_date" type="date"></label><label>النتيجة<input name="result"></label><label>Z-score<input name="z_score"></label><label>رفع تقرير<input name="quality_file" type="file"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ المشاركة</button></div></form>');
+  if (kind === 'staff') return modal('<h2>إضافة سجل موظف للجودة</h2><form id="qualityStaffForm"><div class="modal-grid"><label>الاسم الكامل<input name="full_name" required></label><label>المسمى الوظيفي<input name="job_title"></label><label>التخصص<input name="specialty"></label><label>سنوات الخبرة<input name="experience_years" type="number" min="0"></label><label>رفع المؤهل<input name="qualification_file" type="file"></label><label>رفع السيرة الذاتية<input name="cv_file" type="file"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ السجل</button></div></form>');
+}
+
+const QUALITY_TEMPLATES = {
+  equipment:['اسم الجهاز,الرقم التسلسلي,الشركة المصنعة,الموديل,آخر معايرة,المعايرة القادمة,رقم الشهادة,ملاحظات','جهاز ضغط,ABC-001,Manufacturer,Model X,2026-01-01,2027-01-01,CAL-001,'],
+  proficiency:['اسم الاختبار,المادة,المعيار,مقدم الخدمة,تاريخ المشاركة,النتيجة,Z-score,مرجع التقرير,ملاحظات','مقاومة الضغط,خرسانة,ASTM C39,اسم الجهة,2026-01-01,مقبول,0.20,PT-001,'],
+  staff:['الاسم الكامل,المسمى الوظيفي,التخصص,سنوات الخبرة,مرجع المؤهل,مرجع السيرة الذاتية,ملاحظات','اسم الموظف,فني مختبر,خرسانة,5,QUAL-001,CV-001,']
+};
+function downloadQualityTemplate(kind) { const blob = new Blob(['\ufeff' + (uiLanguage === 'en' ? QUALITY_TEMPLATES_EN[kind] : QUALITY_TEMPLATES[kind]).join('\n')],{type:'text/csv;charset=utf-8'}); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'TECHNO_' + kind + '_template.csv'; link.click(); URL.revokeObjectURL(link.href); }
+function parseCsv(text) { const lines = text.replace(/^\ufeff/,'').split(/\r?\n/).filter(Boolean); const cells = function(line) { return line.match(/(?:^|,)("(?:[^"]|"")*"|[^,]*)/g).map(function(cell) { return cell.replace(/^,/, '').replace(/^"|"$/g,'').replace(/""/g,'"').trim(); }); }; const headers = cells(lines.shift() || ''); return lines.map(function(line) { const values = cells(line); return headers.reduce(function(row,header,index) { row[header] = values[index] || ''; return row; },{}); }); }
+async function fileToBase64(file) { if(file.size>10*1024*1024)throw new Error('ملف Excel يتجاوز 10MB');const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192));return btoa(binary); }
+async function importQualityRows(kind) { const file = $(kind + 'Import').files[0]; if (!file) throw new Error('اختر ملف Excel أو CSV أولاً'); if(/\.xlsx$/i.test(file.name)){const endpoint=kind==='equipment'?'/api/equipment/import':'/api/import/xlsx';const payload={file_name:file.name,file_base64:await fileToBase64(file)};if(kind!=='equipment')payload.entity_type=kind;const result=await api(endpoint,{method:'POST',body:JSON.stringify(payload)});await refresh();if(kind==='equipment')showToast('تم استيراد '+result.total+' جهاز: '+result.inserted+' جديد و'+result.updated+' محدّث');else showToast('تم التعرف على ورقة «'+result.sheet+'» واستيراد '+result.imported+' سجل'+(result.skipped.length?'، وتجاوز '+result.skipped.length+' صف':''));return;}const rows = parseCsv(await file.text()); if (!rows.length) throw new Error('الملف لا يحتوي على صفوف بيانات'); const mappings = {equipment:{'اسم الجهاز':'name','الرقم التسلسلي':'serial_no','الشركة المصنعة':'manufacturer','الموديل':'model','آخر معايرة':'last_calibration','المعايرة القادمة':'next_calibration','رقم الشهادة':'certificate_no','ملاحظات':'notes'},proficiency:{'اسم الاختبار':'test_name','المادة':'material','المعيار':'standard','مقدم الخدمة':'provider','تاريخ المشاركة':'participation_date','النتيجة':'result','Z-score':'z_score','مرجع التقرير':'report_ref','ملاحظات':'notes'},staff:{'الاسم الكامل':'full_name','المسمى الوظيفي':'job_title','التخصص':'specialty','سنوات الخبرة':'experience_years','مرجع المؤهل':'qualification_ref','مرجع السيرة الذاتية':'cv_ref','ملاحظات':'notes'}}; const endpoint = {equipment:'/api/equipment',proficiency:'/api/quality/proficiency',staff:'/api/quality/staff'}[kind]; let completed = 0; for (const row of rows) { const payload = {}; Object.keys(mappings[kind]).forEach(function(header) { payload[mappings[kind][header]] = row[header] || row[translateUI(header)] || row[mappings[kind][header]] || ''; }); if(!payload.name&&kind==='equipment')continue;await api(endpoint,{method:'POST',body:JSON.stringify(payload)}); completed += 1; } await refresh(); showToast('تم استيراد ' + completed + ' سجل بنجاح'); }
+
+function openTestAssignment(testId) {
+  const test = (dashboard ? dashboard.tests : []).find(function(item) { return item.id === Number(testId); });
+  const technicians = dashboard ? (dashboard.technicians || []) : [];
+  if (!test || !technicians.length) return showToast('أضف فنيًا فعالًا أولًا ثم أعد المحاولة',true);
+  modal('<h2>إسناد اختبار لفني</h2><p>سينشئ النظام مهمة للفني ومسودة واتساب قابلة للمراجعة.</p><form id="testAssignmentForm"><input name="test_id" type="hidden" value="' + esc(test.id) + '"><label>الاختبار<strong>' + esc(test.test_no) + ' — ' + escUI(test.name_ar) + '</strong></label><label>الفني<select name="technician_id" required><option value="">— اختر الفني —</option>' + optionList(technicians,test.technician_id || '',function(item){return item.full_name + ' — ' + item.username;},function(item){return item.id;}) + '</select></label><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">إسناد وإنشاء المسودة</button></div></form>');
+}
+
+async function submitTestAssignment(form) {
+  await api('/api/tests/assign',{method:'POST',body:JSON.stringify({test_id:Number(fieldValue(form,'test_id')),technician_id:Number(fieldValue(form,'technician_id'))})});
+  closeModal(); await refresh(); showToast('تم إسناد الاختبار وإنشاء مسودة واتساب للفني');
+}
+
+async function submitWorkOrder(form) {
+  const payload = {};
+  ['action','id','project_id','title','priority','status','scheduled_date','due_date','assigned_to','description'].forEach(function(key) { if(form.elements[key])payload[key] = fieldValue(form,key); });
+  await api('/api/work-orders',{method:'POST',body:JSON.stringify(payload)});
+  closeModal(); await refresh(); showToast('تم إنشاء أمر العمل');
+}
+
+function modalAttachFileField(section){return '<div class="modal-attach-file"><label>إرفاق ملف<select data-modal-file-type><option value="all">جميع الملفات المدعومة</option><option value=".xls,.xlsx,.csv">Excel / CSV</option><option value=".pdf">PDF</option><option value=".doc,.docx">Word</option><option value=".jpg,.jpeg,.png,.webp,.heic">صور</option><option value=".txt">TXT</option><option value=".zip">ZIP</option><option value=".dwg,.dxf">DWG / DXF</option></select><input type="file" data-modal-files multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.zip,.dwg,.dxf"></label><small class="muted">يتم التعرف على الملف وتحميله داخل البرنامج.</small></div>';}
+function openClientForm(record) {
+  record=record||{};const edit=Boolean(record.id);modal('<h2>'+(edit?'تحديث العميل':'عميل جديد')+'</h2><form id="clientForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>اسم العميل<input name="name" required value="'+esc(record.name||'')+'"></label><label>الهاتف<input name="phone" value="'+esc(record.phone||'')+'"></label><label style="grid-column:1/-1">البريد الإلكتروني<input name="email" type="email" value="'+esc(record.email||'')+'"></label></div>'+modalAttachFileField('clients')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">'+(edit?'حفظ التصحيح':'حفظ العميل')+'</button></div></form>');
+}
+
+function openSampleForm(record) {
+  record=record||{};const edit=Boolean(record.id);
+  const projects = dashboard ? dashboard.projects : [];
+  modal('<h2>'+(edit?'تحديث وربط العينة':'تسجيل عينة')+'</h2><form id="sampleForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>رقم العينة<input name="sample_no" required '+(edit?'readonly ':'')+'value="'+esc(record.sample_no||'')+'"></label><label>المشروع<select name="project_id"><option value="">— غير مرتبط —</option>' + optionList(projects,record.project_id||'',function(item){return item.code + ' — ' + item.name;},function(item){return item.id;}) + '</select></label><label>المادة<select name="material">'+optionList(['تربة','خرسانة','أسفلت','الحقل وNDT'],record.material||'تربة',function(x){return x;},function(x){return x;})+'</select></label><label>تاريخ الاستلام<input name="received_date" type="date" value="' + esc(record.received_date||today()) + '" required></label><label>المصدر<input name="source" value="'+esc(record.source||'')+'"></label><label>ملاحظات<textarea name="notes">'+esc(record.notes||'')+'</textarea></label></div><p class="form-message">'+(edit?'سيُحفظ الربط الجديد ويعاد احتساب جودة البيانات.':'سيُنشئ النظام تلقائياً خطة الاختبارات الرسمية الكاملة للمادة المختارة؛ لا تحتاج إلى إضافتها يدوياً.')+'</p>'+modalAttachFileField('samples')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">'+(edit?'حفظ المعالجة':'حفظ العينة والخطة')+'</button></div></form>');
+}
+
+function openEquipmentForm(record) {
+  record=record||{};const edit=Boolean(record.id);
+  modal('<h2>'+(edit?'تحديث الجهاز ومعالجة بياناته':'إضافة جهاز')+'</h2><form id="equipmentForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>اسم الجهاز<input name="name" required value="'+esc(record.name||'')+'"></label><label>الرقم التسلسلي<input name="serial_no" value="'+esc(record.serial_no||'')+'"></label><label>الشركة المصنعة<input name="manufacturer" value="'+esc(record.manufacturer||'')+'"></label><label>الموديل<input name="model" value="'+esc(record.model||'')+'"></label><label>آخر معايرة<input name="last_calibration" type="date" value="'+esc((record.last_calibration||'').slice(0,10))+'"></label><label>المعايرة القادمة<input name="next_calibration" type="date" value="'+esc((record.next_calibration||record.calibrated_to||'').slice(0,10))+'"></label><label>رقم الشهادة<input name="certificate_no" value="'+esc(record.certificate_no||'')+'"></label><label>ملاحظات<textarea name="notes">'+esc(record.notes||'')+'</textarea></label></div>'+modalAttachFileField('equipment')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit" data-save-equipment>'+(edit?'حفظ التصحيح':'حفظ الجهاز')+'</button></div></form>');
+}
+
+function genericFields(testCatalog) {
+  const fields = TEST_FIELDS[testCatalog.code] || [['result','النتيجة','']];
+  return fields.map(function(item) { const type=item[3] || 'number'; return '<label>' + escUI(item[1]) + (item[2] ? ' (' + esc(item[2]) + ')' : '') + '<input name="result_' + esc(item[0]) + '" type="' + esc(type) + '"'+(type==='number'?' step="any"':'')+'></label>'; }).join('');
+}
+
+function testFormContent() {
+  return '<h2>إضافة اختبار</h2><form id="testForm"><div class="modal-grid"><label>نوع الاختبار<select id="testCatalogSelect" name="catalog_id" required><option value="">— اختر الاختبار —</option>' + optionList(catalog,'',function(item){return item.code + ' — ' + item.name_ar;},function(item){return item.id;}) + '</select></label><label>معرف العينة<input name="sample_id" type="number" min="1" required></label><label>رقم الاختبار (اختياري)<input name="test_no"></label><label>تاريخ البدء<input name="started_at" type="datetime-local"></label></div><div id="testDynamic" class="modal-grid"></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ الاختبار</button></div></form>';
+}
+
+function openTestForm() {
+  modal(testFormContent());
+}
+
+function updateTestDynamic() {
+  const selected = catalog.find(function(item) { return item.id === Number($('testCatalogSelect').value); });
+  if (!selected) return setHtml($('testDynamic'), '');
+  if (selected.code === 'D1557' || selected.code === 'D698') {
+    let points = '';
+    for (let i=1;i<=5;i++) points += '<label>رطوبة النقطة ' + i + ' %<input name="w' + i + '" type="number" step="any"></label><label>القالب + التربة الرطبة ' + i + ' g<input name="wet' + i + '" type="number" step="any"></label>';
+    setHtml($('testDynamic'), '<label>وزن القالب g<input name="mold_weight" type="number" step="any"></label><label>حجم القالب cm³<input name="mold_volume" type="number" value="944" step="any"></label>' + points);
+  } else {
+    setHtml($('testDynamic'), genericFields(selected));
+  }
+}
+
+async function submitTest(form) {
+  const formData = new FormData(form);
+  const testCatalog = catalog.find(function(item) { return item.id === Number(formData.get('catalog_id')); });
+  if (!testCatalog) throw new Error('اختر نوع الاختبار');
+  if (testCatalog.code === 'D1557' || testCatalog.code === 'D698') {
+    const points = [];
+    const moldWeight = Number(formData.get('mold_weight')); const volume = Number(formData.get('mold_volume'));
+    for (let i=1;i<=5;i++) {
+      const moisture = Number(formData.get('w' + i)); const wetTotal = Number(formData.get('wet' + i));
+      if (!Number.isNaN(moisture) && wetTotal > moldWeight && volume > 0) {
+        const wetDensity = (wetTotal - moldWeight) / volume;
+        points.push({moisture:moisture,mold_soil_wet:wetTotal,wet_density:wetDensity,dry_density:wetDensity/(1+moisture/100)});
+      }
+    }
+    if (points.length < 2) throw new Error('أدخل نقطتين صحيحتين على الأقل للبروكتور');
+    const best = points.reduce(function(a,b) { return b.dry_density > a.dry_density ? b : a; });
+    await api('/api/tests/proctor',{method:'POST',body:JSON.stringify({test_no:formData.get('test_no'),sample_id:formData.get('sample_id'),started_at:formData.get('started_at'),mdd:best.dry_density,omc:best.moisture,points:points,standard_code:testCatalog.code})});
+  } else {
+    const results = {};
+    (TEST_FIELDS[testCatalog.code] || [['result','النتيجة','']]).forEach(function(item) { const value = formData.get('result_' + item[0]); if (value !== '') results[item[0]] = value; });
+    await api('/api/tests/generic',{method:'POST',body:JSON.stringify({catalog_id:testCatalog.id,test_no:formData.get('test_no'),sample_id:formData.get('sample_id'),started_at:formData.get('started_at'),inputs:{},results:results})});
+  }
+  closeModal(); await refresh(); showToast('تم حفظ الاختبار وإنشاء مسودة التقرير');
+}
+
+function openUserForm(user) {
+  const value = user || {};
+  const phoneParts = splitInternationalPhone(value.phone || '');
+  const countries = COUNTRY_CODES.map(function(item){return '<option value="'+item.code+'"'+(item.code===phoneParts.code?' selected':'')+'>'+item.name+' '+item.code+'</option>';}).join('');
+  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><p>تعديل بيانات الحساب وكلمة المرور والصورة ورقم الجوال.</p><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><input type="hidden" name="avatar_data_url" value="' + esc(value.avatar_data_url || '') + '"><div class="user-photo-editor"><img id="userAvatarPreview" src="' + esc(value.avatar_data_url || 'techno-logo.svg') + '" alt="معاينة صورة المستخدم"><div><strong>صورة المستخدم</strong><small>JPG أو PNG — تُضغط تلقائيًا</small><button id="chooseUserAvatar" class="btn secondary" type="button">اختيار صورة</button><input id="userAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال<div class="phone-composer"><select name="country_code" dir="ltr">'+countries+'</select><input name="local_phone" dir="ltr" inputmode="numeric" autocomplete="tel-national" placeholder="5XXXXXXXX" value="'+esc(phoneParts.local)+'"></div></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور الجديدة ' + (user ? '(اختياري)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label><label>تأكيد كلمة المرور<input name="password_confirm" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">أدخل الرقم المحلي فقط بعد اختيار مفتاح الدولة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button id="saveUserButton" class="btn primary" type="button">حفظ ومزامنة المستخدم</button></div></form>');
+  const form = $('userForm');
+  form.elements.password.removeAttribute('minlength');
+  form.elements.password_confirm.removeAttribute('minlength');
+  $('chooseUserAvatar').addEventListener('click',function(){$('userAvatarInput').click();});
+  $('userAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('userAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});
+  $('saveUserButton').addEventListener('click', function() { saveUserForm(form); });
+}
+
+function splitInternationalPhone(phone) { const value=String(phone||''); const found=COUNTRY_CODES.slice().sort(function(a,b){return b.code.length-a.code.length;}).find(function(item){return value.startsWith(item.code);}); return {code:found?found.code:'+966',local:found?value.slice(found.code.length).replace(/^0+/,''):value.replace(/\D/g,'').replace(/^0+/,'')}; }
+function canonicalPhone(countryCode, entered) { const code=String(countryCode||'+966').replace(/[^+\d]/g,'');const codeDigits=code.replace(/\D/g,'');let digits=String(entered||'').replace(/\D/g,'').replace(/^00/,'');while(digits.startsWith(codeDigits))digits=digits.slice(codeDigits.length);digits=digits.replace(/^0+/,'');return digits?code+digits:''; }
+function resizeAvatar(file) { return new Promise(function(resolve,reject){if(file.size>8*1024*1024)return reject(new Error('الصورة تتجاوز 8MB'));if(!String(file.type||'').startsWith('image/'))return reject(new Error('اختر ملف صورة صالحًا'));const reader=new FileReader();reader.onerror=function(){reject(new Error('تعذر قراءة الصورة'));};reader.onload=function(){const image=new Image();image.onerror=function(){reject(new Error('صيغة الصورة غير مدعومة؛ استخدم JPG أو PNG'));};image.onload=function(){const size=256,canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;const ctx=canvas.getContext('2d');if(!ctx)return reject(new Error('تعذر معالجة الصورة على هذا الجهاز'));const side=Math.min(image.naturalWidth||image.width,image.naturalHeight||image.height),x=((image.naturalWidth||image.width)-side)/2,y=((image.naturalHeight||image.height)-side)/2;ctx.drawImage(image,x,y,side,side,0,0,size,size);const avatar=canvas.toDataURL('image/jpeg',.76);if(!avatar||avatar==='data:,')return reject(new Error('تعذر ضغط الصورة'));resolve(avatar);};image.src=reader.result;};reader.readAsDataURL(file);}); }
+
+async function saveUserForm(form) {
+  try {
+    const phone=canonicalPhone(form.elements.country_code.value,form.elements.local_phone.value);
+    if(phone && !/^\+[1-9]\d{7,14}$/.test(phone))throw new Error('رقم الجوال المحلي غير صحيح');
+    let phoneInput=form.elements.phone;if(!phoneInput){phoneInput=document.createElement('input');phoneInput.type='hidden';phoneInput.name='phone';form.appendChild(phoneInput);}phoneInput.value=phone;
+    if(form.elements.password.value!==form.elements.password_confirm.value)throw new Error('تأكيد كلمة المرور غير مطابق');
+    await submitSimple(form, form.elements.id.value ? '/api/users/update' : '/api/users/create');
+  } catch (error) {
+    const message = error && error.message ? error.message : 'تعذر حفظ المستخدم';
+    const formMessage = form.querySelector('#userFormMessage');
+    if (formMessage) setText(formMessage, message);
+    showToast(message, true);
+  }
+}
+
+async function submitSimple(form, path) {
+  const data = {};
+  new FormData(form).forEach(function(value,key) { data[key] = value; });
+  if (path === '/api/users/update') { const active = form.querySelector('[name="active"]'); data.active = active ? active.checked : true; }
+  if (path.indexOf('/api/users/') === 0) {
+    if (!data.id && !String(data.username || '').trim()) throw new Error('اسم المستخدم مطلوب');
+    if (!String(data.full_name || '').trim()) throw new Error('الاسم الكامل مطلوب');
+    if (!data.id && !String(data.password || '')) throw new Error('كلمة المرور مطلوبة');
+    if (data.phone && !/^\+[1-9]\d{7,14}$/.test(String(data.phone))) throw new Error('رقم الجوال غير صحيح؛ تحقق من مفتاح الدولة والرقم المحلي');
+    if (!ROLE_NAMES[data.role]) throw new Error('اختر دورًا معتمدًا للمستخدم');
+  }
+  const isUserSave = path.indexOf('/api/users/') === 0;
+  const saveButton = isUserSave ? form.querySelector('#saveUserButton') : form.querySelector('button[type="submit"]');
+  const originalLabel = saveButton ? saveButton.textContent : '';
+  const formMessage = isUserSave ? form.querySelector('#userFormMessage') : null;
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.setAttribute('aria-busy','true');
+    setText(saveButton, isUserSave ? 'جارٍ الحفظ والمزامنة…' : 'جارٍ الحفظ…');
+  }
+  if (formMessage) setText(formMessage, 'جارٍ حفظ التغيير في الخادم المركزي…');
+  let result;
+  try {
+    result = await api(path,{method:'POST',body:JSON.stringify(data)});
+  } catch (error) {
+    if (saveButton && saveButton.isConnected) {
+      saveButton.disabled = false;
+      saveButton.removeAttribute('aria-busy');
+      setText(saveButton, originalLabel || 'حفظ');
+    }
+    throw error;
+  }
+  closeModal();
+  try {
+    await refresh();
+  } catch (refreshError) {
+    publishLiveUpdate(isUserSave ? 'users' : 'operations');
+    showToast('تم الحفظ بنجاح، وسيتم تحديث البيانات تلقائيًا عند المزامنة التالية');
+    return result;
+  }
+  if (isUserSave) {
+    publishLiveUpdate('users');
+    showToast(data.id ? 'تم تعديل المستخدم ومزامنته فورًا' : 'تمت إضافة المستخدم وتفعيله ومزامنته فورًا');
+    return result;
+  }
+  publishLiveUpdate('operations');
+  if (path === '/api/equipment') {
+    showToast(data.action === 'update' ? 'تم حفظ تصحيح الجهاز وتحديث الجدول' : 'تم حفظ الجهاز وتحديث الجدول');
+    return result;
+  }
+  showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ والمزامنة');
+  return result;
+}
+function openChangePassword() { modal('<h2>تغيير كلمة المرور</h2><p>هذا التغيير يخص حسابك المسجّل فقط.</p><form id="changePasswordForm"><div class="modal-grid"><label>كلمة المرور الحالية<input name="current_password" type="password" autocomplete="current-password" required></label><label>كلمة المرور الجديدة<input name="new_password" type="password" autocomplete="new-password" required></label><label>تأكيد كلمة المرور الجديدة<input name="confirm_password" type="password" autocomplete="new-password" required></label></div><p class="form-note">اكتب كلمة المرور التي تريدها دون حد أدنى للحروف.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تغيير كلمة المرور</button></div></form>'); }
+function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك تعديل الاسم والصورة وكلمة المرور. اسم المستخدم ثابت: <strong>@'+esc(currentUser.username)+'</strong></p><form id="myProfileForm"><input type="hidden" name="avatar_data_url" value="'+esc(currentUser.avatar_data_url||'')+'"><div class="user-photo-editor"><img id="profileAvatarPreview" src="'+esc(currentUser.avatar_data_url||'techno-logo.svg')+'" alt="صورة المستخدم"><div><strong>@'+esc(currentUser.username)+'</strong><small>اسم المستخدم</small><button id="chooseProfileAvatar" class="btn secondary" type="button">تغيير الصورة</button><input id="profileAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><label>الاسم الكامل<input name="full_name" required value="'+esc(currentUser.full_name)+'"></label><div class="modal-actions"><button class="btn secondary" type="button" id="profilePasswordButton">تغيير كلمة المرور</button><button class="btn primary" type="submit">حفظ الملف الشخصي</button></div></form>');const form=$('myProfileForm');$('chooseProfileAvatar').addEventListener('click',function(){$('profileAvatarInput').click();});$('profileAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('profileAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});$('profilePasswordButton').addEventListener('click',openChangePassword); }
+async function submitMyProfile(form) { const payload={full_name:form.elements.full_name.value.trim(),avatar_data_url:form.elements.avatar_data_url.value};if(!payload.full_name)throw new Error('الاسم الكامل مطلوب');let result;try{result=await api('/api/profile/update',{method:'POST',body:JSON.stringify(payload)});}catch(error){if(error.message!=='مسار غير معروف'||!currentUser||['admin','general_manager','manager'].indexOf(currentUser.role)<0)throw error;const users=await api('/api/users');const account=users.find(function(item){return item.username===currentUser.username;});if(!account)throw error;await api('/api/users/update',{method:'POST',body:JSON.stringify({id:account.id,full_name:payload.full_name,role:account.role,phone:account.phone||'',avatar_data_url:payload.avatar_data_url,active:Boolean(account.active),password:''})});result={user:payload};}applyCurrentUserIdentity(result.user||payload);closeModal();await refresh();showToast('تم تحديث الاسم والصورة بنجاح');}
+async function submitChangePassword(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(data)});closeModal();showToast('تم تغيير كلمة المرور لحسابك'); }
+async function loadSystemSettings() { if(!currentUser||['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)<0)return;try{const settings=await api('/api/settings');const form=$('systemSettingsForm');Object.keys(settings).forEach(function(key){const field=form.elements[key];if(!field)return;if(field.type==='checkbox')field.checked=settings[key]==='true';else field.value=settings[key];});if(form.elements.default_language){form.elements.default_language.value=localStorage.getItem('techno_lims_language')||settings.default_language||'ar';}}catch(error){setText($('settingsMessage'),error.message);} }
+function validChannelUrl(value, channel) { try { const url=new URL(String(value||'').trim());if(url.protocol!=='https:')return '';const host=url.hostname.toLowerCase().replace(/^www\./,'');const allowed=channel==='whatsapp'?['chat.whatsapp.com','wa.me','whatsapp.com']:['t.me','telegram.me'];return allowed.some(function(domain){return host===domain||host.endsWith('.'+domain);})?url.href:'';}catch(error){return '';} }
+function applyChannelLink(channel,value) { const link=$(channel+'ChannelLink');const status=$(channel+'ChannelStatus');if(!link||!status)return;const href=validChannelUrl(value,channel);if(href){link.href=href;link.classList.remove('disabled');link.setAttribute('aria-disabled','false');setText(status,'متصل وجاهز للفتح');}else{link.removeAttribute('href');link.classList.add('disabled');link.setAttribute('aria-disabled','true');setText(status,'أضف رابطًا صحيحًا من إعدادات النظام');} }
+async function loadCommunicationLinks() { let settings={};try{settings=await api('/api/communication-links');}catch(error){try{if(currentUser&&['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)>=0)settings=await api('/api/settings');}catch(ignore){settings={};}}applyChannelLink('whatsapp',settings.whatsapp_group_url||OFFICIAL_WHATSAPP_URL);applyChannelLink('telegram',settings.telegram_url||OFFICIAL_TELEGRAM_URL); }
+async function submitSystemSettings(form) { const data={};Array.from(form.elements).forEach(function(field){if(!field.name)return;data[field.name]=field.type==='checkbox'?String(field.checked):field.value.trim();});await api('/api/settings/update',{method:'POST',body:JSON.stringify(data)});setText($('settingsMessage'),'تم حفظ الإعدادات ومزامنتها بنجاح');await loadCommunicationLinks();showToast('تم حفظ إعدادات النظام وتحديث روابط التواصل'); }
+async function submitQualityDocument(form) { const data = {}; new FormData(form).forEach(function(value,key) { if (key !== 'quality_file') data[key] = value; }); const file = form.elements.quality_file.files[0]; if (file) { if (file.size > 100 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 100MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 8192)); data.file_name = file.name; data.file_base64 = btoa(binary); } await api('/api/quality/documents',{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم حفظ وثيقة الجودة'); }
+function openQualityDocumentEdit(item) { modal('<h2>تعديل وثيقة الجودة</h2><form id="qualityDocumentEditForm"><input type="hidden" name="id" value="'+item.id+'"><input type="hidden" name="category" value="'+esc(item.category)+'"><div class="modal-grid"><label>الكود<input name="code" required value="'+esc(item.code)+'"></label><label>العنوان<input name="title" required value="'+esc(item.title)+'"></label><label>الإصدار<input name="revision" value="'+esc(item.revision||'')+'"></label><label>الحالة<select name="status"><option>ساري</option><option>قيد المراجعة</option><option>ملغى</option></select></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">حفظ التعديل</button></div></form>'); }
+async function submitQualityDocumentEdit(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/quality/documents/update',{method:'POST',body:JSON.stringify(data)});closeModal();await refresh();showToast('تم تعديل وثيقة الجودة'); }
+async function deleteQualityDocument(id) { if(!window.confirm('هل تريد حذف وثيقة الجودة نهائياً؟'))return;await api('/api/quality/documents/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف وثيقة الجودة'); }
+async function resetSyncQueue(){if(!window.confirm('سيتم حذف جميع نتائج وطابور المزامنة السابق والبدء من الصفر. هل تريد المتابعة؟'))return;const result=await api('/api/sync/reset',{method:'POST',body:'{}'});await refresh();showToast('تم حذف '+result.deleted+' نتيجة وبدأ طابور مزامنة جديد');}
+async function resetOperationalData(){
+  if(!window.confirm('سيتم إنشاء نسخة احتياطية ثم تصفير جميع بيانات التشغيل والحضور والملفات والسجلات، مع الإبقاء على المستخدمين والصلاحيات والإعدادات. هل تريد المتابعة؟'))return;
+  const phrase=window.prompt('للتأكيد النهائي اكتب: تصفير نظام تيكنو');
+  if(phrase!=='تصفير نظام تيكنو'){showToast('تم إلغاء التصفير؛ عبارة التأكيد غير مطابقة',true);return;}
+  const result=await api('/api/system/reset-operational',{method:'POST',body:JSON.stringify({confirmation:'RESET-TECHNO-OPERATIONAL'})});
+  await refresh(); showToast('تم تصفير بيانات التشغيل. النسخة الاحتياطية: '+result.backup);
+}
+async function uploadQualityFile(file) { if (!file) return ''; if (file.size > 100 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 100MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset=0; offset<bytes.length; offset+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192)); const result = await api('/api/quality/files',{method:'POST',body:JSON.stringify({file_name:file.name,file_base64:btoa(binary)})}); return result.ref; }
+async function submitQualityRecord(form,path,files) { const data={}; new FormData(form).forEach(function(value,key){if(files.indexOf(key)<0)data[key]=value;}); for(const item of files){const ref=await uploadQualityFile(form.elements[item].files[0]); if(ref)data[item === 'quality_file' ? 'report_ref' : item === 'qualification_file' ? 'qualification_ref' : 'cv_ref']=ref;} await api(path,{method:'POST',body:JSON.stringify(data)}); closeModal(); await refresh(); showToast('تم الحفظ'); }
+
+const BULK_FIELDS = {clients:['الاسم','الهاتف','البريد'],projects:['اسم المشروع','العميل','الموقع','الأولوية','البداية','الاستحقاق','التقدم','الوصف'],work_orders:['أمر العمل','معرف المشروع','الأولوية','الموعد','الاستحقاق','الوصف'],samples:['المادة','معرف المشروع','المصدر','تاريخ الاستلام','ملاحظات']};
+const ENTITY_LABELS = {client:'عميل',project:'مشروع',work_order:'أمر عمل',sample:'عينة',test:'اختبار',report:'تقرير',equipment:'جهاز',user:'مستخدم'};
+function csvRows(text) { const rows=[], row=[]; let cell='', quoted=false; for(let i=0;i<text.length;i++){const c=text[i]; if(c==='"'){if(quoted && text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;} else if(c===','&&!quoted){row.push(cell.trim());cell='';} else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(Boolean))rows.push(row.splice(0));cell='';} else cell+=c;} row.push(cell.trim());if(row.some(Boolean))rows.push(row); return rows; }
+function downloadBulkTemplate(type) { const line=BULK_FIELDS[type].map(x=>uiLanguage==='en'?translateUI(x):x).join(',')+'\n'; const blob=new Blob(['\ufeff'+line],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='techno-'+type+'-template.csv';a.click();URL.revokeObjectURL(a.href); }
+function entityRows(entity) { const mapping={client:'clients',project:'projects',work_order:'work_orders',sample:'samples',test:'tests',report:'reports',equipment:'equipment',user:'users'}; return (dashboard[mapping[entity]]||[]).map(function(item){ return {id:item.id,label:item.name||item.code||item.order_no||item.sample_no||item.test_no||item.report_no||item.full_name||item.username||('سجل '+item.id)}; }); }
+function openAttachmentPanel(entity) {
+  const rows=entityRows(entity);
+  modal('<h2>مرفقات '+escUI(ENTITY_LABELS[entity])+'</h2><p>ارفع أي ملف حتى 100MB واربطه بالسجل المطلوب. كل ملف محفوظ يفتح داخل البرنامج ويمكن تنزيله، ويظهر الحذف للمخولين فقط.</p><form id="recordAttachmentForm"><div class="modal-grid"><label>السجل<select name="entity_id" required>'+optionList(rows,'',function(x){return x.label;},function(x){return x.id;})+'</select></label><label>الملف<input name="file" type="file" required></label></div><div id="recordAttachmentList" class="attachment-record-list"></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">رفع وحفظ</button></div></form>');
+  const form=$('recordAttachmentForm'); form.dataset.entityType=entity;
+  const load=async function(){
+    const id=form.elements.entity_id.value;if(!id)return;
+    setText($('recordAttachmentList'),'جارٍ تحميل المرفقات…');
+    try{
+      const items=await api('/api/attachments?entity_type='+encodeURIComponent(entity)+'&entity_id='+encodeURIComponent(id));
+      window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};
+      items.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});
+      setHtml($('recordAttachmentList'),items.length?items.map(function(item){
+        return '<div class="attachment-record-row"><strong>'+esc(item.original_name)+'</strong><div class="item-actions"><button class="text-btn" type="button" data-smart-open="'+item.id+'">فتح</button><button class="text-btn" type="button" data-smart-download="'+item.id+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" type="button" data-smart-delete="'+item.id+'">حذف</button>':'')+'</div></div>';
+      }).join(''):'لا توجد مرفقات لهذا السجل.');
+    }catch(e){setText($('recordAttachmentList'),'تعذر تحميل المرفقات');}
+  };
+  form.__loadAttachments=load;
+  form.elements.entity_id.addEventListener('change',load);load();
+}
+
+function openBulkPanel(type) { const entity={clients:'client',projects:'project',work_orders:'work_order',samples:'sample'}[type]; modal('<h2>استيراد '+escUI(ENTITY_LABELS[entity])+' من Excel</h2><p>ارفع ملف Excel مباشرة؛ يتعرف النظام تلقائيًا على ورقة البيانات وصف العناوين وترتيب الأعمدة بالعربية أو الإنجليزية. ويبقى CSV مدعومًا.</p><div class="modal-actions"><button class="btn secondary" type="button" data-download-bulk="'+esc(type)+'">تنزيل قالب</button><button class="btn secondary" type="button" data-open-attachments="'+esc(entity)+'">رفع مرفق</button></div><form id="bulkImportForm"><label>ملف Excel أو CSV<input name="file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" required></label><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تعرف واستورد مباشرة</button></div></form>'); $('bulkImportForm').dataset.entityType=type; }
+async function submitBulkImport(form) { const file=form.elements.file.files[0]; if(!file)throw new Error('اختر ملف Excel أو CSV');if(/\.xlsx$/i.test(file.name)){const result=await api('/api/import/xlsx',{method:'POST',body:JSON.stringify({entity_type:form.dataset.entityType,file_name:file.name,file_base64:await fileToBase64(file)})});closeModal();await refresh();showToast('تم التعرف على ورقة «'+result.sheet+'» واستيراد '+result.imported+' صف'+(result.skipped.length?'، وتجاوز '+result.skipped.length+' صف غير صالح':''));return;} const rows=csvRows(await file.text()); if(rows.length<2)throw new Error('الملف لا يحتوي صفوفاً للاستيراد'); const heads=rows.shift(); const values=rows.map(function(row){const out={};heads.forEach(function(h,i){const canonical=(BULK_FIELDS[form.dataset.entityType]||[]).find(x=>x===h||translateUI(x)===h)||h; let value=row[i]||''; if(['الأولوية','المادة'].includes(canonical)){value=['منخفضة','متوسطة','عالية','حرجة','تربة','خرسانة','أسفلت'].find(x=>translateUI(x).toLowerCase()===value.toLowerCase())||value;} out[canonical]=value;});return out;}); const result=await api('/api/bulk/import',{method:'POST',body:JSON.stringify({entity_type:form.dataset.entityType,rows:values})}); closeModal();await refresh();showToast('تم استيراد '+result.imported+' صف'+(result.skipped.length?'، وتجاوز '+result.skipped.length+' صف غير صالح':'')); }
+async function submitRecordAttachment(form) { const file=form.elements.file.files[0];if(!file)throw new Error('اختر ملفاً');if(file.size>100*1024*1024)throw new Error('حجم الملف يتجاوز 100MB');const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));await api('/api/attachments',{method:'POST',body:JSON.stringify({entity_type:form.dataset.entityType,entity_id:form.elements.entity_id.value,file_name:file.name,file_base64:btoa(binary)})});closeModal();showToast('تم رفع المرفق وحفظه');}
+
+function canDeleteUploadedFiles(){
+  return Boolean(currentUser&&['admin','general_manager','manager','quality_manager','laboratory_manager','document_controller'].indexOf(currentUser.role)>=0);
+}
+
+async function deleteUploadedFile(item){
+  if(!item||!item.id)throw new Error('تعذر تحديد الملف');
+  if(!canDeleteUploadedFiles())throw new Error('ليس لديك صلاحية حذف الملفات');
+  if(!window.confirm('نقل الملف «'+(item.original_name||'')+'» إلى سلة المحذوفات؟ يمكنك استعادته لاحقًا.'))return false;
+  await api('/api/attachments/delete',{method:'POST',body:JSON.stringify({id:item.id})});
+  if(window.__ASAS_SMART_FILES)delete window.__ASAS_SMART_FILES[item.id];
+  documentLibraryRows=documentLibraryRows.filter(function(row){return Number(row.id)!==Number(item.id);});
+  if(activePageId==='quality')renderDocumentCenterFiles();
+  const smartForm=$('smartImportForm');if(smartForm&&smartForm.elements.section)await loadSmartImports(smartForm.elements.section.value);
+  const recordForm=$('recordAttachmentForm');if(recordForm&&typeof recordForm.__loadAttachments==='function')await recordForm.__loadAttachments();
+  await loadCatalog();renderCatalog();
+  showToast('تم نقل الملف إلى سلة المحذوفات');
+  return true;
+}
+
+function documentFileTypeIcon(name) {
+  const ext = String(name || '').split('.').pop().toLowerCase();
+  return ({pdf:'PDF',doc:'DOC',docx:'DOC',xls:'XLS',xlsx:'XLS',csv:'CSV',jpg:'IMG',jpeg:'IMG',png:'IMG',webp:'IMG',txt:'TXT',dwg:'CAD',dxf:'CAD',zip:'ZIP'})[ext] || 'FILE';
+}
+
+function renderDocumentCenterFiles() {
+  const query = String(documentLibrarySearchTerm || '').trim().toLowerCase();
+  const filtered = documentLibraryRows.filter(function(item) {
+    const group = item.material_group || 'أخرى';
+    const groupOk = documentGroupFilter === 'الكل' || group === documentGroupFilter;
+    const queryOk = !query || [item.original_name,item.file_category,item.material_group,item.classification_status,item.source_label].join(' ').toLowerCase().indexOf(query) >= 0;
+    return groupOk && queryOk;
+  });
+  document.querySelectorAll('[data-document-group]').forEach(function(button) {
+    button.classList.toggle('active', button.dataset.documentGroup === documentGroupFilter);
+  });
+  window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};
+  documentLibraryRows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});
+  const validIds=new Set(documentLibraryRows.map(function(item){return Number(item.id);}));
+  documentSelectedIds.forEach(function(id){if(!validIds.has(Number(id)))documentSelectedIds.delete(id);});
+  function actionButtons(item,buttonClass){
+    const cls=buttonClass||'btn';
+    return '<button class="'+cls+' primary" type="button" data-smart-open="'+item.id+'">فتح</button><button class="'+cls+' secondary" type="button" data-smart-download="'+item.id+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="'+cls+' secondary" type="button" data-smart-edit="'+item.id+'">تعديل</button><button class="'+cls+' secondary" type="button" data-smart-replace="'+item.id+'">استبدال</button><button class="'+cls+' secondary" type="button" data-smart-versions="'+item.id+'">الإصدارات</button><button class="'+cls+' danger-link" type="button" data-smart-delete="'+item.id+'">حذف</button>':'');
+  }
+  function cards(rows,emptyText) {
+    if(!rows.length)return '<div class="empty-state document-empty"><strong>'+esc(emptyText||'لا توجد ملفات فعلية مطابقة.')+'</strong></div>';
+    return rows.map(function(item) {
+      const selected=documentSelectedIds.has(Number(item.id));
+      return '<article class="document-file-card compact'+(selected?' is-selected':'')+'"><label class="document-file-select"><input type="checkbox" data-document-select="'+item.id+'" '+(selected?'checked':'')+'> تحديد</label><div class="document-file-icon">'+documentFileTypeIcon(item.original_name)+'</div><div class="document-file-info"><span class="pill">'+escUI(item.material_group||'أخرى')+'</span><h4>'+esc(item.display_name||item.original_name)+'</h4><p>'+esc(item.file_category||'ملف')+' · '+esc(item.source_label||'المكتبة الفنية')+' · الإصدار '+esc(item.version_no||1)+'</p><small>'+esc(item.description||saudiDisplay(item.updated_at||item.created_at))+'</small></div><div class="document-file-actions">'+actionButtons(item,'btn')+'</div></article>';
+    }).join('');
+  }
+  const main=$('documentLibraryFiles');if(main)setHtml(main,cards(filtered,'لا توجد ملفات فعلية مطابقة.'));
+  const count=documentSelectedIds.size,countBox=$('documentSelectedCount'),selectAll=$('documentSelectAll');
+  if(countBox)setText(countBox,count?'تم تحديد '+count+' ملف':'لم يتم تحديد ملفات');
+  document.querySelectorAll('[data-file-bulk]').forEach(function(button){button.disabled=!count;});
+  if(selectAll){const visibleIds=filtered.map(function(x){return Number(x.id);});selectAll.checked=Boolean(visibleIds.length&&visibleIds.every(function(id){return documentSelectedIds.has(id);}));selectAll.indeterminate=Boolean(!selectAll.checked&&visibleIds.some(function(id){return documentSelectedIds.has(id);}));selectAll.dataset.visibleIds=visibleIds.join(',');}
+  const technical=$('technicalLibraryFiles');if(technical)setHtml(technical,cards(documentLibraryRows.filter(function(x){return x.source_label==='المكتبة الفنية';}),'لا توجد ملفات في المكتبة الفنية بعد.'));
+  const vault=$('companyVaultFiles');if(vault)setHtml(vault,cards(documentLibraryRows.filter(function(x){return x.source_label==='خزنة الشركة';}),'لا توجد ملفات في الخزنة بعد.'));
+  const log=$('qualityImportLog');
+  if(log){
+    const recent=documentLibraryRows.slice().sort(function(a,b){return String(b.created_at||'').localeCompare(String(a.created_at||''));}).slice(0,50);
+    setHtml(log,recent.length?recent.map(function(item){return '<div class="qc-log-row"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.source_label||'')+' · '+esc(item.file_category||'ملف')+'</small></div><span>'+esc(item.material_group||'أخرى')+'</span><time>'+esc(saudiDisplay(item.created_at))+'</time><div class="item-actions"><button class="text-btn" data-smart-open="'+item.id+'" type="button">فتح</button><button class="text-btn" data-smart-download="'+item.id+'" type="button">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" data-smart-delete="'+item.id+'" type="button">حذف</button>':'')+'</div></div>';}).join(''):'<div class="empty-state">لا توجد عمليات استيراد بعد.</div>');
+  }
+}
+
+function selectedDocumentItems(){return documentLibraryRows.filter(function(item){return documentSelectedIds.has(Number(item.id));});}
+
+function openDocumentEdit(item){
+  if(!item)return;
+  modal('<h2>تعديل بيانات الملف</h2><p>يتم تعديل البيانات الوصفية فقط دون المساس بمحتوى الملف.</p><form id="documentEditForm" data-file-id="'+item.id+'"><div class="modal-grid"><label>الاسم الظاهر<input name="display_name" required value="'+esc(item.display_name||item.original_name)+'"></label><label>التصنيف<select name="material_group">'+['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'].map(function(x){return '<option '+(x===(item.material_group||'أخرى')?'selected':'')+'>'+x+'</option>';}).join('')+'</select></label><label class="full-span">الوصف<textarea name="description" rows="3">'+esc(item.description||'')+'</textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ ومزامنة</button></div></form>');
+}
+
+function openDocumentReplace(item){
+  if(!item)return;
+  modal('<h2>استبدال الملف</h2><p>ستحفظ النسخة الحالية كإصدار سابق، وتصبح النسخة الجديدة هي النسخة التشغيلية.</p><form id="documentReplaceForm" data-file-id="'+item.id+'"><label>النسخة الجديدة<input name="file" type="file" required></label><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">استبدال وإنشاء إصدار</button></div></form>');
+}
+
+async function submitDocumentEdit(form){
+  await api('/api/attachments/update',{method:'POST',body:JSON.stringify({id:Number(form.dataset.fileId),display_name:form.elements.display_name.value,material_group:form.elements.material_group.value,description:form.elements.description.value})});
+  closeModal();await loadDocumentCenter();showToast('تم تعديل الملف ومزامنة التغيير');
+}
+
+async function submitDocumentReplace(form){
+  const file=form.elements.file.files[0];if(!file)throw new Error('اختر النسخة الجديدة');
+  const result=await api('/api/attachments/replace',{method:'POST',body:JSON.stringify({id:Number(form.dataset.fileId),file_name:file.name,file_base64:await fileToBase64(file)})});
+  closeModal();documentSelectedIds.delete(Number(form.dataset.fileId));await loadDocumentCenter();showToast('تم حفظ الإصدار '+result.version_no+' والاحتفاظ بالنسخة السابقة');
+}
+
+async function openDocumentVersions(item){
+  const rows=await api('/api/attachments/versions?id='+encodeURIComponent(item.id));window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};rows.forEach(function(row){window.__ASAS_SMART_FILES[row.id]=row;});
+  modal('<h2>سجل إصدارات الملف</h2><div class="stack-list">'+rows.map(function(row,index){return '<div class="list-item"><div><strong>'+(index===0?'الحالي — ':'')+'الإصدار '+esc(row.version_no||1)+'</strong><small>'+esc(row.original_name)+' · '+esc(saudiDisplay(row.updated_at||row.created_at))+'</small></div><div class="item-actions"><button class="text-btn" data-smart-open="'+row.id+'" type="button">فتح</button><button class="text-btn" data-smart-download="'+row.id+'" type="button">تنزيل</button></div></div>';}).join('')+'</div><div class="modal-actions"><button class="btn secondary" data-modal-close type="button">إغلاق</button></div>');
+}
+
+async function runDocumentBulk(action){
+  const items=selectedDocumentItems();if(!items.length)throw new Error('حدد ملفًا واحدًا على الأقل');
+  if(action==='download'){for(const item of items){await authenticatedAttachmentDownload(item,false);await smartUploadDelay(180);}showToast('تم تنزيل '+items.length+' ملف');return;}
+  if(action==='classify'){
+    const group=window.prompt('اكتب التصنيف: أسفلت، تربة، خرسانة، الحقل وNDT، أخرى','أخرى');if(group===null)return;
+    if(['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'].indexOf(group.trim())<0)throw new Error('التصنيف غير معتمد');
+    for(const item of items)await api('/api/attachments/update',{method:'POST',body:JSON.stringify({id:item.id,display_name:item.display_name||item.original_name,description:item.description||'',material_group:group.trim()})});
+  }else if(action==='archive'){
+    if(!window.confirm('أرشفة '+items.length+' ملف؟'))return;
+    for(const item of items)await api('/api/attachments/update',{method:'POST',body:JSON.stringify({id:item.id,display_name:item.display_name||item.original_name,description:item.description||'',material_group:item.material_group||'أخرى',archived:true})});
+  }else if(action==='delete'){
+    if(!window.confirm('نقل '+items.length+' ملف إلى سلة المحذوفات؟'))return;
+    for(const item of items)await api('/api/attachments/delete',{method:'POST',body:JSON.stringify({id:item.id})});
+  }
+  const done=items.length;documentSelectedIds.clear();await loadDocumentCenter();showToast('اكتمل الإجراء على '+done+' ملف وتمت المزامنة');
+}
+
+async function loadDocumentCenter() {
+  const box = $('documentLibraryFiles');
+  if (!box) return;
+  setHtml(box,'<div class="empty-state">جارٍ تحميل الملفات الفعلية…</div>');
+  try {
+    const technical = await api('/api/smart-imports?section=technicalLibrary');
+    let vault = [];
+    if (currentUser && ['admin','general_manager','manager','quality_manager'].indexOf(currentUser.role) >= 0) {
+      try { vault = await api('/api/smart-imports?section=companyVault'); } catch (_error) { vault = []; }
+    }
+    documentLibraryRows = technical.map(function(item){return Object.assign({},item,{source_label:'المكتبة الفنية'});})
+      .concat(vault.map(function(item){return Object.assign({},item,{source_label:'خزنة الشركة'});}));
+    renderDocumentCenterFiles();
+  } catch (error) {
+    setHtml(box,'<div class="empty-state error"><strong>تعذر تحميل مركز الملفات.</strong><span>'+esc(error.message)+'</span></div>');
+  }
+}
+
+const SMART_SECTION_LABELS={dashboard:'لوحة القيادة',projects:'المشاريع',workOrders:'أوامر العمل',field:'البرنامج الميداني',attendance:'الحضور والتتبع',clients:'العملاء',samples:'العينات',tests:'الاختبارات',catalog:'دليل الاختبارات',reports:'التقارير',communications:'قنوات التواصل',quality:'الجودة والوثائق',technicalLibrary:'المكتبة الفنية',companyVault:'خزنة مستندات الشركة',company:'عن تيكنو سويل لاب',audit:'سجل التدقيق',trash:'سلة المحذوفات',users:'المستخدمون',equipment:'الأجهزة والمعايرة'};
+function installSmartImportButtons(){document.querySelectorAll('.page').forEach(function(page){const heading=page.querySelector(':scope > .page-heading');if(page.id==='quality'||!heading||heading.querySelector('[data-smart-import]')||!SMART_SECTION_LABELS[page.id])return;let actions=heading.querySelector('.heading-actions');if(!actions){actions=document.createElement('div');actions.className='heading-actions';const existing=Array.from(heading.children).filter(function(x){return x.tagName==='BUTTON'||x.tagName==='A';});existing.forEach(function(x){actions.appendChild(x);});heading.appendChild(actions);}const button=document.createElement('button');button.className='btn secondary smart-import-button smart-import-edge';button.type='button';button.dataset.smartImport=page.id;button.textContent='إرفاق ملف';actions.insertBefore(button,actions.firstChild);});}
+async function fetchAuthenticatedAttachment(item){
+  const headers={};
+  if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+  let response=null,lastError=null;
+  for(let attempt=1;attempt<=2;attempt+=1){
+    try{
+      response=await fetch(API_BASE_URL+'/api/attachments/files/'+item.id,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
+      break;
+    }catch(error){
+      lastError=error;
+      if(attempt<2)await smartUploadDelay(500);
+    }
+  }
+  if(!response)throw new Error('تعذر الاتصال بالخادم لتحميل الملف. '+String(lastError&&lastError.message||''));
+  if(!response.ok){
+    let message='تعذر تحميل الملف';
+    try{const data=await response.json();message=data.error||message;}catch(_error){}
+    throw new Error(message);
+  }
+  const blob=await response.blob();
+  if(!blob.size)throw new Error('الملف موجود في السجل لكن محتواه غير متاح على الخادم');
+  return {blob:blob,url:URL.createObjectURL(blob)};
+}
+
+function downloadAttachmentBlob(item,blob,objectUrl){
+  const link=document.createElement('a');
+  link.href=objectUrl;
+  link.download=item.original_name||'TECHNO-file';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function attachmentViewerKind(name){
+  const lower=String(name||'').toLowerCase();
+  if(/\.pdf$/.test(lower))return 'pdf';
+  if(/\.(jpg|jpeg|png|webp|gif|bmp)$/.test(lower))return 'image';
+  if(/\.(txt|csv|json|xml|log|md|html|htm|css|js|py|sql|rtf)$/.test(lower))return 'text';
+  if(/\.(doc|docx)$/.test(lower))return 'word';
+  if(/\.(xls|xlsx|xlsm)$/.test(lower))return 'excel';
+  if(/\.(dwg|dxf)$/.test(lower))return 'cad';
+  if(/\.(zip|rar|7z)$/.test(lower))return 'archive';
+  if(/\.(mp3|wav|m4a|ogg)$/.test(lower))return 'audio';
+  if(/\.(mp4|webm|mov|m4v)$/.test(lower))return 'video';
+  if(/\.(ppt|pptx)$/.test(lower))return 'powerpoint';
+  return 'other';
+}
+
+function attachmentFormatLabel(kind,name){
+  const ext=(String(name||'').split('.').pop()||'FILE').toUpperCase();
+  const labels={pdf:'PDF',image:'Image',text:'Text',word:'Microsoft Word',excel:'Microsoft Excel',cad:'AutoCAD',archive:'Archive',audio:'Audio',video:'Video',powerpoint:'Microsoft PowerPoint',other:ext};
+  return labels[kind]||ext;
+}
+
+async function spreadsheetPreviewHtml(blob,name){
+  if(!window.XLSX)return '<div class="attachment-original-format"><h3>'+esc(name)+'</h3><p>تعذر تحميل عارض Excel الداخلي. يمكنك إعادة فتح الصفحة أو تنزيل الأصل.</p></div>';
+  const workbook=XLSX.read(await blob.arrayBuffer(),{type:'array',cellDates:true});
+  const sheetName=workbook.SheetNames[0];
+  if(!sheetName)return '<div class="empty-state">ملف Excel لا يحتوي على أوراق قابلة للعرض.</div>';
+  const rows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,raw:false,defval:''}).slice(0,250);
+  const width=Math.min(40,Math.max(1,rows.reduce(function(max,row){return Math.max(max,row.length);},0)));
+  const table='<table class="spreadsheet-preview-table"><tbody>'+rows.map(function(row,rowIndex){return '<tr>'+Array.from({length:width},function(_,i){const tag=rowIndex===0?'th':'td';return '<'+tag+'>'+esc(row[i]===undefined?'':row[i])+'</'+tag+'>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
+  return '<div class="spreadsheet-preview"><div class="spreadsheet-preview-head"><strong>'+esc(sheetName)+'</strong><span>'+workbook.SheetNames.length+' ورقة · عرض أول '+rows.length+' صف</span></div><div class="spreadsheet-preview-scroll">'+table+'</div></div>';
+}
+
+function contentEditingAllowed(kind,name){return kind==='excel'||kind==='text';}
+
+async function openAttachmentContentEditor(item,blob){
+  const kind=attachmentViewerKind(item.original_name),name=item.original_name||'TECHNO-file';
+  if(!contentEditingAllowed(kind,name))throw new Error('هذه الصيغة تتطلب استبدال الملف بنسخة معدلة للحفاظ على تنسيقه');
+  let editor='',workbook=null,sheetName='';
+  if(kind==='excel'){
+    if(!window.XLSX)throw new Error('محرر Excel غير متاح الآن');
+    workbook=XLSX.read(await blob.arrayBuffer(),{type:'array',cellDates:true});sheetName=workbook.SheetNames[0];
+    const rows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,raw:false,defval:''});
+    const width=Math.min(80,Math.max(1,rows.reduce(function(max,row){return Math.max(max,row.length);},0)));
+    const total=Math.max(rows.length,25);
+    editor='<div class="file-content-editor"><div class="spreadsheet-preview-head"><strong>'+esc(sheetName)+'</strong><span>انقر داخل أي خلية للكتابة</span></div><div class="spreadsheet-preview-scroll"><table id="editableSpreadsheet" class="spreadsheet-preview-table editable"><tbody>'+Array.from({length:total},function(_,r){return '<tr>'+Array.from({length:width},function(_,c){return '<td contenteditable="true" data-row="'+r+'" data-col="'+c+'">'+esc((rows[r]||[])[c]===undefined?'':(rows[r]||[])[c])+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div></div>';
+  }else{
+    editor='<div class="file-content-editor"><textarea id="editableTextFile" class="attachment-text-editor" spellcheck="false">'+esc(await blob.text())+'</textarea></div>';
+  }
+  modal('<section class="attachment-viewer file-editor-view"><header class="attachment-viewer-head"><div><span class="section-kicker">TECHNO File Editor</span><h2>'+esc(name)+'</h2><p>سيحفظ التعديل كإصدار جديد ويحتفظ النظام بالأصل.</p></div><div class="attachment-viewer-actions"><button class="btn primary" id="saveFileContentEdit" type="button">حفظ كإصدار جديد</button><button class="btn secondary" type="button" data-modal-close>إلغاء</button></div></header>'+editor+'</section>');
+  $('saveFileContentEdit').addEventListener('click',async function(){
+    const button=this;button.disabled=true;setText(button,'جارٍ الحفظ والمزامنة…');
+    try{
+      let output;
+      if(kind==='excel'){
+        const rows=[];document.querySelectorAll('#editableSpreadsheet tbody tr').forEach(function(tr){rows.push(Array.from(tr.cells).map(function(cell){return cell.textContent;}));});
+        while(rows.length&&rows[rows.length-1].every(function(value){return !String(value).trim();}))rows.pop();
+        workbook.Sheets[sheetName]=XLSX.utils.aoa_to_sheet(rows);output=new Blob([XLSX.write(workbook,{bookType:/\.xls$/i.test(name)?'xls':'xlsx',type:'array'})],{type:'application/octet-stream'});
+      }else output=new Blob([$('editableTextFile').value],{type:blob.type||'text/plain;charset=utf-8'});
+      const result=await api('/api/attachments/replace',{method:'POST',body:JSON.stringify({id:item.id,file_name:name,file_base64:await smartFileBase64(new File([output],name,{type:output.type}))})});
+      closeModal();documentSelectedIds.delete(Number(item.id));await loadDocumentCenter();showToast('تم حفظ التعديل كإصدار '+result.version_no);
+    }catch(error){button.disabled=false;setText(button,'حفظ كإصدار جديد');showToast(error.message,true);}
+  });
+}
+
+async function wordPreviewHtml(blob,name){
+  if(/\.docx$/i.test(name)&&window.mammoth){
+    try{
+      const result=await mammoth.extractRawText({arrayBuffer:await blob.arrayBuffer()});
+      return '<div class="word-preview"><pre>'+esc(String(result.value||'').slice(0,1500000))+'</pre></div>';
+    }catch(_error){}
+  }
+  return '<div class="attachment-original-format"><div class="attachment-format-icon">Word</div><h3>'+esc(name)+'</h3><p>النسخة الأصلية محفوظة. ملفات DOC القديمة تحتاج Microsoft Word، بينما DOCX يتم عرض نصها داخليًا عند توفر العارض.</p></div>';
+}
+
+async function zipPreviewHtml(blob,name){
+  if(!window.JSZip)return '<div class="attachment-original-format"><h3>'+esc(name)+'</h3><p>الملف ZIP محفوظ ويمكن تنزيله؛ تعذر تحميل عارض الحزمة الداخلي.</p></div>';
+  try{
+    const archive=await JSZip.loadAsync(blob);
+    const names=Object.keys(archive.files).filter(function(key){return !archive.files[key].dir;}).slice(0,500);
+    return '<div class="zip-preview"><h3>محتويات '+esc(name)+'</h3><div class="qc-record-list">'+names.map(function(file){return '<div class="qc-record-row"><strong>'+esc(file)+'</strong></div>';}).join('')+'</div>'+(Object.keys(archive.files).length>names.length?'<p class="muted">تم عرض أول 500 عنصر.</p>':'')+'</div>';
+  }catch(_error){return '<div class="attachment-original-format"><h3>'+esc(name)+'</h3><p>تعذر قراءة محتويات ZIP، لكن النسخة الأصلية محفوظة ويمكن تنزيلها.</p></div>';}
+}
+
+async function openAttachmentInViewer(item){
+  const fetched=await fetchAuthenticatedAttachment(item);
+  if(activeAttachmentObjectUrl)URL.revokeObjectURL(activeAttachmentObjectUrl);
+  activeAttachmentObjectUrl=fetched.url;
+  const kind=attachmentViewerKind(item.original_name);
+  const format=attachmentFormatLabel(kind,item.original_name);
+  const size=(fetched.blob.size/1024/1024).toFixed(fetched.blob.size>=1024*1024?2:3)+' MB';
+  let content='';
+  if(kind==='pdf'){
+    content='<iframe class="attachment-viewer-frame" src="'+esc(fetched.url)+'#toolbar=1&navpanes=1" title="'+esc(item.original_name||'PDF')+'"></iframe>';
+  }else if(kind==='image'){
+    content='<div class="attachment-image-stage"><img src="'+esc(fetched.url)+'" alt="'+esc(item.original_name||'صورة')+'"></div>';
+  }else if(kind==='text'){
+    const text=await fetched.blob.text();
+    content='<pre class="attachment-text-stage">'+esc(text.slice(0,1000000))+'</pre>';
+  }else if(kind==='excel'){
+    content=await spreadsheetPreviewHtml(fetched.blob,item.original_name||'Excel');
+  }else if(kind==='word'){
+    content=await wordPreviewHtml(fetched.blob,item.original_name||'Word');
+  }else if(kind==='archive'&&/\.zip$/i.test(item.original_name||'')){
+    content=await zipPreviewHtml(fetched.blob,item.original_name||'ZIP');
+  }else if(kind==='cad'&&/\.dxf$/i.test(item.original_name||'')){
+    const text=await fetched.blob.text();
+    content='<pre class="attachment-text-stage cad-text-preview">'+esc(text.slice(0,1200000))+'</pre>';
+  }else if(kind==='audio'){
+    content='<div class="media-file-preview"><audio controls preload="metadata" src="'+esc(fetched.url)+'"></audio></div>';
+  }else if(kind==='video'){
+    content='<div class="media-file-preview"><video controls preload="metadata" src="'+esc(fetched.url)+'"></video></div>';
+  }else{
+    content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(item.original_name||'ملف')+'</h3><p>تم فتح الملف داخل البرنامج. الملف محفوظ في النظام بصيغته الأصلية دون تحويل. هذه الصيغة لا يملك المتصفح عارضًا كاملاً لمحتواها، لكن الملف يظل متاحًا هنا مع التنزيل المباشر.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
+  }
+  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Internal File Viewer</span><h2>'+esc(item.original_name||'ملف')+'</h2><p>نسخة أصلية محفوظة · '+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions">'+(contentEditingAllowed(kind,item.original_name)?'<button class="btn primary" type="button" data-viewer-edit>تحرير وكتابة</button>':'')+'<button class="btn secondary" type="button" data-viewer-download>تنزيل الأصل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
+  const downloadButton=document.querySelector('[data-viewer-download]');
+  if(downloadButton)downloadButton.addEventListener('click',function(){downloadAttachmentBlob(item,fetched.blob,fetched.url);});
+  const editButton=document.querySelector('[data-viewer-edit]');
+  if(editButton)editButton.addEventListener('click',function(){openAttachmentContentEditor(item,fetched.blob).catch(function(error){showToast(error.message,true);});});
+}
+
+async function authenticatedAttachmentDownload(item,openAfter){
+  if(openAfter)return openAttachmentInViewer(item);
+  const fetched=await fetchAuthenticatedAttachment(item);
+  downloadAttachmentBlob(item,fetched.blob,fetched.url);
+  setTimeout(function(){URL.revokeObjectURL(fetched.url);},30000);
+}
+
+async function fetchAuthorizedQualityFile(ref){
+  const headers={};if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
+  let response;
+  try{response=await fetch(API_BASE_URL+ref,{mode:'cors',credentials:'include',cache:'no-store',headers:headers});}
+  catch(error){throw new Error('تعذر الاتصال بالخادم لفتح وثيقة الجودة');}
+  if(!response.ok){let message='تعذر فتح وثيقة الجودة';try{const data=await response.json();message=data.error||message;}catch(_error){}throw new Error(message);}
+  const blob=await response.blob();if(!blob.size)throw new Error('ملف وثيقة الجودة فارغ أو غير متاح');
+  return {blob:blob,url:URL.createObjectURL(blob)};
+}
+
+async function openAuthorizedQualityFile(ref,name,downloadOnly){
+  const fetched=await fetchAuthorizedQualityFile(ref);
+  const storedName=decodeURIComponent(String(ref).split('/').pop()||'quality-file');
+  const displayName=(name&&String(name).indexOf('.')>0)?name:storedName;
+  if(downloadOnly){
+    downloadAttachmentBlob({original_name:displayName},fetched.blob,fetched.url);
+    setTimeout(function(){URL.revokeObjectURL(fetched.url);},30000);return;
+  }
+  if(activeAttachmentObjectUrl)URL.revokeObjectURL(activeAttachmentObjectUrl);activeAttachmentObjectUrl=fetched.url;
+  const kind=attachmentViewerKind(displayName),format=attachmentFormatLabel(kind,displayName);
+  const size=(fetched.blob.size/1024/1024).toFixed(fetched.blob.size>=1024*1024?2:3)+' MB';
+  let content='';
+  if(kind==='pdf')content='<iframe class="attachment-viewer-frame" src="'+esc(fetched.url)+'#toolbar=1&navpanes=1"></iframe>';
+  else if(kind==='image')content='<div class="attachment-image-stage"><img src="'+esc(fetched.url)+'" alt="'+esc(displayName)+'"></div>';
+  else if(kind==='text')content='<pre class="attachment-text-stage">'+esc((await fetched.blob.text()).slice(0,1000000))+'</pre>';
+  else if(kind==='excel')content=await spreadsheetPreviewHtml(fetched.blob,displayName);
+  else if(kind==='word')content=await wordPreviewHtml(fetched.blob,displayName);
+  else if(kind==='archive'&&/\.zip$/i.test(displayName))content=await zipPreviewHtml(fetched.blob,displayName);
+  else if(kind==='audio')content='<div class="media-file-preview"><audio controls preload="metadata" src="'+esc(fetched.url)+'"></audio></div>';
+  else if(kind==='video')content='<div class="media-file-preview"><video controls preload="metadata" src="'+esc(fetched.url)+'"></video></div>';
+  else content='<div class="attachment-original-format"><div class="attachment-format-icon">'+esc(format)+'</div><h3>'+esc(displayName)+'</h3><p>تم فتح الملف داخل البرنامج. الملف محفوظ بصيغته الأصلية دون تحويل ويمكن تنزيله عند الحاجة.</p><dl><div><dt>الصيغة</dt><dd>'+esc(format)+'</dd></div><div><dt>الحجم</dt><dd>'+esc(size)+'</dd></div></dl></div>';
+  modal('<section class="attachment-viewer"><header class="attachment-viewer-head"><div><span class="section-kicker">Quality File Viewer</span><h2>'+esc(displayName)+'</h2><p>'+esc(format)+' · '+esc(size)+'</p></div><div class="attachment-viewer-actions"><button class="btn primary" type="button" data-quality-viewer-download>تنزيل</button><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div></header>'+content+'</section>');
+  const button=document.querySelector('[data-quality-viewer-download]');if(button)button.addEventListener('click',function(){downloadAttachmentBlob({original_name:displayName},fetched.blob,fetched.url);});
+}
+
+async function deleteAuthorizedQualityFile(ref,name){
+  if(!canDeleteUploadedFiles())throw new Error('ليس لديك صلاحية حذف ملفات الجودة');
+  if(!window.confirm('نقل الملف «'+(name||'')+'» إلى سلة المحذوفات؟ يمكنك استعادته لاحقًا.'))return;
+  await api('/api/quality/files/delete',{method:'POST',body:JSON.stringify({ref:ref,name:name||''})});
+  await refresh();showToast('تم نقل الملف إلى سلة المحذوفات');
+}
+
+async function loadSmartImports(section){
+  const box=$('smartImportResults');if(!box)return;
+  setText(box,'جارٍ تحميل الملفات المرتبة…');
+  try{
+    const rows=await api('/api/smart-imports?section='+encodeURIComponent(section));
+    if(!rows.length){setText(box,'لا توجد ملفات مرفوعة في هذا القسم بعد.');return;}
+    window.__ASAS_SMART_FILES=window.__ASAS_SMART_FILES||{};
+    rows.forEach(function(item){window.__ASAS_SMART_FILES[item.id]=item;});
+    const groups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'];
+    setHtml(box,groups.map(function(group){
+      const items=rows.filter(function(item){return (item.material_group||'أخرى')===group;});if(!items.length)return '';
+      return '<section class="smart-material-group"><h3>'+esc(group)+' <span class="pill">'+items.length+'</span></h3>'+items.map(function(item){
+        return '<div class="list-item"><div><strong>'+esc(item.original_name)+'</strong><small>'+esc(item.file_category||'ملف')+' · '+esc(item.classification_status||'مصنف')+'</small></div><div class="item-actions"><button class="text-btn" type="button" data-smart-open="'+item.id+'">فتح</button><button class="text-btn" type="button" data-smart-download="'+item.id+'">تنزيل</button>'+(canDeleteUploadedFiles()?'<button class="text-btn danger-link" type="button" data-smart-delete="'+item.id+'">حذف</button>':'')+'</div></div>';
+      }).join('')+'</section>';
+    }).join(''));
+  }catch(error){setText(box,error.message);}
+}
+
+function smartSelectedFiles(form) {
+  return Array.isArray(form.__selectedFiles) ? form.__selectedFiles : [];
+}
+
+function smartFileKey(file) {
+  return [file.name,file.size,file.lastModified].join('::');
+}
+
+function setSmartSelectedFiles(form, files, append) {
+  const incoming = Array.from(files || []);
+  const current = append ? smartSelectedFiles(form).slice() : [];
+  const seen = new Set(current.map(smartFileKey));
+  incoming.forEach(function(file){const key=smartFileKey(file);if(!seen.has(key)){seen.add(key);current.push(file);}});
+  form.__selectedFiles = current;
+  renderSmartSelectedFiles(form);
+}
+
+function renderSmartSelectedFiles(form) {
+  const box = $('smartSelectedFiles');
+  if (!box) return;
+  const files = smartSelectedFiles(form);
+  if (!files.length) {
+    setHtml(box,'<div class="smart-drop-empty">لم يتم اختيار ملفات بعد.</div>');
+    return;
+  }
+  setHtml(box,files.map(function(file,index){
+    const mb=(file.size/1024/1024).toFixed(file.size>1024*1024?2:3);
+    return '<div class="smart-selected-file"><div><strong>'+esc(file.name)+'</strong><small>'+mb+' MB</small></div><button type="button" class="text-btn" data-smart-remove-selected="'+index+'">حذف</button></div>';
+  }).join(''));
+}
+
+async function safeSmartFilePicker(form) {
+  const nativeInput = form.elements.files;
+  if (window.showOpenFilePicker) {
+    try {
+      const handles = await window.showOpenFilePicker({multiple:true,startIn:'downloads'});
+      const resolved = await Promise.all(handles.map(async function(handle){
+        try { return {file:await handle.getFile(), error:null}; }
+        catch(error) { return {file:null,error:error}; }
+      }));
+      const files=resolved.filter(function(item){return item.file&&item.file.size>=0;}).map(function(item){return item.file;});
+      const failed=resolved.filter(function(item){return item.error;});
+      if(files.length)setSmartSelectedFiles(form,files,true);
+      if(failed.length)showToast('تم تجاوز '+failed.length+' ملف تعذر على Windows الوصول إليه. اختره مجددًا من المستكشف.',true);
+      if(files.length||failed.length)return;
+    } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      showToast('تعذر استخدام الاختيار الآمن؛ سيتم فتح مستكشف الملفات العادي.',true);
+    }
+  }
+  nativeInput.click();
+}
+
+function openSmartImportPanel(section){
+  modal('<h2>إرفاق ملف — '+esc(SMART_SECTION_LABELS[section]||section)+'</h2><p>يمكنك الاختيار بالطريقة الآمنة أو سحب الملفات وإفلاتها. الطريقة الآمنة تبدأ من مجلد التنزيلات لتجنب مسارات Windows القديمة أو غير المتاحة.</p><form id="smartImportForm"><input type="hidden" name="section" value="'+esc(section)+'"><label>نوع الملف<select id="smartFileType"><option value="all">جميع الملفات المدعومة</option><option value=".xls,.xlsx,.csv">Excel / CSV</option><option value=".pdf">PDF</option><option value=".doc,.docx">Word</option><option value=".jpg,.jpeg,.png,.webp,.heic">صور</option><option value=".txt">نصوص TXT</option><option value=".zip">ZIP</option><option value=".dwg,.dxf">AutoCAD DWG / DXF</option></select></label><input name="files" id="smartNativeFileInput" class="hidden" type="file" multiple><div class="smart-upload-actions"><button id="safeSmartPicker" class="btn primary" type="button">اختيار ملفات بأمان</button><button id="nativeSmartPicker" class="btn secondary" type="button">فتح مستكشف الملفات</button></div><div id="smartDropZone" class="smart-drop-zone" tabindex="0"><strong>اسحب الملفات هنا وأفلتها</strong><span>أي صيغة ملف · حتى 100MB للملف الواحد</span></div><div id="smartSelectedFiles" class="smart-selected-files"></div><p class="form-note">يمكن رفع أي عدد من الملفات. إذا فشل ملف واحد يستمر رفع بقية الملفات ويظهر تقرير الملفات المتجاوزة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">إرفاق وتحميل</button></div></form><div id="smartImportSummary" class="import-summary"></div><div id="smartImportResults" class="stack-list"></div>');
+  const form=$('smartImportForm'), type=$('smartFileType'), input=$('smartNativeFileInput'), drop=$('smartDropZone');
+  form.__selectedFiles=[];
+  form.__uploadTokens={};
+  renderSmartSelectedFiles(form);
+  if(type&&input)type.addEventListener('change',function(){input.accept=this.value==='all'?'':this.value;});
+  input.addEventListener('change',function(){setSmartSelectedFiles(form,this.files,true);this.value='';});
+  $('safeSmartPicker').addEventListener('click',function(){safeSmartFilePicker(form);});
+  $('nativeSmartPicker').addEventListener('click',function(){input.click();});
+  ['dragenter','dragover'].forEach(function(name){drop.addEventListener(name,function(event){event.preventDefault();drop.classList.add('dragging');});});
+  ['dragleave','drop'].forEach(function(name){drop.addEventListener(name,function(event){event.preventDefault();drop.classList.remove('dragging');});});
+  drop.addEventListener('drop',function(event){setSmartSelectedFiles(form,event.dataTransfer.files,true);});
+  drop.addEventListener('keydown',function(event){if(event.key==='Enter'||event.key===' '){event.preventDefault();safeSmartFilePicker(form);}});
+  loadSmartImports(section);
+}
+
+async function smartFileBase64(file){
+  if(!file || file.size===0)throw new Error('الملف فارغ أو لم يعد متاحًا على الجهاز: '+(file&&file.name||'ملف'));
+  if(file.size>100*1024*1024)throw new Error('حجم '+file.name+' يتجاوز الحد التشغيلي 100MB');
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  let binary='';
+  for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+  return btoa(binary);
+}
+
+function smartUploadToken(form,file){
+  form.__uploadTokens=form.__uploadTokens||{};
+  const key=smartFileKey(file);
+  if(!form.__uploadTokens[key]){
+    const random=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
+    form.__uploadTokens[key]='asas-'+random;
+  }
+  return form.__uploadTokens[key];
+}
+
+function smartUploadCanRetry(error){
+  const message=String(error&&error.message||error||'').toLowerCase();
+  if(!navigator.onLine)return true;
+  if(/100mb|غير مدعوم|rar|صلاحية|غير صالح|فارغ|unsupported|forbidden|401|403|400/.test(message))return false;
+  return /network|failed to fetch|fetch|timeout|timed out|502|503|504|اتصال|شبكة|الخادم|مؤقت/.test(message);
+}
+
+function smartUploadDelay(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
+
+async function uploadSmartFile(form,section,file){
+  if(/\.rar$/i.test(file.name))throw new Error('صيغة RAR غير مدعومة؛ استخدم ZIP');
+  const payload={
+    section:section,
+    file_name:file.name,
+    file_base64:await smartFileBase64(file),
+    upload_id:smartUploadToken(form,file)
+  };
+  let lastError=null;
+  for(let attempt=1;attempt<=3;attempt+=1){
+    if(!navigator.onLine){
+      lastError=new Error('لا يوجد اتصال بالإنترنت حاليًا؛ أبقينا الملف لإعادة المحاولة.');
+    }else{
+      try{
+        return await api('/api/smart-import',{method:'POST',body:JSON.stringify(payload)});
+      }catch(error){
+        lastError=error;
+        if(!smartUploadCanRetry(error))throw error;
+      }
+    }
+    if(attempt<3)await smartUploadDelay(attempt===1?900:1800);
+  }
+  throw lastError||new Error('تعذر رفع الملف بعد إعادة المحاولة');
+}
+
+async function submitSmartImport(form){
+  const files=smartSelectedFiles(form).length?smartSelectedFiles(form).slice():Array.from(form.elements.files.files||[]);
+  if(!files.length)throw new Error('اختر ملفًا واحدًا على الأقل');
+  const section=form.elements.section.value;
+  const button=form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
+  const summary=$('smartImportSummary');
+  if(button)button.disabled=true;
+  if(summary)setText(summary,'بدأ رفع '+files.length+' ملف…');
+
+  let total=0,matched=0,review=0;
+  const succeeded=[],failed=[],skipped=[],failedFiles=[];
+  try{
+    for(let index=0;index<files.length;index+=1){
+      const file=files[index];
+      if(button)setText(button,'جارٍ رفع '+(index+1)+' من '+files.length);
+      try{
+        const result=await uploadSmartFile(form,section,file);
+        total+=result.total||0;matched+=result.matched||0;review+=result.review||0;
+        (result.imported||[]).forEach(function(item){succeeded.push({name:item.name,group:item.material_group||'أخرى'});});
+        (result.skipped||[]).forEach(function(item){skipped.push({name:item.name,reason:item.reason||'تعذر الاستيراد'});});
+      }catch(error){
+        failed.push({name:file.name,reason:error&&error.message?error.message:'تعذر رفع الملف'});
+        failedFiles.push(file);
+      }
+      if(summary)setText(summary,'تمت معالجة '+(index+1)+' من '+files.length+'…');
+    }
+  }finally{
+    if(button){button.disabled=false;setText(button,'رفع وتعرّف وفرز');}
+  }
+
+  // Keep only the files that genuinely failed. Successful files are removed so
+  // a retry cannot upload them again.
+  form.__selectedFiles=failedFiles;
+  renderSmartSelectedFiles(form);
+  if(!failedFiles.length){
+    form.reset();
+    form.__uploadTokens={};
+  }
+
+  await loadSmartImports(section);
+  if(section==='technicalLibrary'||section==='companyVault')await loadDocumentCenter();
+
+  if(summary){
+    const successGroups=['أسفلت','تربة','خرسانة','الحقل وNDT','أخرى'].map(function(group){
+      const count=succeeded.filter(function(item){return item.group===group;}).length;
+      return count?'<span class="pill">'+group+': '+count+'</span>':'';
+    }).join(' ');
+    const skippedHtml=skipped.length?'<details><summary>عناصر تم تجاوزها داخل الملفات ('+skipped.length+')</summary><ul>'+skipped.map(function(item){return '<li><strong>'+esc(item.name)+'</strong>: '+esc(item.reason)+'</li>';}).join('')+'</ul></details>':'';
+    const failures=failed.length?'<details open><summary>ملفات تحتاج إعادة محاولة ('+failed.length+')</summary><ul>'+failed.map(function(item){return '<li><strong>'+esc(item.name)+'</strong>: '+esc(item.reason)+'</li>';}).join('')+'</ul><button class="btn primary" type="button" data-smart-retry-failed>إعادة محاولة الملفات الفاشلة فقط</button></details>':'<p class="success-text">دخلت جميع الملفات بنجاح.</p>';
+    setHtml(summary,'<h3>نتيجة الرفع</h3><p>نجح: '+succeeded.length+' · يحتاج إعادة محاولة: '+failed.length+' · تم تجاوزه داخل الحزم: '+skipped.length+'</p><div>'+successGroups+'</div>'+failures+skippedHtml);
+  }
+  showToast(failed.length?'تم حفظ الملفات الناجحة وإبقاء الملفات المتعثرة لإعادة المحاولة.':'اكتمل رفع جميع الملفات بنجاح.',Boolean(failed.length));
+}
+
+async function changeProjectStatus(id, status) {
+  try {
+    await api('/api/projects/status',{method:'POST',body:JSON.stringify({id:Number(id),status:status})});
+    await refresh(); showToast('تم تحديث حالة المشروع');
+  } catch (error) {
+    showToast(error.message,true); renderProjects();
+  }
+}
+
+async function changeReportStatus(id) {
+  let status = window.prompt(uiLanguage === 'en' ? 'Select status: Draft, Under review, Approved, Rejected' : 'اختر الحالة: مسودة، قيد المراجعة، معتمد، مرفوض');
+  if (!status) return; status = ({'Draft':'مسودة','Under review':'قيد المراجعة','Approved':'معتمد','Rejected':'مرفوض'})[status.trim()] || status;
+  try { await api('/api/reports/status',{method:'POST',body:JSON.stringify({id:Number(id),status:status.trim()})}); await refresh(); showToast('تم تحديث التقرير'); } catch (error) { showToast(error.message,true); }
+}
+
+async function printReport(testId) {
+  const report = await api('/api/report/' + testId);
+  const inputRows = Object.keys(report.data.inputs || {}).map(function(key) { return '<tr><th>' + esc(key) + '</th><td>' + esc(report.data.inputs[key]) + '</td></tr>'; }).join('');
+  const resultRows = Object.keys(report.data.results || {}).map(function(key) { return '<tr><th>' + esc(key) + '</th><td>' + esc(report.data.results[key]) + '</td></tr>'; }).join('');
+  modal('<section class="report-preview">' + '<h1>' + escUI(report.lab_name) + '</h1><h2>تقرير اختبار</h2><table><tr><th>رقم التقرير</th><td>' + esc(report.report_no) + '</td></tr><tr><th>رقم الاختبار</th><td>' + esc(report.test_no) + '</td></tr><tr><th>العينة</th><td>' + esc(report.sample_no) + '</td></tr><tr><th>الاختبار</th><td>' + escUI(report.name_ar) + '</td></tr><tr><th>المعيار</th><td>' + esc(report.standard) + '</td></tr><tr><th>الحالة</th><td>' + escUI(report.status) + '</td></tr></table><h3>المدخلات</h3><table>' + (inputRows || '<tr><td>—</td></tr>') + '</table><h3>النتائج</h3><table>' + (resultRows || '<tr><td>—</td></tr>') + '</table>' + '</section><button class="btn primary no-print" type="button" data-print-preview>طباعة</button>');
+}
+
+function fillFieldReadyOptions() {
+  if (!dashboard) return;
+  const setOptions = function(id, values) { const el=$(id); if(!el)return; const unique=[...new Set(values.filter(Boolean).map(String))]; setHtml(el, unique.map(function(v){return '<option value="'+esc(v)+'"></option>';}).join('')); };
+  const visits=Array.isArray(dashboard.field_visits)?dashboard.field_visits:[];
+  setOptions('fieldLicenseOptions', visits.map(function(v){return v.license_no;}));
+  setOptions('fieldContractorOptions', visits.map(function(v){return v.contractor_name;}));
+  setOptions('fieldProjectOptions', (dashboard.projects||[]).map(function(v){return v.name;}).concat(visits.map(function(v){return v.project_name;})));
+  setOptions('fieldProjectIdOptions', (dashboard.projects||[]).map(function(v){return v.id;}));
+  setOptions('fieldSampleIdOptions', (dashboard.samples||[]).map(function(v){return v.id;}));
+  setOptions('fieldLocationOptions', (dashboard.projects||[]).map(function(v){return v.location;}).concat(visits.map(function(v){return v.location;})));
+}
+
+function renderFieldTests() {
+  setHtml($('fieldTests'), fieldTests.map(function(test,index) {
+    const points = Array.from({length:50}, function(_,i) { const n=String(i+1); return '<option value="'+n+'"'+(String(test.points||'')===n?' selected':'')+'>'+n+'</option>'; }).join('');
+    return '<div class="field-test-row"><label>نوع الاختبار<select data-field-test="' + index + '" data-field-key="catalog_id" aria-label="نوع الاختبار"><option value=""></option>' + optionList(catalog, test.catalog_id, function(item) { return item.category + ' — ' + item.code + ' — ' + item.name_ar; }, function(item) { return item.id; }) + '</select></label><label>نتيجة الاختبار<select class="test-result-select '+testResultMeta(test.result).tone+'" data-field-test="' + index + '" data-field-key="result" aria-label="نتيجة الاختبار"><option value=""></option><option value="ناجح"'+(test.result==='ناجح'?' selected':'')+'>✅ ناجح</option><option value="راسب"'+(test.result==='راسب'?' selected':'')+'>❌ راسب</option><option value="قيد الإجراء"'+(test.result==='قيد الإجراء'?' selected':'')+'>⏳ قيد الإجراء</option></select>'+testResultBadge(test.result)+'</label><label>عدد النقاط<select data-field-test="' + index + '" data-field-key="points" aria-label="عدد النقاط"><option value=""></option>'+points+'</select></label><button class="btn danger" data-field-remove="' + index + '" type="button">حذف</button></div>';
+  }).join(''));
+}
+
+function fieldCatalogRows() {
+  const query = String(fieldTestSearchTerm || '').trim().toLowerCase();
+  return catalog.filter(function(item) {
+    const categoryOk = fieldGuideCategory === 'الكل' || item.category === fieldGuideCategory;
+    if (!categoryOk) return false;
+    if (!query) return true;
+    return [item.code,item.name_ar,item.name_en,item.standard,item.category,item.version].join(' ').toLowerCase().indexOf(query) >= 0;
+  });
+}
+
+function renderFieldGuides() {
+  const groups = [
+    {key:'خرسانة',code:'CONC',english:'Concrete',title:'خرسانة',description:'كل اختبارات الخرسانة المسجلة في كتالوج النظام.'},
+    {key:'تربة',code:'SOIL',english:'Soil',title:'تربة',description:'كل اختبارات التربة والجيوتقنية المسجلة في كتالوج النظام.'},
+    {key:'أسفلت',code:'ASPH',english:'Asphalt',title:'أسفلت',description:'كل اختبارات الأسفلت والبيتومين المسجلة في كتالوج النظام.'},
+    {key:'الحقل وNDT',code:'NDT',english:'Field & NDT',title:'الحقل وNDT',description:'كل الفحوص الميدانية وغير الإتلافية المسجلة في كتالوج النظام.'}
+  ];
+  const filters = $('fieldGuideFilters'), grid = $('fieldGuideGrid');
+  if (!filters || !grid) return;
+  const searchInput = $('fieldTestSearch');
+  if (searchInput && searchInput.value !== fieldTestSearchTerm) searchInput.value = fieldTestSearchTerm;
+
+  if (fieldGuideCategory === 'الكل' && !fieldTestSearchTerm) {
+    setHtml(filters, '');
+    setHtml(grid, groups.map(function(group) {
+      return '<article class="field-group-card" data-field-group="'+esc(group.key)+'"><span class="field-group-icon"><b>'+esc(group.code)+'</b><small>'+esc(group.english)+'</small></span><div><h3>'+escUI(group.title)+'</h3><p>'+escUI(group.description)+'</p></div><div class="field-group-meta"><span>كتالوج كامل قابل للبحث</span></div><button class="btn primary" data-field-guide-filter="'+esc(group.key)+'" type="button">عرض الاختبارات</button></article>';
+    }).join(''));
+    return;
+  }
+
+  setHtml(filters,
+    '<button class="guide-filter" data-field-guide-filter="الكل" type="button">← الأقسام الرئيسية</button>' +
+    (fieldGuideCategory !== 'الكل' ? '<span class="guide-current">'+escUI(fieldGuideCategory)+'</span>' : '') +
+    (fieldTestSearchTerm ? '<span class="guide-current">بحث: '+esc(fieldTestSearchTerm)+'</span>' : '')
+  );
+  const rows = fieldCatalogRows();
+  setHtml(grid, rows.map(function(item) {
+    const resources = [
+      item.astm_attachment_id ? '<button class="text-btn" data-catalog-file="'+item.astm_attachment_id+'" data-catalog-file-name="'+esc(item.code)+'-standard.pdf" type="button">فتح المواصفة</button>' : '',
+      item.worksheet_attachment_id ? '<button class="text-btn" data-catalog-file="'+item.worksheet_attachment_id+'" data-catalog-file-name="'+esc(item.code)+'-worksheet" type="button">Work Sheet</button>' : ''
+    ].filter(Boolean).join('');
+    return '<article class="field-catalog-card"><div class="field-catalog-code">'+esc(item.code)+'</div><div class="field-catalog-body"><span class="pill">'+escUI(item.category)+'</span><h4>'+escUI(item.name_ar)+'</h4><p class="field-catalog-en">'+esc(item.name_en||'')+'</p><p class="field-catalog-standard">'+esc(item.standard||'')+'</p></div><div class="field-catalog-actions">'+resources+'<button class="btn primary" data-field-guide-add="'+esc(item.code)+'" type="button">إضافة للزيارة</button></div></article>';
+  }).join('') || '<article class="empty-state field-search-empty"><strong>لا توجد نتيجة مطابقة.</strong><span>يمكن إضافة اختبار جديد إلى الكتالوج من زر «إضافة اختبار جديد».</span></article>');
+}
+
+function openCustomFieldTestForm() {
+  const canManage = currentUser && ['admin','general_manager','technical_manager','laboratory_manager','quality_manager','quality_officer','manager'].indexOf(currentUser.role) >= 0;
+  if (!canManage) return showToast('إضافة اختبار جديد إلى الكتالوج متاحة للمستخدم المخول فقط.', true);
+  modal('<h2>إضافة اختبار جديد إلى الكتالوج</h2><p>أدخل مرجع الاختبار كما هو في المواصفة المعتمدة. يمكن بعد الحفظ البحث عنه واستخدامه مباشرة في البرنامج الميداني.</p><form id="customCatalogTestForm"><div class="modal-grid"><label>القسم<select name="category" required><option>خرسانة</option><option>تربة</option><option>أسفلت</option><option>الحقل وNDT</option></select></label><label>كود الاختبار<input name="code" required placeholder="مثال ASTM C39 أو EN 12504-4"></label><label>اسم الاختبار بالعربية<input name="name_ar" required></label><label>اسم الاختبار بالإنجليزية<input name="name_en"></label><label style="grid-column:1/-1">المواصفة / المرجع<input name="standard" required placeholder="ASTM / EN / AASHTO / BS / ISO / Project Specification"></label><label>الإصدار<input name="version"></label><label style="grid-column:1/-1">ملاحظات<textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ وإضافة للكتالوج</button></div></form>');
+}
+
+async function submitCustomCatalogTest(form) {
+  const payload = {};
+  ['category','code','name_ar','name_en','standard','version','notes'].forEach(function(key){payload[key]=fieldValue(form,key);});
+  const result = await api('/api/catalog',{method:'POST',body:JSON.stringify(payload)});
+  await loadCatalog();
+  fieldGuideCategory = result.category || payload.category;
+  fieldTestSearchTerm = result.code || payload.code;
+  closeModal();
+  renderFieldGuides();
+  showToast('تمت إضافة الاختبار إلى الكتالوج ويمكن استخدامه الآن.');
+}
+
+function fieldTestPickerRows(query, category) {
+  const q = String(query || '').trim().toLowerCase();
+  const selectedCategory = category || 'الكل';
+  return catalog.filter(function(item) {
+    if (selectedCategory !== 'الكل' && item.category !== selectedCategory) return false;
+    if (!q) return true;
+    return [item.code,item.name_ar,item.name_en,item.standard,item.category].join(' ').toLowerCase().indexOf(q) >= 0;
+  });
+}
+
+function renderFieldTestPicker() {
+  const box = $('fieldTestPickerResults');
+  if (!box) return;
+  const query = $('fieldTestPickerSearch') ? $('fieldTestPickerSearch').value : '';
+  const category = $('fieldTestPickerCategory') ? $('fieldTestPickerCategory').value : 'الكل';
+  const rows = fieldTestPickerRows(query, category);
+  setHtml(box, rows.map(function(item) {
+    const already = fieldTests.some(function(test){return Number(test.catalog_id) === Number(item.id);});
+    return '<article class="field-picker-row'+(already?' already-added':'')+'"><div class="field-picker-code">'+esc(item.code)+'</div><div class="field-picker-info"><strong>'+escUI(item.name_ar)+'</strong><span>'+esc(item.name_en||'')+'</span><small>'+esc(item.standard||'')+' · '+escUI(item.category||'')+'</small></div><button class="btn '+(already?'secondary':'primary')+'" type="button" data-field-picker-add="'+item.id+'" '+(already?'disabled':'')+'>'+(already?'مضاف':'إضافة')+'</button></article>';
+  }).join('') || '<div class="empty-state"><strong>لا توجد نتائج مطابقة.</strong><span>جرّب كلمة بحث أخرى أو أضف الاختبار إلى الكتالوج من القسم العلوي.</span></div>');
+}
+
+function openFieldTestPicker() {
+  if (!catalog.length) return showToast('يجري تحميل كتالوج الاختبارات، حاول بعد لحظة', true);
+  modal('<h2>إضافة اختبار للزيارة</h2><p>ابحث في كتالوج الاختبارات ثم أضف الاختبار مباشرة. الأقسام الأربعة الرئيسية في أعلى البرنامج الميداني تبقى دون تغيير.</p><div class="field-picker-toolbar"><label>بحث<input id="fieldTestPickerSearch" type="search" placeholder="اسم الاختبار أو الكود أو المواصفة"></label><label>القسم<select id="fieldTestPickerCategory"><option value="الكل">كل الأقسام</option><option>خرسانة</option><option>تربة</option><option>أسفلت</option><option>الحقل وNDT</option></select></label></div><div id="fieldTestPickerResults" class="field-picker-results"></div><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إغلاق</button></div>');
+  renderFieldTestPicker();
+  $('fieldTestPickerSearch').addEventListener('input', renderFieldTestPicker);
+  $('fieldTestPickerCategory').addEventListener('change', renderFieldTestPicker);
+  setTimeout(function(){ if($('fieldTestPickerSearch')) $('fieldTestPickerSearch').focus(); }, 0);
+}
+
+function addFieldTestFromPicker(catalogId) {
+  if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة', true);
+  const item = catalog.find(function(row){ return Number(row.id) === Number(catalogId); });
+  if (!item) return showToast('تعذر العثور على الاختبار في الكتالوج', true);
+  if (fieldTests.some(function(test){return Number(test.catalog_id) === Number(item.id);})) return showToast('الاختبار مضاف بالفعل إلى الزيارة', true);
+  fieldTests.push({catalog_id:item.id,name:item.name_ar,standard:item.standard,result:'',points:''});
+  renderFieldTests();
+  renderFieldTestPicker();
+  showToast('تمت إضافة '+item.name_ar+' إلى الزيارة');
+}
+
+function addGuideTest(code) {
+  const item = catalog.find(function(row) { return row.code === code; });
+  if (!item) return showToast('الاختبار غير متاح في الدليل بعد',true);
+  if (fieldTests.length >= 20) return showToast('الحد الأقصى عشرون اختباراً للزيارة',true);
+  fieldTests.push({catalog_id:item.id,name:item.name_ar,standard:item.standard,result:'',points:''});
+  renderFieldTests();
+  showToast('تمت إضافة الاختبار إلى الزيارة');
+}
+
+function syncFieldTestCatalog(test) {
+  const item = catalog.find(function(row) { return row.id === Number(test.catalog_id); });
+  if (item) { test.name = item.name_ar; test.standard = item.standard; }
+  return test;
+}
+
+function openBaladyWindow() {
+  modal('<h2>نظام بلدي — بيانات الزيارة</h2><p class="form-message">تُحفظ بيانات التصريح مع الزيارة. فتح البوابة لا يرسل بيانات تلقائياً ولا يتجاوز صلاحيات حساب بلدي.</p><form id="baladyForm"><div class="modal-grid"><label>رقم تصريح بلدي<input name="balady_permit_no" value="' + esc($('fieldLicense').value) + '"></label><label>الأمانة / البلدية<input name="balady_municipality"></label><label>نوع التصريح<input name="balady_permit_type" placeholder="مثال: حفرية أو إشغال"></label><label>حالة التصريح<select name="balady_permit_status"><option value="">— غير محددة —</option><option>ساري</option><option>قيد المراجعة</option><option>منتهي</option><option>موقوف</option></select></label><label style="grid-column:1/-1">رابط معاملة بلدي (اختياري)<input name="balady_reference_url" type="url" placeholder="https://..."></label></div><div class="modal-actions"><button class="btn secondary" type="button" data-open-balady-portal>فتح بوابة بلدي</button><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit">حفظ في الزيارة</button></div></form>');
+}
+
+function saveBaladyData(form) {
+  new FormData(form).forEach(function(value, key) { $('field').dataset[key] = String(value).trim(); });
+  if ($('field').dataset.balady_permit_no) $('fieldLicense').value = $('field').dataset.balady_permit_no;
+  closeModal(); showToast('تم حفظ بيانات بلدي مع الزيارة الميدانية');
+}
+
+function fillPermitFields(permit) {
+  $('fieldContractor').value = permit.contractor_name || '';
+  $('fieldProjectName').value = permit.project_name || '';
+  $('fieldSector').value = permit.sector_name || '';
+  $('fieldLocation').value = permit.location || '';
+  const field=$('field');
+  field.dataset.balady_permit_no=permit.license_no || $('fieldLicense').value;
+  field.dataset.balady_municipality=permit.municipality || '';
+  field.dataset.balady_permit_type=permit.permit_type || '';
+  field.dataset.balady_permit_status=permit.status || '';
+  field.dataset.balady_reference_url=permit.reference_url || '';
+}
+function showBaladyPermit(permit) {
+  const details=permit.details || {};
+  const rows=Object.keys(details).filter(function(key){return details[key] !== null && details[key] !== '' && typeof details[key] !== 'object';}).map(function(key){return '<div><strong>'+escUI(key)+'</strong><span>'+esc(details[key])+'</span></div>';}).join('');
+  modal('<h2>تفاصيل رخصة بلدي</h2><div class="stack-list"><div><strong>رقم الرخصة</strong><span>'+esc(permit.license_no || '')+'</span></div><div><strong>الأمانة / البلدية</strong><span>'+esc(permit.municipality || '')+'</span></div><div><strong>المقاول</strong><span>'+esc(permit.contractor_name || '')+'</span></div><div><strong>المشروع</strong><span>'+esc(permit.project_name || '')+'</span></div><div><strong>نوع التصريح</strong><span>'+esc(permit.permit_type || '')+'</span></div><div><strong>الحالة</strong><span>'+escUI(permit.status || '')+'</span></div>'+rows+'</div><div class="modal-actions"><button class="btn primary" type="button" data-modal-close>إغلاق</button></div>');
+}
+async function searchLicense() {
+  const license = $('fieldLicense').value.trim();
+  if (!license) return showToast('أدخل رقم الرخصة أولاً',true);
+  const button=$('searchLicenseBtn'); button.disabled=true; setText(button,'جارٍ البحث في بلدي…');
+  try {
+    if (!STATIC_MODE) {
+      const permit=await api('/api/balady/permit?license='+encodeURIComponent(license));
+      fillPermitFields(permit);
+      $('field').dataset.balady_permit_no = String(permit.license_no || permit.permit_no || license);
+      $('field').dataset.balady_municipality = String(permit.municipality || permit.balady_municipality || '');
+      $('field').dataset.balady_permit_type = String(permit.permit_type || '');
+      $('field').dataset.balady_permit_status = String(permit.status || '');
+      showBaladyPermit(permit); showToast('تم جلب بيانات الرخصة تلقائياً من نظام بلدي'); return;
+    }
+    const rows = await api('/api/field/search?license=' + encodeURIComponent(license));
+    if (!rows.length) return showToast('الربط المركزي مع بلدي غير متاح في وضع العرض الثابت',true);
+    fillPermitFields(rows[0]); showToast('تمت تعبئة آخر بيانات محفوظة محليًا لهذه الرخصة');
+  } catch (error) { showToast(error.message,true); }
+  finally { button.disabled=false; setText(button,'بحث برقم الرخصة'); }
+}
+
+function acceptanceResult(name, ok, detail) {
+  return {name:name, ok:Boolean(ok), detail:String(detail || '')};
+}
+
+function renderDeviceAcceptance(results, overall) {
+  const host=$('deviceAcceptanceResults');
+  if(!host)return;
+  setHtml(host, results.map(function(item){
+    return '<div class="acceptance-row '+(item.ok?'pass':'fail')+'"><strong>'+(item.ok?'✓ ':'✕ ')+esc(item.name)+'</strong><span>'+esc(item.detail)+'</span></div>';
+  }).join('') + '<div class="acceptance-summary '+(overall?'pass':'fail')+'"><strong>'+(overall?'تم اجتياز فحص هذا الجهاز والخادم':'لم يكتمل الاعتماد')+'</strong></div>');
+}
+
+function requestDiagnosticLocation(targetAccuracy) {
+  return new Promise(function(resolve) {
+    if (!navigator.geolocation) return resolve(acceptanceResult('GPS',false,'واجهة تحديد الموقع غير متاحة'));
+    navigator.geolocation.getCurrentPosition(function(position){
+      const accuracy=Math.round(Number(position.coords.accuracy||0));
+      const coordinatesOk=Number.isFinite(position.coords.latitude)&&Number.isFinite(position.coords.longitude);
+      const target=Math.max(1,Number(targetAccuracy||100));
+      const accurate=coordinatesOk&&Number.isFinite(accuracy)&&accuracy<=target;
+      resolve(acceptanceResult('GPS',accurate,accurate?'تم الحصول على موقع فعلي · الدقة ±'+accuracy+' م':'تم تحديد الموقع لكن الدقة ±'+accuracy+' م؛ المطلوب ≤ '+target+' م'));
+    },function(error){
+      resolve(acceptanceResult('GPS',false,error.message||'تم رفض صلاحية الموقع'));
+    },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+  });
+}
+
+async function requestDiagnosticCamera() {
+  if (!window.isSecureContext) return acceptanceResult('الكاميرا',false,'الاتصال ليس Secure Context');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    const input=$('fieldCameraInput');
+    return acceptanceResult('الكاميرا',Boolean(input&&input.capture),'التقاط الملفات متاح لكن بث الكاميرا غير مدعوم');
+  }
+  let stream;
+  try {
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    const tracks=stream.getVideoTracks();
+    const ok=tracks.length>0 && tracks[0].readyState==='live';
+    const label=tracks[0]&&tracks[0].label?tracks[0].label:'كاميرا الجهاز';
+    return acceptanceResult('الكاميرا',ok,ok?'تم فتح '+label+' فعليًا':'لم يبدأ بث الكاميرا');
+  } catch(error) {
+    const name=String(error&&error.name||'');
+    const message=name==='NotFoundError'?'لا توجد كاميرا فعلية متاحة على هذا الجهاز. شغّل الفحص من هاتف أو جهاز مزود بكاميرا.':
+      name==='NotAllowedError'?'تم رفض صلاحية الكاميرا. اسمح للمتصفح باستخدام الكاميرا ثم أعد الفحص.':
+      (error.message||'تعذر فتح الكاميرا');
+    return acceptanceResult('الكاميرا',false,message);
+  } finally {
+    if(stream)stream.getTracks().forEach(function(track){track.stop();});
+  }
+}
+
+async function runDeviceAcceptance() {
+  const button=$('runDeviceAcceptance');
+  if(!button)return;
+  button.disabled=true;
+  setText(button,'جارٍ فحص الجهاز والخادم...');
+  const results=[];
+  try {
+    results.push(acceptanceResult('HTTPS / Secure Context',window.isSecureContext,window.isSecureContext?'اتصال آمن':'يجب تشغيل النظام عبر HTTPS'));
+
+    const camera=await requestDiagnosticCamera();
+    results.push(camera);
+
+    let gpsTargetAccuracy=100;
+    try{
+      const acceptanceSettings=await api('/api/settings');
+      const configured=Number(acceptanceSettings.gps_target_accuracy_m||0);
+      if(Number.isFinite(configured)&&configured>0)gpsTargetAccuracy=configured;
+    }catch(_error){}
+    const gps=await requestDiagnosticLocation(gpsTargetAccuracy);
+    results.push(gps);
+
+    let health;
+    try {
+      const response=await fetch(API_BASE_URL+'/api/health',{method:'GET',cache:'no-store',credentials:'omit'});
+      health=await response.json();
+      results.push(acceptanceResult('الخادم المركزي',response.ok&&health.status==='ok','HTTP '+response.status+' · '+String(health.version||'')));
+      results.push(acceptanceResult('قاعدة البيانات',response.ok&&health.database==='ready',String(health.database||'غير معروف')));
+    } catch(error) {
+      results.push(acceptanceResult('الخادم المركزي',false,error.message));
+      results.push(acceptanceResult('قاعدة البيانات',false,'تعذر الوصول إلى فحص الخادم'));
+    }
+
+    try {
+      const acceptance=await api('/api/system/acceptance');
+      results.push(acceptanceResult('سلامة قاعدة البيانات',acceptance.database_integrity==='ok',String(acceptance.database_integrity)));
+      results.push(acceptanceResult('الكتابة في قاعدة البيانات',acceptance.database_write==='ok',acceptance.database_write==='ok'?'نجح اختبار كتابة آمن مع Rollback':(acceptance.database_write_error||'فشل')));
+      const storageReady=Object.keys(acceptance.storage||{}).every(function(key){const item=acceptance.storage[key];return item.exists&&item.writable;});
+      results.push(acceptanceResult('التخزين والنسخ الاحتياطي',storageReady,storageReady?'كل المسارات موجودة وقابلة للكتابة':'يوجد مسار تخزين غير جاهز'));
+      results.push(acceptanceResult('صلاحيات المستخدمين',acceptance.permissions_valid===true,(acceptance.active_users||0)+' مستخدم نشط · '+(acceptance.permissions_valid?'كل الأدوار معروفة':'يوجد دور غير صالح')));
+      results.push(acceptanceResult('صلاحية المستخدم الحالي',Boolean(acceptance.current_user&&acceptance.current_user.role),acceptance.current_user?acceptance.current_user.username+' · '+acceptance.current_user.role:'غير معروف'));
+    } catch(error) {
+      results.push(acceptanceResult('فحص الخادم المتقدم',false,error.message));
+    }
+
+    try {
+      const probe='asas-acceptance-'+Date.now();
+      localStorage.setItem(probe,'ok');
+      const ok=localStorage.getItem(probe)==='ok';
+      localStorage.removeItem(probe);
+      results.push(acceptanceResult('تخزين المتصفح',ok,ok?'القراءة والكتابة تعمل':'فشل التخزين المحلي'));
+    } catch(error) {
+      results.push(acceptanceResult('تخزين المتصفح',false,error.message));
+    }
+
+    const overall=results.length>0 && results.every(function(item){return item.ok;});
+    renderDeviceAcceptance(results,overall);
+    const stamp=new Date().toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'});
+    setText($('deviceAcceptanceStamp'),overall?'معتمد على هذا الجهاز · '+stamp:'الفحص يحتاج معالجة · '+stamp);
+    if(overall) {
+      localStorage.setItem('techno_device_acceptance',JSON.stringify({passed:true,at:new Date().toISOString(),version:health&&health.version||''}));
+      showToast('نجح الاعتماد النهائي لهذا الجهاز والخادم');
+    } else {
+      showToast('ظهر بند واحد أو أكثر يحتاج معالجة قبل الاعتماد النهائي',true);
+    }
+  } finally {
+    button.disabled=false;
+    setText(button,'تشغيل فحص الاعتماد النهائي');
+  }
+}
+
+function getLocation() {
+  if (!navigator.geolocation) return showToast('تحديد الموقع غير متاح في هذا المتصفح',true);
+  navigator.geolocation.getCurrentPosition(function(position) {
+    fieldLat = position.coords.latitude; fieldLng = position.coords.longitude; fieldAccuracy = position.coords.accuracy;
+    setText($('gpsStatus'), 'تم تحديد الموقع بدقة ' + Math.round(fieldAccuracy) + ' متر');
+    setText($('fieldLatitude'), fieldLat.toFixed(6)); setText($('fieldLongitude'), fieldLng.toFixed(6)); setText($('fieldAccuracy'), '± ' + Math.round(fieldAccuracy) + ' م');
+    $('fieldMapLink').href = 'https://www.google.com/maps?q=' + encodeURIComponent(fieldLat + ',' + fieldLng);
+
+  }, function(error) { showToast('تعذر تحديد الموقع: ' + error.message,true); }, {enableHighAccuracy:true,timeout:10000});
+}
+
+function addFieldPhotos(fileList) {
+  Array.from(fileList || []).forEach(function(file) {
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 12 * 1024 * 1024) return showToast('الصورة ' + file.name + ' تتجاوز 12MB', true);
+    fieldPhotos.push(file);
+  });
+  renderFieldPhotos();
+}
+function renderFieldPhotos() {
+  if (!fieldPhotos.length) return setHtml($('fieldPhotoPreview'), '<span class="muted">لم تُرفق صور بعد</span>');
+  setHtml($('fieldPhotoPreview'), fieldPhotos.map(function(file,index) {
+    return '<figure><img src="' + URL.createObjectURL(file) + '" alt="صورة ميدانية"><figcaption><span>' + esc(file.name) + '</span><button class="text-btn" type="button" data-field-photo-remove="' + index + '">حذف</button></figcaption></figure>';
+  }).join(''));
+}
+async function uploadFieldPhotos(visitId) {
+  for (const file of fieldPhotos) {
+    const bytes = new Uint8Array(await file.arrayBuffer()); let binary = '';
+    for (let i=0;i<bytes.length;i+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+    await api('/api/attachments',{method:'POST',body:JSON.stringify({entity_type:'field_visit',entity_id:visitId,file_name:file.name || ('field-photo-' + Date.now() + '.jpg'),file_base64:btoa(binary)})});
+  }
+}
+
+async function saveFieldVisit() {
+  if (!fieldLat || !fieldLng) return showToast('تفعيل الموقع إلزامي قبل إرسال الزيارة الميدانية',true);
+  const license = $('fieldLicense').value.trim();
+  if (!license) return showToast('رقم الرخصة مطلوب',true);
+  if (!fieldTests.length) return showToast('اختر نوع الاختبار قبل الإرسال',true);
+  try {
+    if (typeof window.sendTelegramFieldDraft !== 'function') throw new Error('خدمة إرسال Telegram غير جاهزة');
+    const result = await window.sendTelegramFieldDraft($('saveFieldVisit'));
+    if (result === false) return;
+    setText($('fieldMessage'), 'تم إرسال الزيارة إلى Telegram' + (fieldPhotos.length ? ' مع ' + fieldPhotos.length + ' صورة' : ''));
+    fieldTests = []; fieldPhotos = []; renderFieldTests(); renderFieldPhotos();
+  } catch (error) { setText($('fieldMessage'), error.message); showToast(error.message,true); }
+}
+
+function updateProfileMenuAccess() {
+  const settings=$('profileSettingsAction');
+  if(!settings)return;
+  const allowed=currentUser&&['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)>=0;
+  settings.classList.toggle('hidden',!allowed);
+}
+
+function closeProfileMenu() {
+  const menu=$('profileMenu'),toggle=$('profileMenuToggle');
+  if(menu)menu.classList.add('hidden');
+  if(toggle)toggle.setAttribute('aria-expanded','false');
+}
+
+function toggleProfileMenu() {
+  const menu=$('profileMenu'),toggle=$('profileMenuToggle');
+  if(!menu||!toggle)return;
+  const opening=menu.classList.contains('hidden');
+  menu.classList.toggle('hidden',!opening);
+  toggle.setAttribute('aria-expanded',opening?'true':'false');
+}
+
+function toggleProfileLanguage() {
+  const current=localStorage.getItem('techno_lims_language')||'ar';
+  const next=current==='ar'?'en':'ar';
+  setLanguage(next);
+  showToast(next==='en'?'Language changed to English':'تم تغيير اللغة إلى العربية');
+  closeProfileMenu();
+}
+
+function handleProfileAction(action) {
+  closeProfileMenu();
+  if(action==='profile') return openMyProfile();
+  if(action==='avatar') {
+    openMyProfile();
+    setTimeout(function(){const button=$('chooseProfileAvatar');if(button)button.click();},0);
+    return;
+  }
+  if(action==='password') return openChangePassword();
+  if(action==='language') return toggleProfileLanguage();
+  if(action==='settings') return navigate('settings');
+  if(action==='logout') return logout();
+}
+
+function bindEvents() {
+  $('loginForm').addEventListener('submit',login);
+  $('logoutBtn').addEventListener('click',logout);
+  $('profileMenuToggle').addEventListener('click',function(event){event.stopPropagation();toggleProfileMenu();});
+  $('notificationToggle').addEventListener('click',function(event){event.stopPropagation();closeProfileMenu();toggleNotificationPanel();});
+  $('markNotificationsRead').addEventListener('click',function(event){event.stopPropagation();markNotificationsRead();});
+  $('notificationList').addEventListener('click',function(event){const item=event.target.closest('[data-notification-index]');if(item)openNotificationItem(item.dataset.notificationIndex);});
+  $('profileMenu').addEventListener('click',function(event){const button=event.target.closest('[data-profile-action]');if(button)handleProfileAction(button.dataset.profileAction);});
+  $('pageBack').addEventListener('click',goBackPage);
+  $('staticSetup').addEventListener('click',bootstrapStaticAdmin);
+  $('staticSetupForm').addEventListener('submit',submitStaticAdmin);
+  $('menuBtn').addEventListener('click',function() { $('sidebar').classList.toggle('open'); });
+  $('closeModal').addEventListener('click',closeModal);
+  $('modal').addEventListener('click',function(event) { if (event.target === $('modal')) closeModal(); });
+  document.addEventListener('click',function(event){if(!event.target.closest('.profile-menu-wrap'))closeProfileMenu();if(!event.target.closest('.notification-wrap'))toggleNotificationPanel(false);});
+  document.addEventListener('keydown',function(event){if(event.key==='Escape')closeProfileMenu();});
+  document.querySelectorAll('.nav-link[data-page]').forEach(function(button) { button.addEventListener('click',function() { navigate(button.dataset.page); }); });
+  document.querySelectorAll('[data-open-project]').forEach(function(button) { button.addEventListener('click',function() { openProjectForm(); }); });
+  document.querySelectorAll('[data-page-go]').forEach(function(button) { button.addEventListener('click',function() { navigate(button.dataset.pageGo); }); });
+  if($('globalSearch')) $('globalSearch').addEventListener('keydown',function(event){
+    if(event.key!=='Enter') return;
+    event.preventDefault();
+    const q=String(this.value||'').trim().toLowerCase();
+    if(!q) return;
+    const hit=Array.from(document.querySelectorAll('.nav-link[data-page]')).find(function(button){return button.textContent.trim().toLowerCase().includes(q);});
+    if(hit){navigate(hit.dataset.page);return;}
+    if($('projectSearch')){$('projectSearch').value=q;navigate('projects');renderProjects();}
+  });
+  document.querySelectorAll('.view-btn').forEach(function(button) { button.addEventListener('click',function() { setProjectView(button.dataset.projectView); }); });
+  if($('refreshDecisionIntelligence'))$('refreshDecisionIntelligence').addEventListener('click',function(){refresh().then(function(){showToast('تم تحديث التحليل من البيانات الحالية');}).catch(function(error){showToast(error.message,true);});});
+  if($('exportDecisionIntelligence'))$('exportDecisionIntelligence').addEventListener('click',function(){try{exportDecisionIntelligence();}catch(error){showToast(error.message,true);}});
+  if($('openDecisionReport'))$('openDecisionReport').addEventListener('click',openDecisionIntelligenceReport);
+  if($('openOperationalTask'))$('openOperationalTask').addEventListener('click',openOperationalTaskForm);
+  $('projectSearch').addEventListener('input',renderProjects);
+  $('projectPriorityFilter').addEventListener('change',renderProjects);
+  $('catalogSearch').addEventListener('input',renderCatalog);
+  if($('catalogBulkStandardsButton'))$('catalogBulkStandardsButton').addEventListener('click',function(){chooseCatalogStandards().catch(function(error){showToast(error.message||'تعذر رفع المواصفات',true);});});
+  if($('catalogStandardsInput'))$('catalogStandardsInput').addEventListener('change',function(){uploadCatalogStandardsBatch(this.files).catch(function(error){showToast(error.message||'تعذر رفع المواصفات',true);});});
+  if($('openFieldManual'))$('openFieldManual').addEventListener('click',openFieldManual);
+  $('openWorkOrder').addEventListener('click',function() { openWorkOrderForm(); });
+  $('openClient').addEventListener('click',openClientForm);
+  $('openSample').addEventListener('click',openSampleForm);
+  $('openEquipment').addEventListener('click',openEquipmentForm);
+  $('openTest').addEventListener('click',openTestForm);
+  $('openUser').addEventListener('click',function() { openUserForm(); });
+  $('searchLicenseBtn').addEventListener('click',searchLicense);
+  if ($('runDeviceAcceptance')) $('runDeviceAcceptance').addEventListener('click',function(){runDeviceAcceptance().catch(function(error){showToast(error.message||'تعذر تشغيل فحص الاعتماد',true);});});
+  if (navigator.geolocation) getLocation();
+  $('openFieldCamera').addEventListener('click',function() { $('fieldCameraInput').click(); });
+  $('openFieldGallery').addEventListener('click',function() { $('fieldGalleryInput').click(); });
+  $('fieldCameraInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
+  $('fieldGalleryInput').addEventListener('change',function() { addFieldPhotos(this.files); this.value=''; });
+  $('fieldGuideFilters').addEventListener('click',function(event) { const button=event.target.closest('[data-field-guide-filter]'); if(!button)return; fieldGuideCategory=button.dataset.fieldGuideFilter; renderFieldGuides(); });
+  $('fieldTestSearchBtn').addEventListener('click',function(){fieldTestSearchTerm=$('fieldTestSearch').value.trim();renderFieldGuides();});
+  $('fieldTestSearch').addEventListener('input',function(){fieldTestSearchTerm=this.value.trim();if(!fieldTestSearchTerm&&fieldGuideCategory==='الكل')renderFieldGuides();});
+  $('fieldTestSearch').addEventListener('keydown',function(event){if(event.key==='Enter'){event.preventDefault();fieldTestSearchTerm=this.value.trim();renderFieldGuides();}});
+  $('openCustomFieldTest').addEventListener('click',openCustomFieldTestForm);
+  $('documentLibrarySearch').addEventListener('input',function(){documentLibrarySearchTerm=this.value.trim();renderDocumentCenterFiles();});
+  $('fieldGuideGrid').addEventListener('click',function(event) {
+    const group=event.target.closest('[data-field-guide-filter]'); if(group){fieldGuideCategory=group.dataset.fieldGuideFilter;if(fieldGuideCategory==='الكل'){fieldTestSearchTerm='';if($('fieldTestSearch'))$('fieldTestSearch').value='';}renderFieldGuides();return;}
+    const button=event.target.closest('[data-field-guide-add]'); if(button)addGuideTest(button.dataset.fieldGuideAdd);
+  });
+  $('addFieldTest').addEventListener('click',openFieldTestPicker);
+  $('saveFieldVisit').addEventListener('click',saveFieldVisit);
+  if($('attendanceDate')){$('attendanceDate').value=attendanceDate;$('attendanceDate').addEventListener('change',function(){attendanceDate=this.value||saudiToday();loadAttendance().catch(function(error){showToast(error.message,true);});});}
+  if($('attendanceRefresh'))$('attendanceRefresh').addEventListener('click',function(){loadAttendance().catch(function(error){showToast(error.message,true);});});
+  if($('attendanceCheckIn'))$('attendanceCheckIn').addEventListener('click',function(){attendanceAction('checkIn').catch(function(error){showToast(error.message,true);loadAttendance().catch(function(){});});});
+  if($('attendanceUpdateLocation'))$('attendanceUpdateLocation').addEventListener('click',function(){attendanceAction('location').catch(function(error){showToast(error.message,true);loadAttendance().catch(function(){});});});
+  if($('attendanceCheckOut'))$('attendanceCheckOut').addEventListener('click',function(){attendanceAction('checkOut').catch(function(error){showToast(error.message,true);loadAttendance().catch(function(){});});});
+  $('clearAudit').addEventListener('click',function(){clearAuditLog().catch(function(error){showToast(error.message,true);});});
+  $('resetSyncQueue').addEventListener('click',function(){resetSyncQueue().catch(function(error){showToast(error.message,true);});});
+  $('resetOperationalData').addEventListener('click',function(){resetOperationalData().catch(function(error){showToast(error.message,true);});});
+  document.addEventListener('change',function(event) {
+    if(event.target.matches('[data-document-select]')){const id=Number(event.target.dataset.documentSelect);if(event.target.checked)documentSelectedIds.add(id);else documentSelectedIds.delete(id);renderDocumentCenterFiles();return;}
+    if(event.target.id==='documentSelectAll'){const ids=String(event.target.dataset.visibleIds||'').split(',').filter(Boolean).map(Number);ids.forEach(function(id){if(event.target.checked)documentSelectedIds.add(id);else documentSelectedIds.delete(id);});renderDocumentCenterFiles();return;}
+    if(event.target.matches('[data-task-status]'))updateOperationalTaskStatus(event.target.dataset.taskStatus,event.target.value).catch(function(error){showToast(error.message,true);});
+    if (event.target.matches('.project-status')) changeProjectStatus(event.target.dataset.projectId,event.target.value);
+    if (event.target.id === 'testCatalogSelect') updateTestDynamic();
+    if (event.target.matches('[data-field-test]')) { const test = fieldTests[Number(event.target.dataset.fieldTest)]; test[event.target.dataset.fieldKey] = event.target.value; if (event.target.dataset.fieldKey === 'catalog_id') syncFieldTestCatalog(test); if (event.target.dataset.fieldKey === 'result') renderFieldTests(); }
+  });
+  document.addEventListener('click',async function(event) {
+    const recommendationTask=event.target.closest('[data-recommendation-task]');if(recommendationTask){event.preventDefault();const model=window.__ASAS_DECISION_INTELLIGENCE||decisionIntelligenceModel();const item=model.recommendations[Number(recommendationTask.dataset.recommendationTask)];if(item)openOperationalTaskForm({title:item.title,detail:item.detail,priority:item.priority,source_type:'decision_recommendation'});return;}
+    const decisionIssue=event.target.closest('[data-decision-issue]');if(decisionIssue){event.preventDefault();openDecisionIssue(decisionIssue.dataset.decisionIssue);return;}
+    const decisionAction=event.target.closest('[data-decision-action]');if(decisionAction){event.preventDefault();if(decisionAction.dataset.decisionAction)openDecisionIssue(decisionAction.dataset.decisionAction);else navigate(decisionAction.dataset.decisionPage||'dashboard');return;}
+    const decisionRecord=event.target.closest('[data-decision-record]');if(decisionRecord){event.preventDefault();const type=decisionRecord.dataset.decisionRecord,id=Number(decisionRecord.dataset.recordId);closeModal();if(type==='equipment'){const item=(dashboard.equipment||[]).find(function(x){return x.id===id;});navigate('equipment');if(item)openEquipmentForm(item);}else if(type==='project'){navigate('projects');openProjectForm(id);}else if(type==='workOrder'){const item=(dashboard.work_orders||[]).find(function(x){return x.id===id;});navigate('workOrders');if(item)openWorkOrderForm(item.project_id,item);}else if(type==='samples'){const item=(dashboard.samples||[]).find(function(x){return x.id===id;});navigate('samples');if(item)openSampleForm(item);}else if(type==='tests'){navigate('tests');openTestAssignment(id);}else if(type==='reports'){navigate('reports');reviewReport(id);}else if(type==='clients'){const item=(dashboard.clients||[]).find(function(x){return x.id===id;});navigate('clients');if(item)openClientForm(item);}return;}
+    const syncRun=event.target.closest('[data-sync-run]');if(syncRun){event.preventDefault();try{await runSyncQueue();}catch(error){showToast(error.message,true);}return;}
+    const decisionExport=event.target.closest('[data-decision-report-export]');if(decisionExport){event.preventDefault();try{exportDecisionIntelligence();}catch(error){showToast(error.message,true);}return;}
+    const decisionPrint=event.target.closest('[data-decision-report-print]');if(decisionPrint){event.preventDefault();printDecisionIntelligenceReport();return;}
+    const documentGroup=event.target.closest('[data-document-group]');if(documentGroup){event.preventDefault();documentGroupFilter=documentGroup.dataset.documentGroup;renderDocumentCenterFiles();const panel=$('documentLibraryFiles');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});return;}
+    const fieldPickerAdd=event.target.closest('[data-field-picker-add]');if(fieldPickerAdd){event.preventDefault();addFieldTestFromPicker(fieldPickerAdd.dataset.fieldPickerAdd);return;}
+    const catalogFile=event.target.closest('[data-catalog-file]');if(catalogFile){event.preventDefault();const item={id:Number(catalogFile.dataset.catalogFile),original_name:catalogFile.dataset.catalogFileName||'test-resource.pdf'};try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
+    const catalogDownload=event.target.closest('[data-catalog-download]');if(catalogDownload){event.preventDefault();const item={id:Number(catalogDownload.dataset.catalogDownload),original_name:catalogDownload.dataset.catalogFileName||'test-resource'};try{await authenticatedAttachmentDownload(item,false);}catch(error){showToast(error.message,true);}return;}
+    const catalogDelete=event.target.closest('[data-catalog-delete]');if(catalogDelete){event.preventDefault();const item={id:Number(catalogDelete.dataset.catalogDelete),original_name:catalogDelete.dataset.catalogFileName||'test-resource'};try{await deleteUploadedFile(item);}catch(error){showToast(error.message,true);}return;}
+    const qualityFile=event.target.closest('[data-quality-file-ref]');if(qualityFile){event.preventDefault();try{await openAuthorizedQualityFile(qualityFile.dataset.qualityFileRef,qualityFile.dataset.qualityFileName||'quality-file');}catch(error){showToast(error.message,true);}return;}
+    const qualityDownload=event.target.closest('[data-quality-file-download]');if(qualityDownload){event.preventDefault();try{await openAuthorizedQualityFile(qualityDownload.dataset.qualityFileDownload,qualityDownload.dataset.qualityFileName||'quality-file',true);}catch(error){showToast(error.message,true);}return;}
+    const qualityDelete=event.target.closest('[data-quality-file-delete]');if(qualityDelete){event.preventDefault();try{await deleteAuthorizedQualityFile(qualityDelete.dataset.qualityFileDelete,qualityDelete.dataset.qualityFileName||'quality-file');}catch(error){showToast(error.message,true);}return;}
+    const removeSelected=event.target.closest('[data-smart-remove-selected]');if(removeSelected){event.preventDefault();const form=$('smartImportForm');if(form){form.__selectedFiles=smartSelectedFiles(form).filter(function(_file,index){return index!==Number(removeSelected.dataset.smartRemoveSelected);});renderSmartSelectedFiles(form);}return;}
+    const retryFailed=event.target.closest('[data-smart-retry-failed]');if(retryFailed){event.preventDefault();const form=$('smartImportForm');if(form)try{await submitSmartImport(form);}catch(error){showToast(error.message,true);}return;}
+    const bulkFileAction=event.target.closest('[data-file-bulk]');if(bulkFileAction){event.preventDefault();try{await runDocumentBulk(bulkFileAction.dataset.fileBulk);}catch(error){showToast(error.message,true);}return;}
+    const smartEdit=event.target.closest('[data-smart-edit]');if(smartEdit){event.preventDefault();openDocumentEdit((window.__ASAS_SMART_FILES||{})[Number(smartEdit.dataset.smartEdit)]);return;}
+    const smartReplace=event.target.closest('[data-smart-replace]');if(smartReplace){event.preventDefault();openDocumentReplace((window.__ASAS_SMART_FILES||{})[Number(smartReplace.dataset.smartReplace)]);return;}
+    const smartVersions=event.target.closest('[data-smart-versions]');if(smartVersions){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartVersions.dataset.smartVersions)];if(item)try{await openDocumentVersions(item);}catch(error){showToast(error.message,true);}return;}
+    const smartOpen=event.target.closest('[data-smart-open]');if(smartOpen){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartOpen.dataset.smartOpen)];if(item)try{await authenticatedAttachmentDownload(item,true);}catch(error){showToast(error.message,true);}return;}
+    const smartDownload=event.target.closest('[data-smart-download]');if(smartDownload){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartDownload.dataset.smartDownload)];if(item)try{await authenticatedAttachmentDownload(item,false);}catch(error){showToast(error.message,true);}return;}
+    const smartDelete=event.target.closest('[data-smart-delete]');if(smartDelete){event.preventDefault();const item=(window.__ASAS_SMART_FILES||{})[Number(smartDelete.dataset.smartDelete)];if(item)try{await deleteUploadedFile(item);}catch(error){showToast(error.message,true);}return;}
+    const button = event.target.closest('button');
+    if (!button) return;
+    if (button.hasAttribute('data-modal-close')) return closeModal();
+    if (button.hasAttribute('data-open-balady-portal')) return window.open('https://balady.gov.sa/', '_blank', 'noopener');
+    if (button.dataset.projectOpen) return openProjectWorkspace(button.dataset.projectOpen);
+    if (button.dataset.projectEdit) {
+      openProjectForm(button.dataset.projectEdit);
+      $('projectForm').dataset.projectId = button.dataset.projectEdit;
+      return;
+    }
+    if (button.dataset.workOrderFor) return openWorkOrderForm(button.dataset.workOrderFor);
+    if (button.dataset.workOrderEdit) {const item=(dashboard.work_orders||[]).find(function(x){return x.id===Number(button.dataset.workOrderEdit);});if(item)return openWorkOrderForm(item.project_id,item);}
+    if (button.dataset.clientEdit) {const item=(dashboard.clients||[]).find(function(x){return x.id===Number(button.dataset.clientEdit);});if(item)return openClientForm(item);}
+    if (button.dataset.sampleEdit) {const item=(dashboard.samples||[]).find(function(x){return x.id===Number(button.dataset.sampleEdit);});if(item)return openSampleForm(item);}
+    if (button.dataset.equipmentEdit) {const item=(dashboard.equipment||[]).find(function(x){return x.id===Number(button.dataset.equipmentEdit);});if(item)return openEquipmentForm(item);}
+    if (button.dataset.workspaceTab) {
+      const stored = JSON.parse($('modalBody').dataset.workspace || '{"tabs":[]}');
+      const tab = stored.tabs.find(function(item) { return item[0] === button.dataset.workspaceTab; });
+      if (!tab) return;
+      document.querySelectorAll('[data-workspace-tab]').forEach(function(item) { item.classList.toggle('active', item === button); });
+      const lines = tab[2].length ? '<pre style="margin:0;padding:14px;white-space:pre-wrap;font:inherit">' + esc(JSON.stringify(tab[2],null,2)) + '</pre>' : '<div class="empty">لا توجد بيانات مرتبطة بعد.</div>';
+      setHtml($('workspaceContent'), lines);
+      return;
+    }
+    if (button.dataset.fieldRemove !== undefined) { fieldTests.splice(Number(button.dataset.fieldRemove),1); renderFieldTests(); return; }
+    if (button.dataset.fieldStatus) return setFieldStatus(button.dataset.fieldStatus);
+    if (button.dataset.auditDelete) return deleteAuditEntry(button.dataset.auditDelete);
+    if (button.dataset.trashRestore) return restoreTrashItem(button.dataset.trashRestore).catch(function(error){showToast(error.message,true);});
+    if (button.dataset.trashDownload) return downloadTrashItem(button.dataset.trashDownload).catch(function(error){showToast(error.message,true);});
+    if (button.dataset.trashDelete) return permanentlyDeleteTrashItem(button.dataset.trashDelete).catch(function(error){showToast(error.message,true);});
+    if (button.dataset.recordDelete) return deleteRecord(button.dataset.recordDelete,button.dataset.recordId,button.dataset.recordLabel).catch(function(error){showToast(error.message,true);});
+    if (button.hasAttribute('data-print-preview')) return window.print();
+    if (button.dataset.reportPrint) return printReport(button.dataset.reportPrint);
+    if (button.dataset.reportReview) return changeReportStatus(button.dataset.reportReview);
+    if (button.dataset.testAssign) return openTestAssignment(button.dataset.testAssign);
+    if (button.dataset.whatsappCopy) {
+      const draft = (dashboard.whatsapp_drafts || []).find(function(item) { return item.id === Number(button.dataset.whatsappCopy); });
+      if (!draft) return;
+      try { await navigator.clipboard.writeText(draft.message_text); showToast('تم نسخ المسودة؛ الصقها في مجتمع تيكنو سويل لاب بعد المراجعة'); }
+      catch (error) { showToast('تعذر النسخ التلقائي؛ افتح المسودة وانسخ النص يدويًا',true); }
+      return;
+    }
+    if (button.dataset.whatsappOpen) {
+      const draft = (dashboard.whatsapp_drafts || []).find(function(item) { return item.id === Number(button.dataset.whatsappOpen); });
+      if (!draft) return;
+      const phone = String(draft.recipient_phone || '').replace(/\D/g,'');
+      window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(draft.message_text), '_blank', 'noopener');
+      return;
+    }
+    if (button.dataset.whatsappRename) {
+      const draft = (dashboard.whatsapp_drafts || []).find(function(item) { return item.id === Number(button.dataset.whatsappRename); });
+      if (!draft) return;
+      const name = window.prompt('اكتب اسم المسودة', draft.draft_name || ('مسودة ' + draft.related_entity + ' #' + (draft.related_id || draft.id)));
+      if (!name || !name.trim()) return;
+      try { await api('/api/whatsapp/drafts/' + draft.id + '/rename',{method:'POST',body:JSON.stringify({draft_name:name.trim()})}); await refresh(); showToast('تم تغيير اسم المسودة'); }
+      catch (error) { showToast(error.message,true); }
+      return;
+    }
+    if (button.dataset.fieldPhotoRemove !== undefined) { fieldPhotos.splice(Number(button.dataset.fieldPhotoRemove),1); renderFieldPhotos(); return; }
+    if (button.dataset.whatsappReady) {
+      try { await api('/api/whatsapp/drafts/' + Number(button.dataset.whatsappReady) + '/ready',{method:'POST',body:'{}'}); await refresh(); showToast('المسودة جاهزة للمشاركة اليدوية في مجتمع واتساب'); }
+      catch (error) { showToast(error.message,true); }
+      return;
+    }
+    if (button.dataset.qualityAdd) return openQualityForm(button.dataset.qualityAdd);
+    if (button.dataset.qualityDocumentEdit) { const item=qualityData.documents.find(function(x){return x.id===Number(button.dataset.qualityDocumentEdit);});if(item)return openQualityDocumentEdit(item); }
+    if (button.dataset.qualityDocumentDelete) return deleteQualityDocument(button.dataset.qualityDocumentDelete);
+    if (button.dataset.qualityTemplate) return downloadQualityTemplate(button.dataset.qualityTemplate);
+    if (button.dataset.qualityImport) { try { await importQualityRows(button.dataset.qualityImport); } catch (error) { showToast(error.message,true); } return; }
+    if (button.dataset.catalogResources) return openCatalogResources(button.dataset.catalogResources);
+    if (button.dataset.bulkPanel) return openBulkPanel(button.dataset.bulkPanel);
+    if (button.dataset.attachmentPanel) return openAttachmentPanel(button.dataset.attachmentPanel);
+    if (button.dataset.smartImport) return openSmartImportPanel(button.dataset.smartImport);
+    if (button.dataset.downloadBulk) return downloadBulkTemplate(button.dataset.downloadBulk);
+    if (button.dataset.openAttachments) return openAttachmentPanel(button.dataset.openAttachments);
+    if (button.dataset.userEdit) {
+      const users = JSON.parse($('usersTable').dataset.users || '[]'); const user = users.find(function(item) { return item.id === Number(button.dataset.userEdit); }); if (user) openUserForm(user);
+    }
+  });
+  document.addEventListener('submit',async function(event) {
+    const form = event.target;
+    const delegatedSubmitButton = event.submitter || (form && form.querySelector ? form.querySelector('button[type="submit"]') : null);
+    const delegatedSubmitLabel = delegatedSubmitButton ? delegatedSubmitButton.textContent : '';
+    if (form.matches('[data-inline-quality-document]')) { event.preventDefault(); try{await submitInlineQualityDocument(form);}catch(error){showToast(error.message,true);} return; }
+    if (form.matches('[data-inline-quality-record]')) { event.preventDefault(); try{await submitInlineQualityRecord(form,form.dataset.inlineQualityRecord);}catch(error){showToast(error.message,true);} return; }
+    if (form.matches('[data-inline-equipment]')) { event.preventDefault(); try{await submitInlineEquipment(form);}catch(error){showToast(error.message,true);} return; }
+    if (form.matches('[data-inline-smart-import]')) { event.preventDefault(); try{await submitInlineSmartImport(form);}catch(error){showToast(error.message,true);} return; }
+    if (!form.id) return;
+    event.preventDefault();
+    try {
+      if (form.id === 'projectForm') await submitProjectForm(form);
+      if (form.id === 'workOrderForm') await submitWorkOrder(form);
+      if (form.id === 'clientForm') await submitSimple(form,'/api/clients');
+      if (form.id === 'sampleForm') await submitSimple(form,'/api/samples');
+      if (form.id === 'equipmentForm') await submitSimple(form,'/api/equipment');
+      if (form.id === 'testForm') await submitTest(form);
+      if (form.id === 'testAssignmentForm') await submitTestAssignment(form);
+      if (form.id === 'userForm') await saveUserForm(form);
+      if (form.id === 'qualityDocumentForm') await submitQualityDocument(form);
+      if (form.id === 'qualityDocumentEditForm') await submitQualityDocumentEdit(form);
+      if (form.id === 'proficiencyForm') await submitQualityRecord(form,'/api/quality/proficiency',['quality_file']);
+      if (form.id === 'qualityStaffForm') await submitQualityRecord(form,'/api/quality/staff',['qualification_file','cv_file']);
+      if (form.id === 'bulkImportForm') await submitBulkImport(form);
+      if (form.id === 'recordAttachmentForm') await submitRecordAttachment(form);
+      if (form.id === 'documentEditForm') await submitDocumentEdit(form);
+      if (form.id === 'documentReplaceForm') await submitDocumentReplace(form);
+      if (form.id === 'smartImportForm') await submitSmartImport(form);
+      if (form.id === 'catalogResourcesForm') await submitCatalogResources(form);
+      if (form.id === 'customCatalogTestForm') await submitCustomCatalogTest(form);
+      if (form.id === 'changePasswordForm') await submitChangePassword(form);
+      if (form.id === 'myProfileForm') await submitMyProfile(form);
+      if (form.id === 'systemSettingsForm') await submitSystemSettings(form);
+      if (form.id === 'operationalTaskForm') await saveOperationalTask(form);
+      if (form.id === 'baladyForm') saveBaladyData(form);
+    } catch (error) {
+      const message = error && error.message ? error.message : 'تعذر حفظ البيانات';
+      const formMessage = form.querySelector('#userFormMessage');
+      if (formMessage) setText(formMessage, message);
+      if (delegatedSubmitButton && delegatedSubmitButton.isConnected) {
+        delegatedSubmitButton.disabled = false;
+        delegatedSubmitButton.removeAttribute('aria-busy');
+        if (delegatedSubmitLabel) setText(delegatedSubmitButton, delegatedSubmitLabel);
+      }
+      showToast(message,true);
+    }
+  });
+}
+
+function init() {
+  bindEvents();
+  updateBackButton();
+  renderFieldGuides();
+  document.querySelectorAll('.page table').forEach(function(table){table.classList.add('engineering-table');});
+  installSmartImportButtons();
+  const languageToggle = $('languageToggle');
+  if (languageToggle) { languageToggle.value = localStorage.getItem('techno_lims_language') || 'ar'; languageToggle.addEventListener('change', function(){ setLanguage(languageToggle.value); }); setLanguage(languageToggle.value); }
+  else setLanguage(localStorage.getItem('techno_lims_language') || 'ar');
+  const settingsLanguage = $('systemSettingsForm') && $('systemSettingsForm').elements.default_language;
+  if (settingsLanguage) settingsLanguage.addEventListener('change',function(){ setLanguage(settingsLanguage.value); });
+  updateSaudiClock(); setInterval(updateSaudiClock,1000);
+  const footerYear = $('footerYear');
+  if (footerYear) setText(footerYear, String(new Date().getFullYear()));
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden && currentUser) refresh().catch(function() {});
+  });
+  window.addEventListener('online', function() {
+    if (currentUser) refresh().catch(function() {});
+  });
+  if (STATIC_MODE && !localDB().users.length && new URLSearchParams(location.search).get('setup') === '1') $('staticSetup').classList.remove('hidden');
+}
+
+document.addEventListener('DOMContentLoaded',init);
+
+const QUALITY_TEMPLATES_EN = {
+ equipment:['Equipment name,Serial number,Manufacturer,Model,Last calibration,Next calibration,Certificate number,Notes','Compression machine,ABC-001,Manufacturer,Model X,2026-01-01,2027-01-01,CAL-001,'],
+ proficiency:['Test name,Material,Standard,Service provider,Participation date,Result,Z-score,Report reference,Notes','Compressive strength,Concrete,ASTM C39,Provider,2026-01-01,Accepted,0.20,PT-001,'],
+ staff:['Full name,Job title,Specialty,Years of experience,Qualification reference,CV reference,Notes','Employee name,Laboratory technician,Concrete,5,QUAL-001,CV-001,']
+};
