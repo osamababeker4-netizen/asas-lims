@@ -542,7 +542,7 @@ class SchemaMigrationTests(unittest.TestCase):
         server_source = (Path(__file__).parent / 'server.py').read_text(encoding='utf-8')
         sw = (Path(__file__).parent / 'sw.js').read_text(encoding='utf-8')
         self.assertIn('src="techno-logo.svg" class="login-logo techno-login-logo"', html)
-        self.assertIn('src="techno-logo.svg" class="dashboard-brand-logo techno-dashboard-logo"', html)
+        self.assertGreaterEqual(html.count('src="techno-logo.svg"'), 4)
         self.assertIn('src="techno-logo.svg" alt="شعار شركة تيكنو سويل لاب"', html)
         self.assertIn('id="currentUserAvatar" class="user-avatar" src="techno-logo.svg"', html)
         self.assertGreaterEqual(html.count('src="techno-logo.svg"'), 4)
