@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.8.2-techno-attendance-release'
+APP_VERSION = '10.8.3-techno-ui-fix-release'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -1503,6 +1503,7 @@ class H(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         static_files = {
+            '/techno-logo.svg': ('techno-logo.svg', 'image/svg+xml'),
             '/': ('index.html', 'text/html; charset=utf-8'),
             '/index.html': ('index.html', 'text/html; charset=utf-8'),
             '/style.css': ('style.css', 'text/css; charset=utf-8'),
@@ -1513,10 +1514,6 @@ class H(BaseHTTPRequestHandler):
             '/sw.js': ('sw.js', 'application/javascript; charset=utf-8'),
             '/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
             '/logo.jpg': ('logo.jpg', 'image/jpeg'),
-            '/logo.png': ('logo.png', 'image/png'),
-            '/asas-home-banner.jpg': ('asas-home-banner.jpg', 'image/jpeg'),
-            '/asas-home-banner.png': ('asas-home-banner.png', 'image/png'),
-            '/asas-home-banner-mobile.png': ('asas-home-banner-mobile.png', 'image/png'),
             '/engineering-pages-bg.jpg': ('engineering-pages-bg.jpg', 'image/jpeg'),
             '/whatsapp-logo.svg': ('whatsapp-logo.svg', 'image/svg+xml; charset=utf-8'),
             '/telegram-logo.svg': ('telegram-logo.svg', 'image/svg+xml; charset=utf-8'),
