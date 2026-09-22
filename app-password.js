@@ -570,7 +570,17 @@ function showToast(message, isError) {
 }
 
 function modal(html) {
-  setHtml($('modalBody'), html);
+  const body = $('modalBody');
+  setHtml(body, html);
+  // Normalize dynamically generated forms so every save/correction button
+  // has an explicit behavior on desktop and mobile browsers.
+  body.querySelectorAll('form').forEach(function(form) {
+    form.querySelectorAll('button').forEach(function(button) {
+      if (!button.hasAttribute('type')) {
+        button.type = button.hasAttribute('data-modal-close') ? 'button' : 'submit';
+      }
+    });
+  });
   $('modal').classList.remove('hidden');
 }
 
@@ -1571,7 +1581,7 @@ function openSampleForm(record) {
 
 function openEquipmentForm(record) {
   record=record||{};const edit=Boolean(record.id);
-  modal('<h2>'+(edit?'تحديث الجهاز ومعالجة بياناته':'إضافة جهاز')+'</h2><form id="equipmentForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>اسم الجهاز<input name="name" required value="'+esc(record.name||'')+'"></label><label>الرقم التسلسلي<input name="serial_no" value="'+esc(record.serial_no||'')+'"></label><label>الشركة المصنعة<input name="manufacturer" value="'+esc(record.manufacturer||'')+'"></label><label>الموديل<input name="model" value="'+esc(record.model||'')+'"></label><label>آخر معايرة<input name="last_calibration" type="date" value="'+esc((record.last_calibration||'').slice(0,10))+'"></label><label>المعايرة القادمة<input name="next_calibration" type="date" value="'+esc((record.next_calibration||record.calibrated_to||'').slice(0,10))+'"></label><label>رقم الشهادة<input name="certificate_no" value="'+esc(record.certificate_no||'')+'"></label><label>ملاحظات<textarea name="notes">'+esc(record.notes||'')+'</textarea></label></div>'+modalAttachFileField('equipment')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">'+(edit?'حفظ التصحيح':'حفظ الجهاز')+'</button></div></form>');
+  modal('<h2>'+(edit?'تحديث الجهاز ومعالجة بياناته':'إضافة جهاز')+'</h2><form id="equipmentForm">'+(edit?'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'+record.id+'">':'')+'<div class="modal-grid"><label>اسم الجهاز<input name="name" required value="'+esc(record.name||'')+'"></label><label>الرقم التسلسلي<input name="serial_no" value="'+esc(record.serial_no||'')+'"></label><label>الشركة المصنعة<input name="manufacturer" value="'+esc(record.manufacturer||'')+'"></label><label>الموديل<input name="model" value="'+esc(record.model||'')+'"></label><label>آخر معايرة<input name="last_calibration" type="date" value="'+esc((record.last_calibration||'').slice(0,10))+'"></label><label>المعايرة القادمة<input name="next_calibration" type="date" value="'+esc((record.next_calibration||record.calibrated_to||'').slice(0,10))+'"></label><label>رقم الشهادة<input name="certificate_no" value="'+esc(record.certificate_no||'')+'"></label><label>ملاحظات<textarea name="notes">'+esc(record.notes||'')+'</textarea></label></div>'+modalAttachFileField('equipment')+'<div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary" type="submit" data-save-equipment>'+(edit?'حفظ التصحيح':'حفظ الجهاز')+'</button></div></form>');
 }
 
 function genericFields(testCatalog) {
@@ -1668,24 +1678,47 @@ async function submitSimple(form, path) {
     if (!ROLE_NAMES[data.role]) throw new Error('اختر دورًا معتمدًا للمستخدم');
   }
   const isUserSave = path.indexOf('/api/users/') === 0;
-  const saveButton = isUserSave ? form.querySelector('#saveUserButton') : null;
+  const saveButton = isUserSave ? form.querySelector('#saveUserButton') : form.querySelector('button[type="submit"]');
+  const originalLabel = saveButton ? saveButton.textContent : '';
   const formMessage = isUserSave ? form.querySelector('#userFormMessage') : null;
-  if (saveButton) { saveButton.disabled = true; setText(saveButton, 'جارٍ الحفظ والمزامنة…'); }
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.setAttribute('aria-busy','true');
+    setText(saveButton, isUserSave ? 'جارٍ الحفظ والمزامنة…' : 'جارٍ الحفظ…');
+  }
   if (formMessage) setText(formMessage, 'جارٍ حفظ التغيير في الخادم المركزي…');
   let result;
   try {
     result = await api(path,{method:'POST',body:JSON.stringify(data)});
-  } finally {
-    if (saveButton) { saveButton.disabled = false; setText(saveButton, 'حفظ ومزامنة المستخدم'); }
+  } catch (error) {
+    if (saveButton && saveButton.isConnected) {
+      saveButton.disabled = false;
+      saveButton.removeAttribute('aria-busy');
+      setText(saveButton, originalLabel || 'حفظ');
+    }
+    throw error;
   }
-  closeModal(); await refresh();
+  closeModal();
+  try {
+    await refresh();
+  } catch (refreshError) {
+    // The mutation already succeeded on the server. Do not present it as a failed save.
+    publishLiveUpdate(isUserSave ? 'users' : 'operations');
+    showToast('تم الحفظ بنجاح، وسيتم تحديث البيانات تلقائيًا عند المزامنة التالية');
+    return result;
+  }
   if (isUserSave) {
     publishLiveUpdate('users');
     showToast(data.id ? 'تم تعديل المستخدم ومزامنته فورًا' : 'تمت إضافة المستخدم وتفعيله ومزامنته فورًا');
-    return;
+    return result;
   }
   publishLiveUpdate('operations');
+  if (path === '/api/equipment') {
+    showToast(data.action === 'update' ? 'تم حفظ تصحيح الجهاز وتحديث الجدول' : 'تم حفظ الجهاز وتحديث الجدول');
+    return result;
+  }
   showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ والمزامنة');
+  return result;
 }
 function openChangePassword() { modal('<h2>تغيير كلمة المرور</h2><p>هذا التغيير يخص حسابك المسجّل فقط.</p><form id="changePasswordForm"><div class="modal-grid"><label>كلمة المرور الحالية<input name="current_password" type="password" autocomplete="current-password" required></label><label>كلمة المرور الجديدة<input name="new_password" type="password" autocomplete="new-password" required></label><label>تأكيد كلمة المرور الجديدة<input name="confirm_password" type="password" autocomplete="new-password" required></label></div><p class="form-note">اكتب كلمة المرور التي تريدها دون حد أدنى للحروف.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تغيير كلمة المرور</button></div></form>'); }
 function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك تعديل الاسم والصورة وكلمة المرور. اسم المستخدم ثابت: <strong>@'+esc(currentUser.username)+'</strong></p><form id="myProfileForm"><input type="hidden" name="avatar_data_url" value="'+esc(currentUser.avatar_data_url||'')+'"><div class="user-photo-editor"><img id="profileAvatarPreview" src="'+esc(currentUser.avatar_data_url||'logo.png')+'" alt="صورة المستخدم"><div><strong>@'+esc(currentUser.username)+'</strong><small>اسم المستخدم</small><button id="chooseProfileAvatar" class="btn secondary" type="button">تغيير الصورة</button><input id="profileAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><label>الاسم الكامل<input name="full_name" required value="'+esc(currentUser.full_name)+'"></label><div class="modal-actions"><button class="btn secondary" type="button" id="profilePasswordButton">تغيير كلمة المرور</button><button class="btn primary" type="submit">حفظ الملف الشخصي</button></div></form>');const form=$('myProfileForm');$('chooseProfileAvatar').addEventListener('click',function(){$('profileAvatarInput').click();});$('profileAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('profileAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});$('profilePasswordButton').addEventListener('click',openChangePassword); }
@@ -2859,6 +2892,8 @@ function bindEvents() {
   });
   document.addEventListener('submit',async function(event) {
     const form = event.target;
+    const delegatedSubmitButton = event.submitter || (form && form.querySelector ? form.querySelector('button[type="submit"]') : null);
+    const delegatedSubmitLabel = delegatedSubmitButton ? delegatedSubmitButton.textContent : '';
     if (form.matches('[data-inline-quality-document]')) { event.preventDefault(); try{await submitInlineQualityDocument(form);}catch(error){showToast(error.message,true);} return; }
     if (form.matches('[data-inline-quality-record]')) { event.preventDefault(); try{await submitInlineQualityRecord(form,form.dataset.inlineQualityRecord);}catch(error){showToast(error.message,true);} return; }
     if (form.matches('[data-inline-equipment]')) { event.preventDefault(); try{await submitInlineEquipment(form);}catch(error){showToast(error.message,true);} return; }
@@ -2894,6 +2929,11 @@ function bindEvents() {
       const message = error && error.message ? error.message : 'تعذر حفظ البيانات';
       const formMessage = form.querySelector('#userFormMessage');
       if (formMessage) setText(formMessage, message);
+      if (delegatedSubmitButton && delegatedSubmitButton.isConnected) {
+        delegatedSubmitButton.disabled = false;
+        delegatedSubmitButton.removeAttribute('aria-busy');
+        if (delegatedSubmitLabel) setText(delegatedSubmitButton, delegatedSubmitLabel);
+      }
       showToast(message,true);
     }
   });
