@@ -1459,7 +1459,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("APP_VERSION = '10.8.7-mobile-fit-release'", server)
         self.assertIn('v10-9-0-system-review', sw)
         self.assertIn('TECHNO LIMS', html)
-        self.assertIn('V10.8.7 · Mobile Fit', html)
+        self.assertIn('V10.9.0 · Full System Review', html)
         self.assertNotIn('V10.3.0 Decision Intelligence', html)
         self.assertIn('id="decisionIntelligenceCenter"', html)
         self.assertIn('id="refreshDecisionIntelligence"', html)
