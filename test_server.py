@@ -1483,8 +1483,8 @@ class SchemaMigrationTests(unittest.TestCase):
 
         self.assertIn("APP_VERSION = '10.9.0-system-review'", server)
         self.assertIn('v10-9-1-login-responsive', sw)
-        self.assertIn('ASAS LIMS · V10.9.0', html)
-        self.assertIn('V10.9.0 · Full System Review', html)
+        self.assertIn('ASAS LIMS · V10.9.1', html)
+        self.assertIn('V10.9.1 · Full System Review', html)
         self.assertNotIn('V10.3.0 Decision Intelligence', html)
         self.assertIn('id="decisionIntelligenceCenter"', html)
         self.assertIn('id="refreshDecisionIntelligence"', html)
