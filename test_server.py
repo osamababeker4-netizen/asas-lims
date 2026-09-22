@@ -605,6 +605,69 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn('background:linear-gradient(180deg,#0a4650 0%,#083941 72%,#0d3036 100%)', css)
         self.assertIn('border-bottom-color:var(--orange)!important', css)
 
+    def test_equipment_save_and_correction_contract(self):
+        app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
+        self.assertIn("button.type = button.hasAttribute('data-modal-close') ? 'button' : 'submit';", app)
+        self.assertIn('data-save-equipment', app)
+        self.assertIn("if (form.id === 'equipmentForm') await submitSimple(form,'/api/equipment');", app)
+
+        self.server.init()
+        connection = self.server.db()
+        admin = dict(connection.execute("select * from users where username='admin'").fetchone())
+        connection.close()
+        token = self.server.create_session(admin)
+        httpd = self.server.ThreadingHTTPServer(('127.0.0.1', 0), self.server.H)
+        worker = threading.Thread(target=httpd.serve_forever)
+        worker.start()
+        port = httpd.server_address[1]
+
+        def request(method, path, payload=None):
+            client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            headers = {'Authorization': 'Bearer ' + token}
+            body = None
+            if payload is not None:
+                headers['Content-Type'] = 'application/json'
+                body = json.dumps(payload).encode('utf-8')
+            client.request(method, path, body, headers)
+            response = client.getresponse()
+            data = json.loads(response.read().decode('utf-8'))
+            client.close()
+            return response.status, data
+
+        try:
+            status, created = request('POST', '/api/equipment', {
+                'name': 'CBR Tester', 'serial_no': 'TECH-5211-DX',
+                'manufacturer': 'TECHNO', 'model': 'Model A',
+                'last_calibration': '2026-01-01', 'next_calibration': '2027-01-01',
+                'certificate_no': 'TECH-CAL-001', 'notes': 'initial'
+            })
+            self.assertEqual(status, 200)
+            self.assertTrue(created['ok'])
+
+            status, updated = request('POST', '/api/equipment', {
+                'action': 'update', 'id': created['id'],
+                'name': 'CBR Tester Updated', 'serial_no': 'TECH-5211-DX',
+                'manufacturer': 'TECHNO', 'model': 'Model B',
+                'last_calibration': '2026-02-01', 'next_calibration': '2027-02-01',
+                'certificate_no': 'TECH-CAL-002', 'notes': 'corrected'
+            })
+            self.assertEqual(status, 200)
+            self.assertTrue(updated['updated'])
+
+            status, dashboard = request('GET', '/api/dashboard')
+            self.assertEqual(status, 200)
+            saved = next(item for item in dashboard['equipment'] if item['id'] == created['id'])
+            self.assertEqual(saved['name'], 'CBR Tester Updated')
+            self.assertEqual(saved['model'], 'Model B')
+            self.assertEqual(saved['next_calibration'], '2027-02-01')
+            self.assertEqual(saved['certificate_no'], 'TECH-CAL-002')
+            self.assertEqual(saved['notes'], 'corrected')
+        finally:
+            self.server.SESSIONS.pop(token, None)
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(timeout=5)
+
     def test_equipment_table_has_technical_status_design(self):
         html = (Path(__file__).parent / 'index.html').read_text(encoding='utf-8')
         app = (Path(__file__).parent / 'app-password.js').read_text(encoding='utf-8')
@@ -1094,7 +1157,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-8-7-mobile-fit', sw)
+        self.assertIn('v10-9-0-system-review', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1394,7 +1457,7 @@ class SchemaMigrationTests(unittest.TestCase):
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
         self.assertIn("APP_VERSION = '10.8.7-mobile-fit-release'", server)
-        self.assertIn('v10-8-7-mobile-fit', sw)
+        self.assertIn('v10-9-0-system-review', sw)
         self.assertIn('TECHNO LIMS', html)
         self.assertIn('V10.8.7 · Mobile Fit', html)
         self.assertNotIn('V10.3.0 Decision Intelligence', html)
