@@ -9,7 +9,7 @@ function saudiNow() { return new Date().toLocaleString(SAUDI_LOCALE, {timeZone:S
 function saudiToday() { const parts=new Intl.DateTimeFormat('en-CA',{timeZone:SAUDI_TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()); const values={}; parts.forEach(function(p){values[p.type]=p.value;}); return values.year+'-'+values.month+'-'+values.day; }
 function saudiDisplay(value) { if (!value) return '—'; const raw=String(value); const normalized=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw) ? raw.replace(' ','T')+'Z' : raw; const date=new Date(normalized); return Number.isNaN(date.getTime()) ? raw : date.toLocaleString(SAUDI_LOCALE,{timeZone:SAUDI_TIME_ZONE,dateStyle:'medium',timeStyle:'medium',hour12:false}); }
 function updateSaudiClock(){ const el=$('saudiClock'); if(el) setText(el,'توقيت السعودية: '+saudiNow()); }
-const STORAGE_KEY = 'asas_lims_v720';
+const STORAGE_KEY = 'techno_lims_v1083';
 const PROJECT_STATUSES = ['مخطط', 'نشط', 'موقوف', 'قيد المراجعة', 'معتمد', 'مكتمل'];
 const BOARD_STATUSES = ['مخطط', 'نشط', 'قيد المراجعة', 'موقوف', 'مكتمل'];
 const PRIORITIES = ['منخفضة', 'متوسطة', 'عالية', 'حرجة'];
@@ -86,7 +86,7 @@ let catalog = [];
 let dashboard = null;
 let qualityData = {documents:[],proficiency:[],staff:[]};
 let currentUser = null;
-let centralAccessToken = sessionStorage.getItem('asas_lims_access_token') || '';
+let centralAccessToken = sessionStorage.getItem('techno_lims_access_token') || '';
 let notificationItems = [];
 let pendingOtpLogin = null;
 let projectView = 'table';
@@ -523,7 +523,7 @@ async function api(path, options) {
   if (response.status === 401 && currentUser) {
     stopLiveUpdates();
     centralAccessToken = '';
-    sessionStorage.removeItem('asas_lims_access_token');
+    sessionStorage.removeItem('techno_lims_access_token');
     currentUser = null;
     $('app').classList.add('hidden');
     $('login').classList.remove('hidden');
@@ -639,7 +639,7 @@ async function login(event) {
     if (STATIC_MODE) return await completeLogin(await api('/api/login', {method:'POST',body:JSON.stringify({username:username,password:password})}));
     const result = await api('/api/auth/login', {method:'POST',body:JSON.stringify({username:username,password:password})});
     centralAccessToken = result.token;
-    sessionStorage.setItem('asas_lims_access_token', centralAccessToken);
+    sessionStorage.setItem('techno_lims_access_token', centralAccessToken);
     $('loginPassword').value = '';
     await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone,avatar_data_url:result.user.avatar_data_url}});
   } catch (error) {
@@ -655,7 +655,7 @@ async function verifyOtpLogin(event) {
     if (!/^\d{6}$/.test(otp)) throw new Error('أدخل رمز OTP مكوّناً من 6 أرقام.');
     const result = await api('/api/auth/verify', {method:'POST',body:JSON.stringify({username:pendingOtpLogin.username,otp:otp})});
     centralAccessToken = result.token;
-    sessionStorage.setItem('asas_lims_access_token', centralAccessToken);
+    sessionStorage.setItem('techno_lims_access_token', centralAccessToken);
     pendingOtpLogin = null;
     await completeLogin({user:{full_name:result.user.name,role:result.user.role,username:result.user.username,phone:result.user.phone,avatar_data_url:result.user.avatar_data_url}});
   } catch (error) { setText($('loginMessage'), error.message); }
@@ -708,7 +708,7 @@ async function completeLogin(result) {
 async function logout() {
   stopLiveUpdates();
   try { await api('/api/logout', {method:'POST'}); } catch (error) {}
-  centralAccessToken = ''; sessionStorage.removeItem('asas_lims_access_token'); location.reload();
+  centralAccessToken = ''; sessionStorage.removeItem('techno_lims_access_token'); location.reload();
 }
 
 async function bootstrapStaticAdmin() {
@@ -748,7 +748,7 @@ function applyCurrentUserIdentity(user) {
   currentUser = Object.assign({}, currentUser || {}, user);
   setText($('currentUsername'), currentUser.full_name || currentUser.username || 'مستخدم');
   setText($('currentUser'), ROLE_NAMES[currentUser.role] || currentUser.role || 'مستخدم');
-  $('currentUserAvatar').src = currentUser.avatar_data_url || 'logo.png';
+  $('currentUserAvatar').src = currentUser.avatar_data_url || 'techno-logo.svg';
   updateProfileMenuAccess();
 }
 
@@ -1178,7 +1178,7 @@ async function runSyncQueue(){const result=await api('/api/sync/run',{method:'PO
 function decisionReportMarkup(model){
   const issues=model.issues.length?model.issues.map(function(item){return '<tr><td>'+esc(item.label)+'</td><td>'+esc(item.count)+'</td><td>'+esc(decisionToneLabel(item.severity))+'</td><td>'+esc(item.detail)+'</td></tr>';}).join(''):'<tr><td colspan="4">لا توجد ملاحظات ضمن الفحوص الحالية.</td></tr>';
   const recommendations=model.recommendations.map(function(item,index){return '<tr><td>'+(index+1)+'</td><td>'+esc(item.priority)+'</td><td>'+esc(item.title)+'</td><td>'+esc(item.detail)+'</td></tr>';}).join('');
-  return '<section class="decision-report"><header><img src="logo.png" alt="تيكنو سويل لاب"><div><span>TECHNO LIMS · Decision Intelligence</span><h2>التقرير الإداري التشغيلي</h2><p>تم الإنشاء: '+esc(model.generated_at)+'</p></div></header>'+
+  return '<section class="decision-report"><header><img src="techno-logo.svg" alt="تيكنو سويل لاب"><div><span>TECHNO LIMS · Decision Intelligence</span><h2>التقرير الإداري التشغيلي</h2><p>تم الإنشاء: '+esc(model.generated_at)+'</p></div></header>'+
     '<h3>الملخص التنفيذي</h3><div class="decision-report-summary">'+model.summary.map(function(line){return '<p>'+esc(line)+'</p>';}).join('')+'</div>'+
     '<h3>مؤشرات الأداء</h3><div class="decision-report-kpis"><span>تقدم المشاريع <b>'+model.project_progress+'%</b></span><span>إغلاق أوامر العمل <b>'+model.work_order_rate+'%</b></span><span>إنجاز الاختبارات <b>'+model.test_rate+'%</b></span><span>اعتماد التقارير <b>'+model.report_rate+'%</b></span></div>'+
     '<h3>جودة البيانات</h3><div class="engineering-table-wrap"><table><thead><tr><th>الملاحظة</th><th>العدد</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>'+issues+'</tbody></table></div>'+
@@ -1221,7 +1221,7 @@ function exportDecisionIntelligence(){
   XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(model.issues.map(function(item){return {'الملاحظة':item.label,'العدد':item.count,'الحالة':decisionToneLabel(item.severity),'الإجراء المقترح':item.detail};})),'Data Quality');
   XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(model.project_health.map(function(item){return {'كود المشروع':item.code,'المشروع':item.name,'الحالة':item.status,'التقدم %':item.progress,'التقييم':item.label,'الأسباب':item.reasons.join('، ')};})),'Project Health');
   XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(model.recommendations.map(function(item,index){return {'#':index+1,'الأولوية':item.priority,'الإجراء':item.title,'التفاصيل':item.detail};})),'Next Actions');
-  XLSX.writeFile(workbook,'ASAS_Decision_Intelligence_'+today()+'.xlsx');
+  XLSX.writeFile(workbook,'TECHNO_Decision_Intelligence_'+today()+'.xlsx');
   showToast('تم تصدير تحليل الإدارة إلى Excel');
 }
 
@@ -1456,9 +1456,9 @@ async function downloadTrashItem(id){
     const headers={};if(centralAccessToken)headers.Authorization='Bearer '+centralAccessToken;
     const response=await fetch(API_BASE_URL+'/api/trash/file?id='+encodeURIComponent(id),{mode:'cors',credentials:'include',cache:'no-store',headers:headers});
     if(!response.ok){let message='تعذر تحميل الملف من السلة';try{const data=await response.json();message=data.error||message;}catch(_error){}throw new Error(message);}
-    const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=item.label||'ASAS-deleted-file';link.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);return;
+    const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=item.label||'TECHNO-deleted-file';link.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);return;
   }
-  const blob=new Blob([JSON.stringify(item,null,2)],{type:'application/json;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='ASAS-deleted-'+String(item.entity_type||'record')+'-'+String(item.original_id||id)+'.json';link.click();setTimeout(function(){URL.revokeObjectURL(link.href);},1000);
+  const blob=new Blob([JSON.stringify(item,null,2)],{type:'application/json;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='TECHNO-deleted-'+String(item.entity_type||'record')+'-'+String(item.original_id||id)+'.json';link.click();setTimeout(function(){URL.revokeObjectURL(link.href);},1000);
 }
 
 async function deleteAuditEntry(id){if(!window.confirm('هل تريد حذف هذا السجل نهائياً؟'))return;await api('/api/audit/delete',{method:'POST',body:JSON.stringify({id:Number(id)})});await refresh();showToast('تم حذف السجل نهائياً');}
@@ -1468,7 +1468,7 @@ async function deleteRecord(entity,id,label){const names={client:'العميل',
 async function renderUsers() {
   try {
     const users = await api('/api/users');
-    setHtml($('usersTable'), users.map(function(user) { return '<tr><td><img class="table-avatar" src="' + esc(user.avatar_data_url || 'logo.png') + '" alt="صورة المستخدم"></td><td>' + esc(user.username) + '</td><td>' + esc(user.full_name) + '</td><td dir="ltr">' + esc(user.phone || '—') + '</td><td>' + escUI(ROLE_NAMES[user.role] || user.role) + '</td><td>' + (user.active ? 'نشط' : 'موقوف') + '</td><td>' + esc(saudiDisplay(user.created_at)) + '</td><td><button class="text-btn" data-user-edit="' + user.id + '" type="button">تعديل</button></td></tr>'; }).join(''));
+    setHtml($('usersTable'), users.map(function(user) { return '<tr><td><img class="table-avatar" src="' + esc(user.avatar_data_url || 'techno-logo.svg') + '" alt="صورة المستخدم"></td><td>' + esc(user.username) + '</td><td>' + esc(user.full_name) + '</td><td dir="ltr">' + esc(user.phone || '—') + '</td><td>' + escUI(ROLE_NAMES[user.role] || user.role) + '</td><td>' + (user.active ? 'نشط' : 'موقوف') + '</td><td>' + esc(saudiDisplay(user.created_at)) + '</td><td><button class="text-btn" data-user-edit="' + user.id + '" type="button">تعديل</button></td></tr>'; }).join(''));
     $('usersTable').dataset.users = JSON.stringify(users);
   } catch (error) {
     setHtml($('usersTable'), '<tr><td colspan="8" class="empty">ليس لديك صلاحية عرض المستخدمين.</td></tr>');
@@ -1616,7 +1616,7 @@ const QUALITY_TEMPLATES = {
   proficiency:['اسم الاختبار,المادة,المعيار,مقدم الخدمة,تاريخ المشاركة,النتيجة,Z-score,مرجع التقرير,ملاحظات','مقاومة الضغط,خرسانة,ASTM C39,اسم الجهة,2026-01-01,مقبول,0.20,PT-001,'],
   staff:['الاسم الكامل,المسمى الوظيفي,التخصص,سنوات الخبرة,مرجع المؤهل,مرجع السيرة الذاتية,ملاحظات','اسم الموظف,فني مختبر,خرسانة,5,QUAL-001,CV-001,']
 };
-function downloadQualityTemplate(kind) { const blob = new Blob(['\ufeff' + (uiLanguage === 'en' ? QUALITY_TEMPLATES_EN[kind] : QUALITY_TEMPLATES[kind]).join('\n')],{type:'text/csv;charset=utf-8'}); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'ASAS_' + kind + '_template.csv'; link.click(); URL.revokeObjectURL(link.href); }
+function downloadQualityTemplate(kind) { const blob = new Blob(['\ufeff' + (uiLanguage === 'en' ? QUALITY_TEMPLATES_EN[kind] : QUALITY_TEMPLATES[kind]).join('\n')],{type:'text/csv;charset=utf-8'}); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'TECHNO_' + kind + '_template.csv'; link.click(); URL.revokeObjectURL(link.href); }
 function parseCsv(text) { const lines = text.replace(/^\ufeff/,'').split(/\r?\n/).filter(Boolean); const cells = function(line) { return line.match(/(?:^|,)("(?:[^"]|"")*"|[^,]*)/g).map(function(cell) { return cell.replace(/^,/, '').replace(/^"|"$/g,'').replace(/""/g,'"').trim(); }); }; const headers = cells(lines.shift() || ''); return lines.map(function(line) { const values = cells(line); return headers.reduce(function(row,header,index) { row[header] = values[index] || ''; return row; },{}); }); }
 async function fileToBase64(file) { if(file.size>10*1024*1024)throw new Error('ملف Excel يتجاوز 10MB');const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192));return btoa(binary); }
 async function importQualityRows(kind) { const file = $(kind + 'Import').files[0]; if (!file) throw new Error('اختر ملف Excel أو CSV أولاً'); if(/\.xlsx$/i.test(file.name)){const endpoint=kind==='equipment'?'/api/equipment/import':'/api/import/xlsx';const payload={file_name:file.name,file_base64:await fileToBase64(file)};if(kind!=='equipment')payload.entity_type=kind;const result=await api(endpoint,{method:'POST',body:JSON.stringify(payload)});await refresh();if(kind==='equipment')showToast('تم استيراد '+result.total+' جهاز: '+result.inserted+' جديد و'+result.updated+' محدّث');else showToast('تم التعرف على ورقة «'+result.sheet+'» واستيراد '+result.imported+' سجل'+(result.skipped.length?'، وتجاوز '+result.skipped.length+' صف':''));return;}const rows = parseCsv(await file.text()); if (!rows.length) throw new Error('الملف لا يحتوي على صفوف بيانات'); const mappings = {equipment:{'اسم الجهاز':'name','الرقم التسلسلي':'serial_no','الشركة المصنعة':'manufacturer','الموديل':'model','آخر معايرة':'last_calibration','المعايرة القادمة':'next_calibration','رقم الشهادة':'certificate_no','ملاحظات':'notes'},proficiency:{'اسم الاختبار':'test_name','المادة':'material','المعيار':'standard','مقدم الخدمة':'provider','تاريخ المشاركة':'participation_date','النتيجة':'result','Z-score':'z_score','مرجع التقرير':'report_ref','ملاحظات':'notes'},staff:{'الاسم الكامل':'full_name','المسمى الوظيفي':'job_title','التخصص':'specialty','سنوات الخبرة':'experience_years','مرجع المؤهل':'qualification_ref','مرجع السيرة الذاتية':'cv_ref','ملاحظات':'notes'}}; const endpoint = {equipment:'/api/equipment',proficiency:'/api/quality/proficiency',staff:'/api/quality/staff'}[kind]; let completed = 0; for (const row of rows) { const payload = {}; Object.keys(mappings[kind]).forEach(function(header) { payload[mappings[kind][header]] = row[header] || row[translateUI(header)] || row[mappings[kind][header]] || ''; }); if(!payload.name&&kind==='equipment')continue;await api(endpoint,{method:'POST',body:JSON.stringify(payload)}); completed += 1; } await refresh(); showToast('تم استيراد ' + completed + ' سجل بنجاح'); }
@@ -1710,7 +1710,7 @@ function openUserForm(user) {
   const value = user || {};
   const phoneParts = splitInternationalPhone(value.phone || '');
   const countries = COUNTRY_CODES.map(function(item){return '<option value="'+item.code+'"'+(item.code===phoneParts.code?' selected':'')+'>'+item.name+' '+item.code+'</option>';}).join('');
-  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><p>تعديل بيانات الحساب وكلمة المرور والصورة ورقم الجوال.</p><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><input type="hidden" name="avatar_data_url" value="' + esc(value.avatar_data_url || '') + '"><div class="user-photo-editor"><img id="userAvatarPreview" src="' + esc(value.avatar_data_url || 'logo.png') + '" alt="معاينة صورة المستخدم"><div><strong>صورة المستخدم</strong><small>JPG أو PNG — تُضغط تلقائيًا</small><button id="chooseUserAvatar" class="btn secondary" type="button">اختيار صورة</button><input id="userAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال<div class="phone-composer"><select name="country_code" dir="ltr">'+countries+'</select><input name="local_phone" dir="ltr" inputmode="numeric" autocomplete="tel-national" placeholder="5XXXXXXXX" value="'+esc(phoneParts.local)+'"></div></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور الجديدة ' + (user ? '(اختياري)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label><label>تأكيد كلمة المرور<input name="password_confirm" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">أدخل الرقم المحلي فقط بعد اختيار مفتاح الدولة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button id="saveUserButton" class="btn primary" type="button">حفظ ومزامنة المستخدم</button></div></form>');
+  modal('<h2>' + (user ? 'تعديل مستخدم' : 'مستخدم جديد') + '</h2><p>تعديل بيانات الحساب وكلمة المرور والصورة ورقم الجوال.</p><form id="userForm" novalidate><input type="hidden" name="id" value="' + esc(value.id || '') + '"><input type="hidden" name="avatar_data_url" value="' + esc(value.avatar_data_url || '') + '"><div class="user-photo-editor"><img id="userAvatarPreview" src="' + esc(value.avatar_data_url || 'techno-logo.svg') + '" alt="معاينة صورة المستخدم"><div><strong>صورة المستخدم</strong><small>JPG أو PNG — تُضغط تلقائيًا</small><button id="chooseUserAvatar" class="btn secondary" type="button">اختيار صورة</button><input id="userAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><div class="modal-grid"><label>اسم المستخدم<input name="username" required autocomplete="username" ' + (user ? 'readonly' : '') + ' value="' + esc(value.username || '') + '"></label><label>الاسم الكامل<input name="full_name" required value="' + esc(value.full_name || '') + '"></label><label>رقم الجوال<div class="phone-composer"><select name="country_code" dir="ltr">'+countries+'</select><input name="local_phone" dir="ltr" inputmode="numeric" autocomplete="tel-national" placeholder="5XXXXXXXX" value="'+esc(phoneParts.local)+'"></div></label><label>الدور<select name="role">' + optionList(Object.keys(ROLE_NAMES),value.role || 'technician',function(item){return ROLE_NAMES[item];},function(item){return item;}) + '</select></label><label>كلمة المرور الجديدة ' + (user ? '(اختياري)' : '') + '<input name="password" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label><label>تأكيد كلمة المرور<input name="password_confirm" type="password" autocomplete="new-password" ' + (user ? '' : 'required') + ' minlength="12"></label>' + (user ? '<label><input name="active" type="checkbox" ' + (value.active ? 'checked' : '') + '> الحساب نشط</label>' : '') + '</div><p id="userFormMessage" class="form-message" aria-live="polite">أدخل الرقم المحلي فقط بعد اختيار مفتاح الدولة.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button id="saveUserButton" class="btn primary" type="button">حفظ ومزامنة المستخدم</button></div></form>');
   const form = $('userForm');
   form.elements.password.removeAttribute('minlength');
   form.elements.password_confirm.removeAttribute('minlength');
@@ -1770,10 +1770,10 @@ async function submitSimple(form, path) {
   showToast(path === '/api/samples' ? 'تم حفظ العينة وإنشاء ' + (result.planned_count || 0) + ' اختباراً رسمياً تلقائياً' : 'تم الحفظ والمزامنة');
 }
 function openChangePassword() { modal('<h2>تغيير كلمة المرور</h2><p>هذا التغيير يخص حسابك المسجّل فقط.</p><form id="changePasswordForm"><div class="modal-grid"><label>كلمة المرور الحالية<input name="current_password" type="password" autocomplete="current-password" required></label><label>كلمة المرور الجديدة<input name="new_password" type="password" autocomplete="new-password" required></label><label>تأكيد كلمة المرور الجديدة<input name="confirm_password" type="password" autocomplete="new-password" required></label></div><p class="form-note">اكتب كلمة المرور التي تريدها دون حد أدنى للحروف.</p><div class="modal-actions"><button class="btn secondary" type="button" data-modal-close>إلغاء</button><button class="btn primary">تغيير كلمة المرور</button></div></form>'); }
-function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك تعديل الاسم والصورة وكلمة المرور. اسم المستخدم ثابت: <strong>@'+esc(currentUser.username)+'</strong></p><form id="myProfileForm"><input type="hidden" name="avatar_data_url" value="'+esc(currentUser.avatar_data_url||'')+'"><div class="user-photo-editor"><img id="profileAvatarPreview" src="'+esc(currentUser.avatar_data_url||'logo.png')+'" alt="صورة المستخدم"><div><strong>@'+esc(currentUser.username)+'</strong><small>اسم المستخدم</small><button id="chooseProfileAvatar" class="btn secondary" type="button">تغيير الصورة</button><input id="profileAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><label>الاسم الكامل<input name="full_name" required value="'+esc(currentUser.full_name)+'"></label><div class="modal-actions"><button class="btn secondary" type="button" id="profilePasswordButton">تغيير كلمة المرور</button><button class="btn primary" type="submit">حفظ الملف الشخصي</button></div></form>');const form=$('myProfileForm');$('chooseProfileAvatar').addEventListener('click',function(){$('profileAvatarInput').click();});$('profileAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('profileAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});$('profilePasswordButton').addEventListener('click',openChangePassword); }
+function openMyProfile() { modal('<h2>ملفي الشخصي</h2><p>يمكنك تعديل الاسم والصورة وكلمة المرور. اسم المستخدم ثابت: <strong>@'+esc(currentUser.username)+'</strong></p><form id="myProfileForm"><input type="hidden" name="avatar_data_url" value="'+esc(currentUser.avatar_data_url||'')+'"><div class="user-photo-editor"><img id="profileAvatarPreview" src="'+esc(currentUser.avatar_data_url||'techno-logo.svg')+'" alt="صورة المستخدم"><div><strong>@'+esc(currentUser.username)+'</strong><small>اسم المستخدم</small><button id="chooseProfileAvatar" class="btn secondary" type="button">تغيير الصورة</button><input id="profileAvatarInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp"></div></div><label>الاسم الكامل<input name="full_name" required value="'+esc(currentUser.full_name)+'"></label><div class="modal-actions"><button class="btn secondary" type="button" id="profilePasswordButton">تغيير كلمة المرور</button><button class="btn primary" type="submit">حفظ الملف الشخصي</button></div></form>');const form=$('myProfileForm');$('chooseProfileAvatar').addEventListener('click',function(){$('profileAvatarInput').click();});$('profileAvatarInput').addEventListener('change',async function(){if(!this.files[0])return;try{const avatar=await resizeAvatar(this.files[0]);form.elements.avatar_data_url.value=avatar;$('profileAvatarPreview').src=avatar;}catch(error){showToast(error.message,true);}});$('profilePasswordButton').addEventListener('click',openChangePassword); }
 async function submitMyProfile(form) { const payload={full_name:form.elements.full_name.value.trim(),avatar_data_url:form.elements.avatar_data_url.value};if(!payload.full_name)throw new Error('الاسم الكامل مطلوب');let result;try{result=await api('/api/profile/update',{method:'POST',body:JSON.stringify(payload)});}catch(error){if(error.message!=='مسار غير معروف'||!currentUser||['admin','general_manager','manager'].indexOf(currentUser.role)<0)throw error;const users=await api('/api/users');const account=users.find(function(item){return item.username===currentUser.username;});if(!account)throw error;await api('/api/users/update',{method:'POST',body:JSON.stringify({id:account.id,full_name:payload.full_name,role:account.role,phone:account.phone||'',avatar_data_url:payload.avatar_data_url,active:Boolean(account.active),password:''})});result={user:payload};}applyCurrentUserIdentity(result.user||payload);closeModal();await refresh();showToast('تم تحديث الاسم والصورة بنجاح');}
 async function submitChangePassword(form) { const data={};new FormData(form).forEach(function(value,key){data[key]=value;});await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(data)});closeModal();showToast('تم تغيير كلمة المرور لحسابك'); }
-async function loadSystemSettings() { if(!currentUser||['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)<0)return;try{const settings=await api('/api/settings');const form=$('systemSettingsForm');Object.keys(settings).forEach(function(key){const field=form.elements[key];if(!field)return;if(field.type==='checkbox')field.checked=settings[key]==='true';else field.value=settings[key];});if(form.elements.default_language){form.elements.default_language.value=localStorage.getItem('asas_lims_language')||settings.default_language||'ar';}}catch(error){setText($('settingsMessage'),error.message);} }
+async function loadSystemSettings() { if(!currentUser||['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)<0)return;try{const settings=await api('/api/settings');const form=$('systemSettingsForm');Object.keys(settings).forEach(function(key){const field=form.elements[key];if(!field)return;if(field.type==='checkbox')field.checked=settings[key]==='true';else field.value=settings[key];});if(form.elements.default_language){form.elements.default_language.value=localStorage.getItem('techno_lims_language')||settings.default_language||'ar';}}catch(error){setText($('settingsMessage'),error.message);} }
 function validChannelUrl(value, channel) { try { const url=new URL(String(value||'').trim());if(url.protocol!=='https:')return '';const host=url.hostname.toLowerCase().replace(/^www\./,'');const allowed=channel==='whatsapp'?['chat.whatsapp.com','wa.me','whatsapp.com']:['t.me','telegram.me'];return allowed.some(function(domain){return host===domain||host.endsWith('.'+domain);})?url.href:'';}catch(error){return '';} }
 function applyChannelLink(channel,value) { const link=$(channel+'ChannelLink');const status=$(channel+'ChannelStatus');if(!link||!status)return;const href=validChannelUrl(value,channel);if(href){link.href=href;link.classList.remove('disabled');link.setAttribute('aria-disabled','false');setText(status,'متصل وجاهز للفتح');}else{link.removeAttribute('href');link.classList.add('disabled');link.setAttribute('aria-disabled','true');setText(status,'أضف رابطًا صحيحًا من إعدادات النظام');} }
 async function loadCommunicationLinks() { let settings={};try{settings=await api('/api/communication-links');}catch(error){try{if(currentUser&&['admin','general_manager','technical_manager','laboratory_manager','quality_manager','manager'].indexOf(currentUser.role)>=0)settings=await api('/api/settings');}catch(ignore){settings={};}}applyChannelLink('whatsapp',settings.whatsapp_group_url||OFFICIAL_WHATSAPP_URL);applyChannelLink('telegram',settings.telegram_url||OFFICIAL_TELEGRAM_URL); }
@@ -1796,7 +1796,7 @@ async function submitQualityRecord(form,path,files) { const data={}; new FormDat
 const BULK_FIELDS = {clients:['الاسم','الهاتف','البريد'],projects:['اسم المشروع','العميل','الموقع','الأولوية','البداية','الاستحقاق','التقدم','الوصف'],work_orders:['أمر العمل','معرف المشروع','الأولوية','الموعد','الاستحقاق','الوصف'],samples:['المادة','معرف المشروع','المصدر','تاريخ الاستلام','ملاحظات']};
 const ENTITY_LABELS = {client:'عميل',project:'مشروع',work_order:'أمر عمل',sample:'عينة',test:'اختبار',report:'تقرير',equipment:'جهاز',user:'مستخدم'};
 function csvRows(text) { const rows=[], row=[]; let cell='', quoted=false; for(let i=0;i<text.length;i++){const c=text[i]; if(c==='"'){if(quoted && text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;} else if(c===','&&!quoted){row.push(cell.trim());cell='';} else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(Boolean))rows.push(row.splice(0));cell='';} else cell+=c;} row.push(cell.trim());if(row.some(Boolean))rows.push(row); return rows; }
-function downloadBulkTemplate(type) { const line=BULK_FIELDS[type].map(x=>uiLanguage==='en'?translateUI(x):x).join(',')+'\n'; const blob=new Blob(['\ufeff'+line],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='asas-'+type+'-template.csv';a.click();URL.revokeObjectURL(a.href); }
+function downloadBulkTemplate(type) { const line=BULK_FIELDS[type].map(x=>uiLanguage==='en'?translateUI(x):x).join(',')+'\n'; const blob=new Blob(['\ufeff'+line],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='techno-'+type+'-template.csv';a.click();URL.revokeObjectURL(a.href); }
 function entityRows(entity) { const mapping={client:'clients',project:'projects',work_order:'work_orders',sample:'samples',test:'tests',report:'reports',equipment:'equipment',user:'users'}; return (dashboard[mapping[entity]]||[]).map(function(item){ return {id:item.id,label:item.name||item.code||item.order_no||item.sample_no||item.test_no||item.report_no||item.full_name||item.username||('سجل '+item.id)}; }); }
 function openAttachmentPanel(entity) {
   const rows=entityRows(entity);
@@ -1978,7 +1978,7 @@ async function fetchAuthenticatedAttachment(item){
 function downloadAttachmentBlob(item,blob,objectUrl){
   const link=document.createElement('a');
   link.href=objectUrl;
-  link.download=item.original_name||'ASAS-file';
+  link.download=item.original_name||'TECHNO-file';
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -2019,7 +2019,7 @@ async function spreadsheetPreviewHtml(blob,name){
 function contentEditingAllowed(kind,name){return kind==='excel'||kind==='text';}
 
 async function openAttachmentContentEditor(item,blob){
-  const kind=attachmentViewerKind(item.original_name),name=item.original_name||'ASAS-file';
+  const kind=attachmentViewerKind(item.original_name),name=item.original_name||'TECHNO-file';
   if(!contentEditingAllowed(kind,name))throw new Error('هذه الصيغة تتطلب استبدال الملف بنسخة معدلة للحفاظ على تنسيقه');
   let editor='',workbook=null,sheetName='';
   if(kind==='excel'){
@@ -2032,7 +2032,7 @@ async function openAttachmentContentEditor(item,blob){
   }else{
     editor='<div class="file-content-editor"><textarea id="editableTextFile" class="attachment-text-editor" spellcheck="false">'+esc(await blob.text())+'</textarea></div>';
   }
-  modal('<section class="attachment-viewer file-editor-view"><header class="attachment-viewer-head"><div><span class="section-kicker">ASAS File Editor</span><h2>'+esc(name)+'</h2><p>سيحفظ التعديل كإصدار جديد ويحتفظ النظام بالأصل.</p></div><div class="attachment-viewer-actions"><button class="btn primary" id="saveFileContentEdit" type="button">حفظ كإصدار جديد</button><button class="btn secondary" type="button" data-modal-close>إلغاء</button></div></header>'+editor+'</section>');
+  modal('<section class="attachment-viewer file-editor-view"><header class="attachment-viewer-head"><div><span class="section-kicker">TECHNO File Editor</span><h2>'+esc(name)+'</h2><p>سيحفظ التعديل كإصدار جديد ويحتفظ النظام بالأصل.</p></div><div class="attachment-viewer-actions"><button class="btn primary" id="saveFileContentEdit" type="button">حفظ كإصدار جديد</button><button class="btn secondary" type="button" data-modal-close>إلغاء</button></div></header>'+editor+'</section>');
   $('saveFileContentEdit').addEventListener('click',async function(){
     const button=this;button.disabled=true;setText(button,'جارٍ الحفظ والمزامنة…');
     try{
@@ -2668,7 +2668,7 @@ async function runDeviceAcceptance() {
     const stamp=new Date().toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'});
     setText($('deviceAcceptanceStamp'),overall?'معتمد على هذا الجهاز · '+stamp:'الفحص يحتاج معالجة · '+stamp);
     if(overall) {
-      localStorage.setItem('asas_device_acceptance',JSON.stringify({passed:true,at:new Date().toISOString(),version:health&&health.version||''}));
+      localStorage.setItem('techno_device_acceptance',JSON.stringify({passed:true,at:new Date().toISOString(),version:health&&health.version||''}));
       showToast('نجح الاعتماد النهائي لهذا الجهاز والخادم');
     } else {
       showToast('ظهر بند واحد أو أكثر يحتاج معالجة قبل الاعتماد النهائي',true);
@@ -2748,7 +2748,7 @@ function toggleProfileMenu() {
 }
 
 function toggleProfileLanguage() {
-  const current=localStorage.getItem('asas_lims_language')||'ar';
+  const current=localStorage.getItem('techno_lims_language')||'ar';
   const next=current==='ar'?'en':'ar';
   setLanguage(next);
   showToast(next==='en'?'Language changed to English':'تم تغيير اللغة إلى العربية');
@@ -2993,8 +2993,8 @@ function init() {
   document.querySelectorAll('.page table').forEach(function(table){table.classList.add('engineering-table');});
   installSmartImportButtons();
   const languageToggle = $('languageToggle');
-  if (languageToggle) { languageToggle.value = localStorage.getItem('asas_lims_language') || 'ar'; languageToggle.addEventListener('change', function(){ setLanguage(languageToggle.value); }); setLanguage(languageToggle.value); }
-  else setLanguage(localStorage.getItem('asas_lims_language') || 'ar');
+  if (languageToggle) { languageToggle.value = localStorage.getItem('techno_lims_language') || 'ar'; languageToggle.addEventListener('change', function(){ setLanguage(languageToggle.value); }); setLanguage(languageToggle.value); }
+  else setLanguage(localStorage.getItem('techno_lims_language') || 'ar');
   const settingsLanguage = $('systemSettingsForm') && $('systemSettingsForm').elements.default_language;
   if (settingsLanguage) settingsLanguage.addEventListener('change',function(){ setLanguage(settingsLanguage.value); });
   updateSaudiClock(); setInterval(updateSaudiClock,1000);
