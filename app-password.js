@@ -819,7 +819,7 @@ function startLiveUpdates() {
   stopLiveUpdates();
   if (STATIC_MODE) return;
   if ('BroadcastChannel' in window) {
-    userUpdatesChannel = new BroadcastChannel('asas-lims-central-updates');
+    userUpdatesChannel = new BroadcastChannel('techno-lims-central-updates');
     userUpdatesChannel.onmessage = function() {
       if (currentUser) refresh().catch(function() {});
     };
@@ -1810,7 +1810,7 @@ async function resetOperationalData(){
   if(!window.confirm('سيتم إنشاء نسخة احتياطية ثم حذف جميع بيانات التشغيل وبقية المستخدمين نهائيًا، مع الإبقاء فقط على حساب المدير الحالي. هل تريد المتابعة؟'))return;
   const phrase=window.prompt('للتأكيد النهائي اكتب: تصفير نظام تيكنو');
   if(phrase!=='تصفير نظام تيكنو'){showToast('تم إلغاء التصفير؛ عبارة التأكيد غير مطابقة',true);return;}
-  const result=await api('/api/system/reset-operational',{method:'POST',body:JSON.stringify({confirmation:'RESET-ASAS-OPERATIONAL'})});
+  const result=await api('/api/system/reset-operational',{method:'POST',body:JSON.stringify({confirmation:'RESET-TECHNO-OPERATIONAL'})});
   await refresh(); showToast('تم تصفير بيانات التشغيل. النسخة الاحتياطية: '+result.backup);
 }
 async function uploadQualityFile(file) { if (!file) return ''; if (file.size > 100 * 1024 * 1024) throw new Error('حجم الملف يتجاوز 100MB'); const bytes = new Uint8Array(await file.arrayBuffer()); let binary = ''; for (let offset=0; offset<bytes.length; offset+=8192) binary += String.fromCharCode.apply(null,bytes.subarray(offset,offset+8192)); const result = await api('/api/quality/files',{method:'POST',body:JSON.stringify({file_name:file.name,file_base64:btoa(binary)})}); return result.ref; }
