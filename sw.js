@@ -1,5 +1,5 @@
 'use strict';
-const CACHE_NAME = 'techno-lims-pwa-10-9-0-system-review';
+const CACHE_NAME = 'techno-lims-pwa-v10-9-0-system-review';
 const APP_SHELL = [
   './','./index.html','./style.css?v=10-9-0-system-review','./app-password.js?v=10-9-0-system-review',
   './quality-management.js?v=10-9-0-system-review','./branch-map.js?v=10-9-0-system-review','./i18n.js?v=10-9-0-system-review',
