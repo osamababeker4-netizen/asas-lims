@@ -9,15 +9,15 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
-  <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <link rel="stylesheet" href="style.css?v=10-8-1-internal-file-editing-release">
+  <title>TECHNO LIMS | إدارة المختبر والمشاريع</title>
+  <link rel="stylesheet" href="style.css?v=10-8-2-techno-attendance-release">
 </head>
 <body>
   <section id="login" class="login-screen">
     <div class="login-card">
-      <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-      <span class="login-edition">ASAS LIMS · V10.8.1 Internal File Editing Release</span>
-      <h1>تسجيل دخول النظام</h1>
+      <img src="logo.png" class="login-logo" alt="شعار شركة تيكنو سويل لاب">
+      <span class="login-edition">ASAS LIMS · V10.8.2 Team Attendance Release</span>
+      <h1>تسجيل الدخول</h1>
       <form id="loginForm" class="form-stack">
         <label>رقم الجوال<input id="loginUsername" name="username" autocomplete="username tel" inputmode="tel" required placeholder="+9665XXXXXXXX"></label>
         <label>كلمة المرور<input id="loginPassword" name="password" autocomplete="current-password" type="password" required placeholder="كلمة المرور"></label>
@@ -40,16 +40,17 @@
   <div id="app" class="app-shell hidden">
     <aside id="sidebar" class="sidebar">
       <div class="brand">
-        <img src="logo.png" alt="شعار شركة مختبر أساس">
-        <strong>مختبر أساس</strong>
+        <img src="logo.png" alt="شعار شركة تيكنو سويل لاب">
+        <strong>تيكنو سويل لاب</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.8.1 · Internal File Editing Release</small>
+        <small class="release-chip">V10.8.2 · Team Attendance Release</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
         <button class="nav-link" data-page="projects">إدارة المشاريع</button>
         <button class="nav-link" data-page="workOrders">أوامر العمل</button>
         <button class="nav-link" data-page="field">البرنامج الميداني</button>
+        <button class="nav-link" data-page="attendance" id="attendanceNav">الحضور والتتبع</button>
         <button class="nav-link" data-page="clients">العملاء</button>
         <button class="nav-link" data-page="samples">العينات</button>
         <button class="nav-link" data-page="tests">الاختبارات</button>
@@ -57,7 +58,7 @@
         <button class="nav-link" data-page="reports">التقارير</button>
         <button class="nav-link" data-page="communications">قنوات التواصل</button>
         <button class="nav-link" data-page="quality" id="qualityNav">الجودة والوثائق</button>
-        <button class="nav-link" data-page="company">عن مختبر أساس</button>
+        <button class="nav-link" data-page="company">عن تيكنو سويل لاب</button>
         <button class="nav-link" data-page="audit">سجل التدقيق</button>
         <button class="nav-link" data-page="trash" id="trashNav">سلة المحذوفات</button>
         <button class="nav-link" data-page="users" id="usersNav">المستخدمون والصلاحيات</button>
@@ -70,13 +71,13 @@
     </aside>
 
     <main class="main-content">
-      <header class="official-header" aria-label="هوية مختبر أساس">
-        <a class="official-brand" href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">
-          <img src="logo.png" alt="شركة مختبر أساس للاستشارات الفنية والمختبرات الهندسية">
-          <span><strong>مختبر أساس</strong><small>بيانات هندسية دقيقة لكل مرحلة من مشروعك</small></span>
+      <header class="official-header" aria-label="هوية تيكنو سويل لاب">
+        <a class="official-brand" href="https://techno-soil-lab.com/" target="_blank" rel="noopener noreferrer">
+          <img src="logo.png" alt="شركة تيكنو سويل لاب للاختبارات والتربة والتحليل الفيزيائي">
+          <span><strong>تيكنو سويل لاب</strong><small>بيانات هندسية دقيقة لكل مرحلة من مشروعك</small></span>
         </a>
         <nav class="official-links" aria-label="روابط أساس الرسمية">
-          <a href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">الموقع الرسمي</a>
+          <a href="https://techno-soil-lab.com/" target="_blank" rel="noopener noreferrer">الموقع الرسمي</a>
           <button class="text-btn" type="button" data-page-go="company">عن الشركة</button>
           <button class="text-btn" type="button" data-page-go="projects">المشاريع</button>
         </nav>
@@ -119,7 +120,7 @@
         <article class="dashboard-brand-hero dashboard-logo-only">
           <picture class="dashboard-brand-lockup">
             <source media="(max-width:620px)" srcset="asas-home-banner-mobile.png">
-            <img src="asas-home-banner.png" class="dashboard-brand-logo dashboard-home-banner" alt="بانر شركة مختبر أساس">
+            <img src="asas-home-banner.png" class="dashboard-brand-logo dashboard-home-banner" alt="بانر شركة تيكنو سويل لاب">
           </picture>
         </article>
         <div class="page-heading">
@@ -269,6 +270,37 @@
           <div id="fieldGuideFilters" class="field-guide-filters" aria-label="تصنيف الاختبارات"></div>
           <div id="fieldGuideGrid" class="field-guide-grid"></div>
         </aside>
+        </div>
+      </section>
+
+      <section id="attendance" class="page">
+        <div class="page-heading">
+          <div><h2>الحضور والانصراف وتتبع الفريق</h2><p>تسجيل الحضور والانصراف بالموقع الجغرافي، ومتابعة آخر موقع مسجل لأفراد المختبر داخل النظام.</p></div>
+          <div class="heading-actions"><label class="attendance-date-label">التاريخ<input id="attendanceDate" type="date"></label><button id="attendanceRefresh" class="btn secondary" type="button">تحديث</button></div>
+        </div>
+        <div class="attendance-grid">
+          <article class="panel attendance-self-card">
+            <div class="panel-heading"><div><span class="section-kicker">My Attendance</span><h3>سجل حضوري</h3></div><span id="attendanceStatus" class="status">غير مسجل</span></div>
+            <div class="attendance-kpis">
+              <div><span>الحضور</span><strong id="attendanceCheckInTime">—</strong></div>
+              <div><span>الانصراف</span><strong id="attendanceCheckOutTime">—</strong></div>
+              <div><span>آخر تحديث للموقع</span><strong id="attendanceLastLocationAt">—</strong></div>
+              <div><span>دقة GPS</span><strong id="attendanceAccuracy">—</strong></div>
+            </div>
+            <label>ملاحظة<input id="attendanceNote" maxlength="500" placeholder="موقع العمل أو ملاحظة مختصرة"></label>
+            <div class="attendance-actions">
+              <button id="attendanceCheckIn" class="btn primary" type="button">تسجيل الحضور</button>
+              <button id="attendanceUpdateLocation" class="btn secondary" type="button">تحديث موقعي</button>
+              <button id="attendanceCheckOut" class="btn danger" type="button">تسجيل الانصراف</button>
+            </div>
+            <div id="attendanceLocationCard" class="attendance-location-card"><span>لم يتم تسجيل موقع بعد.</span></div>
+            <p class="form-note">يُطلب إذن الموقع من الجهاز عند تنفيذ الإجراء. التتبع داخل النظام يعتمد على آخر موقع يرسله المستخدم أثناء تسجيل الدوام، ويمكن للإدارة تطبيق نطاق جغرافي من الإعدادات.</p>
+            <div id="attendanceEvents" class="attendance-event-list"></div>
+          </article>
+          <article id="attendanceManagerPanel" class="panel attendance-manager-panel hidden">
+            <div class="panel-heading"><div><span class="section-kicker">Team Tracking</span><h3>أفراد المختبر</h3><p class="muted">حالة الدوام وآخر موقع مسجل لكل مستخدم نشط.</p></div><span id="attendanceTeamCount" class="pill">0</span></div>
+            <div class="table-panel"><table class="engineering-table"><thead><tr><th>الموظف</th><th>الدور</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>آخر موقع</th><th>الخريطة</th></tr></thead><tbody id="attendanceTeamTable"></tbody></table></div>
+          </article>
         </div>
       </section>
 
@@ -434,19 +466,19 @@
 
       <section id="company" class="page">
         <div class="page-heading company-heading">
-          <div><h2>مختبر أساس للاستشارات الفنية والمختبرات الهندسية</h2><p>نبذة رسمية عن خدمات المختبر وفروعه ووسائل التواصل.</p></div>
-          <a class="btn primary" href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">زيارة الموقع الرسمي</a>
+          <div><h2>تيكنو سويل لاب للاستشارات الفنية والمختبرات الهندسية</h2><p>نبذة رسمية عن خدمات المختبر وفروعه ووسائل التواصل.</p></div>
+          <a class="btn primary" href="https://techno-soil-lab.com/" target="_blank" rel="noopener noreferrer">زيارة الموقع الرسمي</a>
         </div>
         <article class="panel company-intro">
-          <span class="section-kicker">من موقع أساس الرسمي</span>
+          <span class="section-kicker">من موقع تيكنو الرسمي</span>
           <h3>شريكك الاستراتيجي في كل اختبارات مشروعك</h3>
           <p>مختبر هندسي سعودي متخصص في الجسات والدراسات الجيوتقنية واختبارات مواد البناء، يدعم القرار الهندسي بنتائج دقيقة وتقارير فنية موثوقة.</p>
         </article>
-        <div class="company-facts" aria-label="حقائق مختبر أساس"><article><strong>15+</strong><span>سنة من الخبرة في الاختبارات والاستشارات</span></article><article><strong>5</strong><span>فروع تغطي مناطق المملكة</span></article><article><strong>7</strong><span>مجالات اختبار هندسية رئيسية</span></article></div>
-        <article class="panel company-accreditation"><span class="section-kicker">الاعتماد</span><h3>مختبر أساس معتمد من المركز السعودي للاعتماد SAAC</h3><p>وفق معيار ISO/IEC 17025:2017، كما ورد في الملف التعريفي للشركة لعام 2026. يشمل مجال العمل اختبارات التربة ومواد البناء وخدمات مراقبة الجودة.</p><a class="btn secondary" href="company-profile.pdf" target="_blank" rel="noopener">فتح الملف التعريفي للشركة PDF</a></article>
+        <div class="company-facts" aria-label="حقائق تيكنو سويل لاب"><article><strong>15+</strong><span>سنة من الخبرة في الاختبارات والاستشارات</span></article><article><strong>5</strong><span>مدن رئيسية تغطيها الفرق الميدانية</span></article><article><strong>7</strong><span>مجالات اختبار هندسية رئيسية</span></article></div>
+        <article class="panel company-accreditation"><span class="section-kicker">الاعتماد</span><h3>تيكنو سويل لاب معتمد من المركز السعودي للاعتماد SAAC</h3><p>وفق معيار ISO/IEC 17025:2017، كما ورد في الملف التعريفي للشركة لعام 2026. يشمل مجال العمل اختبارات التربة ومواد البناء وخدمات مراقبة الجودة.</p><a class="btn secondary" href="company-profile.pdf" target="_blank" rel="noopener">فتح الملف التعريفي للشركة PDF</a></article>
         <section class="panel company-certificates" aria-labelledby="certificatesTitle"><h3 id="certificatesTitle" data-en="Accreditations and certificates">الاعتمادات والشهادات</h3><p data-en="Documents reproduced from the company profile dated 8 September 2026. Refer to each original for its scope, conditions and validity dates.">وثائق من الملف التعريفي للشركة بتاريخ 8 سبتمبر 2026. يُرجع إلى كل وثيقة أصلية لمعرفة نطاقها وشروطها وتواريخ صلاحيتها.</p><div class="certificate-grid"><a class="certificate-card" href="company-profile.pdf#page=15" target="_blank" rel="noopener"><strong>ISO/IEC 17025:2017 — SAAC</strong><span data-en="Laboratory accreditation and testing scope">اعتماد المختبر ونطاق الاختبارات</span><small data-en="View document · page 15">عرض الوثيقة · صفحة 15</small></a><a class="certificate-card" href="company-profile.pdf#page=27" target="_blank" rel="noopener"><strong>ISO 9001:2015</strong><span data-en="Quality management system">نظام إدارة الجودة</span><small data-en="View document · page 27">عرض الوثيقة · صفحة 27</small></a><a class="certificate-card" href="company-profile.pdf#page=26" target="_blank" rel="noopener"><strong>ISO 14001:2015</strong><span data-en="Environmental management system">نظام الإدارة البيئية</span><small data-en="View document · page 26">عرض الوثيقة · صفحة 26</small></a><a class="certificate-card" href="company-profile.pdf#page=29" target="_blank" rel="noopener"><strong>NRRC</strong><span data-en="Radiation source operating licences — Makkah and Madinah">تراخيص تشغيل المصادر الإشعاعية — مكة والمدينة</span><small data-en="View document · page 29">عرض الوثيقة · صفحة 29</small></a><a class="certificate-card" href="company-profile.pdf#page=28" target="_blank" rel="noopener"><strong>RSO</strong><span data-en="Radiation Safety Officer certificate">شهادة مسؤول الحماية من الإشعاع</span><small data-en="View document · page 28">عرض الوثيقة · صفحة 28</small></a><a class="certificate-card" href="company-profile.pdf#page=22" target="_blank" rel="noopener"><strong>MODON</strong><span data-en="MODON approval">اعتماد هيئة مدن</span><small data-en="View document · page 22">عرض الوثيقة · صفحة 22</small></a><a class="certificate-card" href="company-profile.pdf#page=23" target="_blank" rel="noopener"><strong>Municipality</strong><span data-en="Municipality approval certificate">شهادة اعتماد الأمانة</span><small data-en="View document · page 23">عرض الوثيقة · صفحة 23</small></a><a class="certificate-card" href="company-profile.pdf#page=16" target="_blank" rel="noopener"><strong>Registration</strong><span data-en="Branch registrations — Makkah, Madinah, Jeddah and Riyadh">تسجيل الفروع — مكة والمدينة وجدة والرياض</span><small data-en="View document · page 16">عرض الوثيقة · صفحة 16</small></a><a class="certificate-card" href="company-profile.pdf#page=18" target="_blank" rel="noopener"><strong>Saudization</strong><span data-en="Saudization certificate">شهادة التوطين</span><small data-en="View document · page 18">عرض الوثيقة · صفحة 18</small></a><a class="certificate-card" href="company-profile.pdf#page=19" target="_blank" rel="noopener"><strong>Business</strong><span data-en="Business activity licences">تراخيص النشاط التجاري</span><small data-en="View document · page 19">عرض الوثيقة · صفحة 19</small></a><a class="certificate-card" href="company-profile.pdf#page=24" target="_blank" rel="noopener"><strong>Qualification</strong><span data-en="Qualification and geotechnical studies certificates">شهادات التأهيل والدراسات الجيوتقنية</span><small data-en="View document · page 24">عرض الوثيقة · صفحة 24</small></a></div><p data-en="Project qualification letters may include conditions; they do not constitute unconditional approval for every project.">قد تتضمن خطابات التأهيل للمشاريع شروطًا؛ ولا تمثل اعتمادًا غير مشروط لكل مشروع.</p></section><section class="panel company-profile-viewer"><h3 data-en="Full company profile · 66 pages">الملف التعريفي الكامل · 66 صفحة</h3><div class="heading-actions"><a class="btn primary" href="company-profile.pdf" target="_blank" rel="noopener" data-en="Open full profile">فتح البروفايل الكامل</a><a class="btn secondary" href="company-profile.pdf" download="ASAS-Company-Profile-2026.pdf" data-en="Download PDF">تنزيل PDF</a></div><details><summary data-en="Preview profile here">عرض البروفايل داخل النظام</summary><iframe loading="lazy" src="company-profile.pdf#view=FitH" title="ASAS company profile — 66 pages"></iframe></details></section>
         <section class="service-flow" aria-labelledby="serviceFlowTitle">
-          <div class="flow-heading"><span class="section-kicker">تدفق العمل</span><h3 id="serviceFlowTitle">من الدراسة الأولية إلى التقرير المعتمد</h3><p>مسار موحد داخل النظام يعكس طريقة العمل المنشورة لدى أساس ويجعل حالة كل مشروع واضحة للفريق.</p></div>
+          <div class="flow-heading"><span class="section-kicker">تدفق العمل</span><h3 id="serviceFlowTitle">من الدراسة الأولية إلى التقرير المعتمد</h3><p>مسار موحد داخل النظام يعكس طريقة العمل المنشورة لدى تيكنو ويجعل حالة كل مشروع واضحة للفريق.</p></div>
           <ol class="flow-steps">
             <li><span>01</span><strong>تحديد نطاق المشروع</strong><small>إنشاء المشروع وأمر العمل وربط الموقع والخدمة المطلوبة.</small></li>
             <li><span>02</span><strong>جمع العينات ميدانياً</strong><small>توثيق الزيارة والعينة وبيانات الموقع قبل بدء المعالجة.</small></li>
@@ -460,20 +492,20 @@
         </div>
         <div class="company-grid">
           <article class="panel"><h3>الخدمات الهندسية</h3><ul class="company-list"><li>دراسات التربة وفحص التربة قبل البناء — SBC 303 وASTM</li><li>اختبارات الخرسانة الطازجة والمتصلدة — ASTM وSASO 1452</li><li>اختبارات الإسفلت الميدانية والمخبرية — ASTM D6926 وD2172</li><li>اختبارات الركام — ASTM C131 وC136</li><li>اختبارات حديد التسليح والأنكوربولت — ASTM A615 وSASO 2510</li><li>التحاليل الكيميائية للمياه والتربة والركام</li><li>اختبارات البلوك والإنترلوك والبلدورات</li></ul></article>
-          <article class="panel"><h3>فروعنا</h3><ul class="company-list"><li>مكة المكرمة — بطحاء قريش</li><li>جدة — الفروسية</li><li>المدينة المنورة — بلدية العوالي</li><li>الرياض — حي الندوة</li><li>القصيم — الرس</li></ul></article>
-          <article class="panel"><h3>التواصل الرسمي</h3><div class="company-contact"><a href="mailto:info@asaslab.com">info@asaslab.com</a><a href="tel:+966560618527">+966 56 061 8527</a><a href="tel:+966564705513">+966 56 470 5513</a><a href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">www.asaslab.com</a></div></article>
+          <article class="panel"><h3>مناطق الخدمة</h3><ul class="company-list"><li>مكة المكرمة — المقر الرئيسي: الشرائع، حي البيعة</li><li>جدة — فرق ميدانية</li><li>المدينة المنورة — فرق ميدانية</li><li>الرياض — فرق ميدانية</li><li>القصيم — فرق ميدانية</li></ul></article>
+          <article class="panel"><h3>التواصل الرسمي</h3><div class="company-contact"><a href="mailto:info.makkah@techno-soil-lab.com">info.makkah@techno-soil-lab.com</a><a href="tel:+966566655202">+966 56 665 5202</a><a href="https://techno-soil-lab.com/" target="_blank" rel="noopener noreferrer">techno-soil-lab.com</a></div></article>
         </div>
         <section class="panel branch-map" aria-labelledby="branchMapTitle">
-          <div class="panel-heading branch-map-heading"><div><span class="section-kicker">شبكة الفروع</span><h3 id="branchMapTitle">الخريطة التفاعلية لفروع مختبر أساس</h3><p>اختر الفرع لعرض موقعه، أو افتح الاتجاهات مباشرة في خرائط Google.</p></div><a id="branchDirections" class="btn primary" href="https://www.google.com/maps/search/?api=1&query=%D9%85%D8%AE%D8%AA%D8%A8%D8%B1+%D8%A3%D8%B3%D8%A7%D8%B3+%D9%85%D9%83%D8%A9+%D8%A7%D9%84%D9%85%D9%83%D8%B1%D9%85%D8%A9" target="_blank" rel="noopener noreferrer">فتح الاتجاهات</a></div>
+          <div class="panel-heading branch-map-heading"><div><span class="section-kicker">التغطية الميدانية</span><h3 id="branchMapTitle">الخريطة التفاعلية لتغطية تيكنو سويل لاب</h3><p>المقر الرئيسي في مكة المكرمة، مع فرق ميدانية تغطي جدة والمدينة والرياض والقصيم.</p></div><a id="branchDirections" class="btn primary" href="https://www.google.com/maps/search/?api=1&query=TECHNO+Soil+Lab+Makkah" target="_blank" rel="noopener noreferrer">فتح الاتجاهات</a></div>
           <div class="branch-map-layout">
-            <div class="branch-selector" role="list" aria-label="اختيار فرع المختبر">
-              <button class="branch-card active" type="button" data-branch-query="مختبر أساس مكة المكرمة بطحاء قريش" data-branch-label="فرع مكة المكرمة — بطحاء قريش"><strong>مكة المكرمة</strong><span>بطحاء قريش</span></button>
-              <button class="branch-card" type="button" data-branch-query="مختبر أساس جدة الفروسية" data-branch-label="فرع جدة — الفروسية"><strong>جدة</strong><span>الفروسية</span></button>
-              <button class="branch-card" type="button" data-branch-query="مختبر أساس المدينة المنورة العوالي" data-branch-label="فرع المدينة المنورة — العوالي"><strong>المدينة المنورة</strong><span>بلدية العوالي</span></button>
-              <button class="branch-card" type="button" data-branch-query="مختبر أساس الرياض حي الندوة" data-branch-label="فرع الرياض — حي الندوة"><strong>الرياض</strong><span>حي الندوة</span></button>
-              <button class="branch-card" type="button" data-branch-query="مختبر أساس الرس القصيم" data-branch-label="فرع الرس — القصيم"><strong>الرس</strong><span>منطقة القصيم</span></button>
+            <div class="branch-selector" role="list" aria-label="اختيار منطقة الخدمة">
+              <button class="branch-card active" type="button" data-branch-query="TECHNO Soil Lab الشرائع مكة المكرمة" data-branch-label="المقر الرئيسي — مكة المكرمة"><strong>مكة المكرمة</strong><span>الشرائع · المقر الرئيسي</span></button>
+              <button class="branch-card" type="button" data-branch-query="TECHNO Soil Lab جدة" data-branch-label="جدة — فرق ميدانية"><strong>جدة</strong><span>فرق ميدانية</span></button>
+              <button class="branch-card" type="button" data-branch-query="TECHNO Soil Lab المدينة المنورة" data-branch-label="المدينة المنورة — فرق ميدانية"><strong>المدينة المنورة</strong><span>فرق ميدانية</span></button>
+              <button class="branch-card" type="button" data-branch-query="TECHNO Soil Lab الرياض" data-branch-label="الرياض — فرق ميدانية"><strong>الرياض</strong><span>فرق ميدانية</span></button>
+              <button class="branch-card" type="button" data-branch-query="TECHNO Soil Lab القصيم" data-branch-label="القصيم — فرق ميدانية"><strong>القصيم</strong><span>فرق ميدانية</span></button>
             </div>
-            <div class="branch-map-frame"><iframe id="branchMapFrame" title="فرع مكة المكرمة — بطحاء قريش" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen src="https://www.google.com/maps?q=%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%A3%D8%B3%D8%A7%D8%B3%20%D9%85%D9%83%D8%A9%20%D8%A7%D9%84%D9%85%D9%83%D8%B1%D9%85%D8%A9%20%D8%A8%D8%B7%D8%AD%D8%A7%D8%A1%20%D9%82%D8%B1%D9%8A%D8%B4&output=embed"></iframe></div>
+            <div class="branch-map-frame"><iframe id="branchMapFrame" title="المقر الرئيسي — مكة المكرمة" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen src="https://www.google.com/maps?q=TECHNO%20Soil%20Lab%20Makkah&output=embed"></iframe></div>
           </div>
         </section>
         <div class="company-strength-grid">
@@ -525,13 +557,13 @@
 
       <footer class="official-footer">
         <div class="footer-brand">
-          <img src="logo.png" alt="شعار مختبر أساس">
-          <p>مختبر أساس للاستشارات الفنية والمختبرات الهندسية — إدارة تشغيلية آمنة للمشاريع والاختبارات والتقارير.</p>
+          <img src="logo.png" alt="شعار تيكنو سويل لاب">
+          <p>تيكنو سويل لاب للاستشارات الفنية والمختبرات الهندسية — إدارة تشغيلية آمنة للمشاريع والاختبارات والتقارير.</p>
         </div>
         <div><h3>روابط سريعة</h3><button class="footer-link" type="button" data-page-go="dashboard">لوحة القيادة</button><button class="footer-link" type="button" data-page-go="projects">المشاريع</button><button class="footer-link" type="button" data-page-go="catalog">دليل الاختبارات</button></div>
-        <div><h3>فروعنا</h3><p>مكة · جدة · المدينة · الرياض · القصيم</p><a href="https://www.asaslab.com/" target="_blank" rel="noopener noreferrer">asaslab.com</a></div>
-        <div><h3>للتواصل</h3><a href="mailto:info@asaslab.com">info@asaslab.com</a><a href="tel:+966560618527" dir="ltr">+966 56 061 8527</a></div>
-        <p class="footer-legal">© <span id="footerYear"></span> شركة مختبر أساس. جميع الحقوق محفوظة.</p>
+        <div><h3>مناطق الخدمة</h3><p>مكة · جدة · المدينة · الرياض · القصيم</p><a href="https://techno-soil-lab.com/" target="_blank" rel="noopener noreferrer">techno-soil-lab.com</a></div>
+        <div><h3>للتواصل</h3><a href="mailto:info.makkah@techno-soil-lab.com">info.makkah@techno-soil-lab.com</a><a href="tel:+966566655202" dir="ltr">+966 56 665 5202</a></div>
+        <p class="footer-legal">© <span id="footerYear"></span> شركة تيكنو سويل لاب. جميع الحقوق محفوظة.</p>
       </footer>
     </main>
   </div>
@@ -543,18 +575,18 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="runtime-config.js?v=10-8-1-internal-file-editing-release"></script>
-  <script src="i18n.js?v=10-8-1-internal-file-editing-release"></script>
-  <script src="app-password.js?v=10-8-1-internal-file-editing-release"></script>
-  <script src="quality-management.js?v=10-8-1-internal-file-editing-release"></script>
-  <script src="branch-map.js?v=10-8-1-internal-file-editing-release"></script>
+  <script src="runtime-config.js?v=10-8-2-techno-attendance-release"></script>
+  <script src="i18n.js?v=10-8-2-techno-attendance-release"></script>
+  <script src="app-password.js?v=10-8-2-techno-attendance-release"></script>
+  <script src="quality-management.js?v=10-8-2-techno-attendance-release"></script>
+  <script src="branch-map.js?v=10-8-2-techno-attendance-release"></script>
 <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       window.addEventListener('load', function () {
         if ('caches' in window) caches.keys().then(function (keys) {
-          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-8-1-internal-file-editing-release'; }).map(function (key) { return caches.delete(key); }));
+          return Promise.all(keys.filter(function (key) { return key.startsWith('asas-lims-pwa-') && key !== 'asas-lims-pwa-v10-8-2-techno-attendance-release'; }).map(function (key) { return caches.delete(key); }));
         }).catch(function () {});
-        navigator.serviceWorker.register('sw.js?v=10-8-1-internal-file-editing-release', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=10-8-2-techno-attendance-release', {updateViaCache:'none'}).then(function (registration) { return registration.update(); }).catch(function () {});
       });
     }
   </script>
