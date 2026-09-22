@@ -714,7 +714,12 @@ def init():
         )
         print('تم إنشاء حساب admin الأول باستخدام كلمة المرور المحلية التي وفرتها.')
     connection.commit()
-    perform_release_operational_reset(connection)
+    production_reset_requested = (
+        os.environ.get('LIMS_RELEASE_OPERATIONAL_RESET', '').strip() == 'V10.8.5'
+        or DB.startswith('/opt/render/project/src/storage/')
+    )
+    if production_reset_requested:
+        perform_release_operational_reset(connection)
     connection.close()
 
 
