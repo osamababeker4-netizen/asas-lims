@@ -1,14 +1,14 @@
 {
-  "name": "أساس LIMS V10.1 Professional",
-  "short_name": "ASAS LIMS",
-  "description": "منصة احترافية لإدارة المختبر والمشاريع والجودة والملفات والعمليات الميدانية.",
+  "name": "TECHNO Soil Lab LIMS V10.8.2",
+  "short_name": "TECHNO LIMS",
+  "description": "منصة تيكنو سويل لاب لإدارة المختبر والمشاريع والجودة والحضور والعمليات الميدانية.",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "./?release=10-1-0-expanded-field",
+  "start_url": "./?release=10-8-2-techno-attendance",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f6f2",
-  "theme_color": "#123f4a",
+  "theme_color": "#123a63",
   "icons": [
     {
       "src": "logo.png",
