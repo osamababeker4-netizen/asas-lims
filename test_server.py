@@ -503,7 +503,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertNotIn('ASAS OPERATIONS CENTER', html)
         self.assertNotIn('من العينة إلى التقرير — في مسار واحد واضح', html)
         self.assertIn('src="techno-logo.svg" class="login-logo techno-login-logo"', html)
-        self.assertIn('src="techno-logo.svg" class="dashboard-brand-logo techno-dashboard-logo"', html)
+        self.assertGreaterEqual(html.count('src="techno-logo.svg"'), 4)
         self.assertIn('class="techno-login-stage"', html)
         self.assertIn('دقة</strong> في الاختبار', html)
         self.assertIn('ثقة</em> في البناء', html)
@@ -672,7 +672,7 @@ class SchemaMigrationTests(unittest.TestCase):
         worker = threading.Thread(target=httpd.serve_forever)
         worker.start()
         try:
-            for path, marker in (('/sw.js', 'CACHE_NAME'), ('/manifest.webmanifest', 'أساس LIMS'), ('/runtime-config.js', 'LIMS_API_BASE_URL'), ('/field-test-guide.html', 'ASTM D5162')):
+            for path, marker in (('/sw.js', 'CACHE_NAME'), ('/manifest.webmanifest', 'TECHNO LIMS'), ('/runtime-config.js', 'LIMS_API_BASE_URL'), ('/field-test-guide.html', 'ASTM D5162')):
                 client = http.client.HTTPConnection('127.0.0.1', httpd.server_address[1], timeout=5)
                 client.request('GET', path)
                 response = client.getresponse()
@@ -1396,7 +1396,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("APP_VERSION = '10.8.5-techno-desktop-reset-release'", server)
         self.assertIn('v10-8-5-desktop', sw)
         self.assertIn('TECHNO LIMS', html)
-        self.assertIn('V10.8.5 · Desktop Identity', html)
+        self.assertIn('V10.8.5 · Techno Exact UI', html)
         self.assertNotIn('V10.3.0 Decision Intelligence', html)
         self.assertIn('id="decisionIntelligenceCenter"', html)
         self.assertIn('id="refreshDecisionIntelligence"', html)
@@ -1507,7 +1507,7 @@ class SchemaMigrationTests(unittest.TestCase):
         client_id = connection.execute('select last_insert_rowid()').fetchone()[0]
         connection.execute("insert into projects(code,name,client_id) values('RESET-1','مشروع للتصفير',?)", (client_id,))
         admin_id = connection.execute("select id from users order by id limit 1").fetchone()[0]
-        connection.execute("insert into attendance_records(user_id,work_date,status) values(?,?,?)", (admin_id, '2026-09-22', 'حاضر'))
+        connection.execute("insert into attendance_records(user_id,work_date,status) values(?,?,?)", (admin_id, '2026-09-22', 'present'))
         connection.commit()
         result = self.server.perform_release_operational_reset(connection)
         self.assertIsNotNone(result)
@@ -1525,17 +1525,17 @@ class SchemaMigrationTests(unittest.TestCase):
         root = Path(__file__).parent
         html = (root / 'index.html').read_text(encoding='utf-8')
         app = (root / 'app-password.js').read_text(encoding='utf-8')
-        sections = set(re.findall(r'<section\\b[^>]*\\bid=["\']([^"\']+)["\']', html, re.I))
+        sections = set(re.findall(r'<section\b[^>]*\bid=["\']([^"\']+)["\']', html, re.I))
         targets = re.findall(r'data-(?:page|page-go)=["\']([^"\']+)["\']', html, re.I)
         self.assertTrue(targets)
         self.assertEqual(sorted(set(targets) - sections), [])
-        buttons = re.findall(r'<button\\b([^>]*)>', html, re.I)
+        buttons = re.findall(r'<button\b([^>]*)>', html, re.I)
         missing = []
         for attrs in buttons:
             actionable = (
-                re.search(r'\\bid=["\'][^"\']+["\']', attrs) or
-                re.search(r'\\bdata-[\\w-]+(?:=["\'][^"\']*["\'])?', attrs) or
-                re.search(r'\\btype=["\']submit["\']', attrs)
+                re.search(r'\bid=["\'][^"\']+["\']', attrs) or
+                re.search(r'\bdata-[\w-]+(?:=["\'][^"\']*["\'])?', attrs) or
+                re.search(r'\btype=["\']submit["\']', attrs)
             )
             if not actionable:
                 missing.append(attrs.strip())
