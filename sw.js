@@ -1,12 +1,12 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-8-1-internal-file-editing-release';
-const APP_SHELL = ['./','./index.html','./style.css?v=10-8-1-internal-file-editing-release','./app-password.js?v=10-8-1-internal-file-editing-release','./quality-management.js?v=10-8-1-internal-file-editing-release','./branch-map.js?v=10-8-1-internal-file-editing-release','./i18n.js?v=10-8-1-internal-file-editing-release','./runtime-config.js?v=10-8-1-internal-file-editing-release','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
+const CACHE_NAME = 'techno-lims-pwa-v10-8-2-attendance';
+const APP_SHELL = ['./','./index.html','./style.css?v=10-8-2-techno-attendance-release','./app-password.js?v=10-8-2-techno-attendance-release','./quality-management.js?v=10-8-2-techno-attendance-release','./branch-map.js?v=10-8-2-techno-attendance-release','./i18n.js?v=10-8-2-techno-attendance-release','./runtime-config.js?v=10-8-2-techno-attendance-release','./field-test-guide.html','./manifest.webmanifest','./logo.png','./asas-home-banner.png','./asas-home-banner-mobile.png','./engineering-pages-bg.jpg','./whatsapp-logo.svg','./telegram-logo.svg'];
 self.addEventListener('install', function(event) {
   event.waitUntil(caches.open(CACHE_NAME).then(function(cache) { return cache.addAll(APP_SHELL); }).then(function() { return self.skipWaiting(); }));
 });
 self.addEventListener('activate', function(event) {
   event.waitUntil(caches.keys().then(function(keys) {
-    return Promise.all(keys.filter(function(key) { return key.startsWith('asas-lims-pwa-') && key !== CACHE_NAME; }).map(function(key) { return caches.delete(key); }));
+    return Promise.all(keys.filter(function(key) { return (key.startsWith('asas-lims-pwa-') || key.startsWith('techno-lims-pwa-')) && key !== CACHE_NAME; }).map(function(key) { return caches.delete(key); }));
   }).then(function() { return self.clients.claim(); }));
 });
 self.addEventListener('fetch', function(event) {
