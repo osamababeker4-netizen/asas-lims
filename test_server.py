@@ -1182,7 +1182,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-9-0-system-review', sw)
+        self.assertIn('v10-9-1-login-responsive', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1482,7 +1482,7 @@ class SchemaMigrationTests(unittest.TestCase):
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
         self.assertIn("APP_VERSION = '10.9.0-system-review'", server)
-        self.assertIn('v10-9-0-system-review', sw)
+        self.assertIn('v10-9-1-login-responsive', sw)
         self.assertIn('ASAS LIMS · V10.9.0', html)
         self.assertIn('V10.9.0 · Full System Review', html)
         self.assertNotIn('V10.3.0 Decision Intelligence', html)
