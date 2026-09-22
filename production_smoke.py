@@ -60,7 +60,7 @@ if STRICT_PRODUCTION:
     def pages_check():
         status, headers, body=once(urllib.request.Request(PAGES, headers={'Cache-Control':'no-cache','User-Agent':'ASAS-LIMS-Acceptance/10.4.0'}))
         text=body.decode('utf-8','replace')
-        if status == 200 and 'مساحة العمل التنفيذية' in text and '10-8-9-button-save-fix' in text:
+        if status == 200 and 'مساحة العمل التنفيذية' in text and '10-9-0-system-review' in text:
             return 'current'
         return None
     pages_state=retry(pages_check)
