@@ -3330,3 +3330,139 @@ input[readonly],textarea[readonly]{
   .login-feature-row span{padding:8px!important;font-size:.68rem!important}
 }
 
+
+
+/* V10.8.6 — logo-exact login palette */
+:root{
+  --logo-orange:#ef7f1a;
+  --logo-gold:#d99a2b;
+  --logo-charcoal:#3f4142;
+  --logo-blue:#2f6684;
+  --logo-blue-deep:#1f4f69;
+  --logo-cream:#fff8ef;
+}
+
+.login-screen{
+  background:
+    radial-gradient(circle at 16% 18%,rgba(239,127,26,.28),transparent 27rem),
+    radial-gradient(circle at 88% 80%,rgba(47,102,132,.14),transparent 25rem),
+    linear-gradient(135deg,#fff8ef 0%,#f7eee1 42%,#f9fbfc 72%,#eef4f7 100%)!important;
+}
+
+.login-showcase{
+  color:var(--logo-charcoal)!important;
+  background:
+    linear-gradient(90deg,rgba(255,250,243,.90) 0%,rgba(255,248,238,.58) 48%,rgba(255,255,255,.08) 100%),
+    linear-gradient(120deg,rgba(239,127,26,.18),rgba(217,154,43,.10) 48%,rgba(47,102,132,.12)),
+    url('asas-home-banner.png') center/cover no-repeat!important;
+}
+
+.login-showcase::after{
+  background:
+    linear-gradient(120deg,transparent 0 58%,rgba(239,127,26,.14) 58% 60%,transparent 60%),
+    linear-gradient(150deg,transparent 0 72%,rgba(47,102,132,.07) 72% 100%)!important;
+}
+
+.login-showcase-top strong,
+.login-showcase-kicker{
+  color:var(--logo-blue-deep)!important;
+}
+
+.login-showcase-top span,
+.login-showcase-copy p,
+.login-showcase-foot{
+  color:var(--logo-charcoal)!important;
+}
+
+.login-showcase-copy h2{
+  color:var(--logo-orange)!important;
+  text-shadow:0 10px 28px rgba(239,127,26,.10);
+}
+
+.login-feature-row{
+  border-top-color:rgba(63,65,66,.14)!important;
+}
+
+.login-feature-row span{
+  color:#4f5355!important;
+}
+
+.login-feature-row span::before{
+  border-color:var(--logo-orange)!important;
+  box-shadow:12px 0 0 -7px rgba(47,102,132,.50)!important;
+}
+
+.login-showcase-foot::after{
+  color:#777b7e!important;
+}
+
+.login-card{
+  border:1px solid rgba(239,127,26,.30)!important;
+  box-shadow:0 28px 70px rgba(95,66,32,.16),0 0 0 1px rgba(217,154,43,.08) inset!important;
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,250,243,.97))!important;
+}
+
+.login-card::before{
+  display:block!important;
+  content:""!important;
+  position:absolute!important;
+  inset:0 auto 0 0!important;
+  width:6px!important;
+  border-radius:26px 0 0 26px!important;
+  background:linear-gradient(180deg,var(--logo-orange),var(--logo-gold) 45%,var(--logo-blue))!important;
+}
+
+.login-card h1{
+  color:var(--logo-charcoal)!important;
+}
+
+.login-welcome,
+.login-security{
+  color:#6d7072!important;
+}
+
+.login-edition{
+  color:var(--logo-blue)!important;
+}
+
+.login-card .form-stack label{
+  color:#4b4e50!important;
+}
+
+.login-card input{
+  border-color:#dfd5c8!important;
+  background:#fffdf9!important;
+  color:#3e4244!important;
+}
+
+.login-card input:focus{
+  border-color:var(--logo-orange)!important;
+  box-shadow:0 0 0 4px rgba(239,127,26,.12)!important;
+}
+
+.login-card .btn.primary{
+  background:linear-gradient(100deg,var(--logo-orange),#e07016 70%,var(--logo-gold))!important;
+  box-shadow:0 12px 24px rgba(239,127,26,.22)!important;
+  color:#fff!important;
+}
+
+.login-card .btn.primary:hover{
+  background:linear-gradient(100deg,#e97916,var(--logo-orange) 55%,var(--logo-blue-deep))!important;
+}
+
+.login-security::before{color:var(--logo-blue)!important}
+
+@media(max-width:900px){
+  .login-screen{
+    background:
+      radial-gradient(circle at 82% 10%,rgba(239,127,26,.24),transparent 20rem),
+      radial-gradient(circle at 12% 88%,rgba(47,102,132,.12),transparent 20rem),
+      linear-gradient(160deg,#fff8ef,#f8f1e7 65%,#f5f9fb)!important;
+  }
+  .login-showcase{
+    background:
+      linear-gradient(180deg,rgba(255,249,241,.24),rgba(255,250,245,.62)),
+      linear-gradient(135deg,rgba(239,127,26,.18),rgba(47,102,132,.10)),
+      url('asas-home-banner-mobile.png') center/cover no-repeat!important;
+  }
+}
