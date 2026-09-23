@@ -10,21 +10,21 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <meta name="asas-ui-release" content="10-9-5-native-identity">
+  <meta name="asas-ui-release" content="10-9-6-reference-login">
   <script>
     (function () {
-      var baseRelease = '10-9-5-native-identity';
+      var baseRelease = '10-9-6-reference-login';
       var requested = new URLSearchParams(location.search).get('release') || '';
       var safe = /^[A-Za-z0-9._-]{1,80}$/.test(requested) ? requested : baseRelease;
       window.ASAS_UI_RELEASE = safe;
       document.documentElement.setAttribute('data-release', safe);
     })();
   </script>
-  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-9-5-native-identity">
+  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-9-6-reference-login">
   <script>
     (function () {
       var link = document.getElementById('asasMainStyle');
-      var release = window.ASAS_UI_RELEASE || '10-9-5-native-identity';
+      var release = window.ASAS_UI_RELEASE || '10-9-6-reference-login';
       if (link) link.href = 'style.css?v=' + encodeURIComponent(release);
     })();
   </script>
@@ -32,31 +32,29 @@
 <body>
   <section id="login" class="login-screen">
     <div class="login-stage">
-      <section class="login-showcase login-showcase-full-identity" aria-label="هوية مختبر أساس">
+      <section class="login-showcase login-showcase-reference" aria-label="هوية مختبر أساس">
         <div class="login-showcase-top"><strong>Asas LIMS</strong><span>نحو جودة أكثر لمستقبل أكثر أماناً</span></div>
-        <div class="login-full-identity-wrap">
-          <article class="login-identity-card" aria-label="الهوية الكاملة لشركة مختبر أساس">
-            <img src="logo.png" class="login-identity-logo" alt="شعار شركة مختبر أساس">
-            <h2>شركة مختبر أساس</h2>
-            <p class="login-identity-subtitle">للإستشارات الفنية والمختبرات الهندسية</p>
-            <div class="login-identity-services" aria-label="خدمات المختبر">
-              <span>تربة</span><span>جسات</span><span>خرسانة</span><span>أسفلت</span><span>نووي</span>
-            </div>
-            <div class="login-identity-branches">مكة المكرمة - جدة - المدينة المنورة - الرياض - القصيم - الرس</div>
-            <div class="login-identity-contacts">
-              <span>WWW.ASASLAB.COM</span><span>INFO@ASASLAB.COM</span>
-            </div>
-            <div class="login-identity-bottom">
-              <span dir="ltr">+966 56 061 8527<br>+966 56 162 5021</span>
-              <span><b>رقم التسجيل التجاري</b><br><span dir="ltr">702 - 898 - 9452</span></span>
-            </div>
-          </article>
+        <div class="login-reference-main">
+          <img src="logo.png" class="login-reference-logo" alt="شعار شركة مختبر أساس">
+          <div class="login-reference-copy">
+            <h2>مختبر أساس</h2>
+            <p class="login-reference-subtitle">للإستشارات الفنية والمختبرات الهندسية</p>
+            <p class="login-reference-services">تربة - جسات - خرسانة - أسفلت - نووي</p>
+            <div class="login-reference-rule" aria-hidden="true"></div>
+            <p class="login-reference-tagline">لدعم جودة المشاريع .. نحو مستقبل أكثر أماناً</p>
+          </div>
+          <div class="login-reference-features">
+            <div><span class="feature-icon">⚙</span><strong>دقة في النتائج</strong></div>
+            <div><span class="feature-icon">✓</span><strong>موثوقية عالية</strong></div>
+            <div><span class="feature-icon">▥</span><strong>إدارة متكاملة</strong></div>
+            <div><span class="feature-icon">⚗</span><strong>خبرات هندسية متخصصة</strong></div>
+          </div>
+          <div class="login-reference-footline">ENGINEERING TODAY .. A SAFER TOMORROW</div>
         </div>
-        <div class="login-showcase-foot"><strong>معاً ..</strong><span>نبني على أساس أكثر صلابة</span></div>
       </section>
       <div class="login-card">
         <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-        <span class="login-edition">ASAS LIMS · V10.9.5</span>
+        <span class="login-edition">ASAS LIMS · V10.9.6</span>
         <h1>تسجيل الدخول</h1>
         <p class="login-welcome">مرحباً بك في نظام إدارة المختبرات</p>
         <form id="loginForm" class="form-stack">
