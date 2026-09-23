@@ -3933,3 +3933,140 @@ input:focus,select:focus,textarea:focus{
   }
   .login-full-identity{border-radius:12px!important}
 }
+
+
+/* V10.9.5 — native full identity, no broken asset */
+.login-full-identity-wrap{
+  display:grid!important;
+  place-items:center!important;
+  width:100%!important;
+}
+.login-full-identity{display:none!important}
+.login-identity-card{
+  width:min(900px,96%);
+  margin:auto;
+  padding:clamp(22px,3vw,42px);
+  text-align:center;
+  border:1px solid rgba(239,127,26,.20);
+  border-radius:24px;
+  background:rgba(255,253,249,.96);
+  box-shadow:0 18px 48px rgba(73,62,48,.08);
+}
+.login-identity-logo{
+  display:block;
+  width:min(420px,72%);
+  height:auto;
+  max-height:150px;
+  margin:0 auto 12px;
+  object-fit:contain;
+}
+.login-identity-card h2{
+  margin:4px 0 8px;
+  color:var(--asas-logo-blue,#2f6684);
+  font-size:clamp(1.6rem,3vw,2.8rem);
+  font-weight:900;
+}
+.login-identity-subtitle{
+  margin:0 0 20px;
+  color:var(--asas-logo-charcoal,#3f4142);
+  font-size:clamp(1rem,1.8vw,1.6rem);
+  font-weight:800;
+}
+.login-identity-services{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:10px;
+  margin:18px auto;
+}
+.login-identity-services span{
+  display:grid;
+  place-items:center;
+  min-height:52px;
+  padding:8px 10px;
+  border-radius:10px;
+  background:linear-gradient(100deg,var(--asas-logo-orange,#ef7f1a),var(--asas-logo-gold,#d99a2b));
+  color:#fff;
+  font-size:clamp(.85rem,1.5vw,1.2rem);
+  font-weight:900;
+}
+.login-identity-branches{
+  margin:18px auto 14px;
+  padding:12px 16px;
+  border-radius:10px;
+  background:var(--asas-logo-blue,#2f6684);
+  color:#fff;
+  font-weight:800;
+  line-height:1.7;
+}
+.login-identity-contacts{
+  display:flex;
+  justify-content:space-between;
+  gap:18px;
+  margin:16px 0;
+  color:var(--asas-logo-charcoal,#3f4142);
+  font-weight:800;
+  direction:ltr;
+}
+.login-identity-bottom{
+  display:flex;
+  justify-content:space-between;
+  gap:24px;
+  margin-top:16px;
+  padding-top:14px;
+  border-top:1px solid #eadfce;
+  color:var(--asas-logo-orange,#ef7f1a);
+  font-weight:900;
+  text-align:start;
+}
+.login-identity-bottom>span:last-child{text-align:end}
+.login-showcase-full-identity{
+  min-width:0!important;
+}
+@media(max-width:900px){
+  .login-stage{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:12px!important;
+  }
+  .login-card{
+    order:1!important;
+    width:min(620px,calc(100% - 20px))!important;
+    margin:12px auto 0!important;
+  }
+  .login-showcase-full-identity{
+    order:2!important;
+    width:100%!important;
+    min-height:0!important;
+    padding:10px!important;
+  }
+  .login-identity-card{
+    width:min(720px,100%);
+    padding:20px 14px;
+    border-radius:18px;
+  }
+}
+@media(max-width:560px){
+  .login-identity-logo{width:min(320px,88%);max-height:120px}
+  .login-identity-card h2{font-size:1.45rem}
+  .login-identity-subtitle{font-size:.92rem}
+  .login-identity-services{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:7px;
+  }
+  .login-identity-services span:last-child{grid-column:1/-1}
+  .login-identity-branches{font-size:.78rem;padding:9px}
+  .login-identity-contacts{
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    font-size:.78rem;
+  }
+  .login-identity-bottom{
+    flex-direction:column;
+    align-items:center;
+    text-align:center!important;
+    gap:10px;
+    font-size:.8rem;
+  }
+  .login-identity-bottom>span:last-child{text-align:center}
+}
