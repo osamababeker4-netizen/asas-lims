@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <defs>
+    <style>
+      text{font-family:Tahoma,Arial,sans-serif}
+      .blue{fill:#557f95}.gray{fill:#66686a}.orange{fill:#ef7f1a}.small{font-size:30px}.mid{font-size:42px}.big{font-size:60px;font-weight:700}
+    </style>
+  </defs>
+  <rect width="1200" height="900" fill="#fffdf9"/>
+  <image href="logo.png" x="300" y="35" width="600" height="160" preserveAspectRatio="xMidYMid meet"/>
+  <text x="600" y="255" text-anchor="middle" direction="rtl" class="blue big">شركة مختبر أساس</text>
+  <text x="600" y="330" text-anchor="middle" direction="rtl" class="gray mid">للإستشارات الفنية والمختبرات الهندسية</text>
+  <g direction="rtl" text-anchor="middle" class="orange mid" font-weight="700">
+    <text x="600" y="430">تربة   جسات   خرسانة   أسفلت   نووي</text>
+  </g>
+  <rect x="180" y="485" width="840" height="72" rx="10" fill="#5e879c"/>
+  <text x="600" y="535" text-anchor="middle" direction="rtl" fill="#fff" class="small">مكة المكرمة - جدة - المدينة المنورة - الرياض - القصيم - الرس</text>
+  <text x="300" y="625" text-anchor="middle" class="gray small">WWW.ASASLAB.COM</text>
+  <text x="900" y="625" text-anchor="middle" class="gray small">INFO@ASASLAB.COM</text>
+  <text x="210" y="715" text-anchor="middle" class="orange small" font-weight="700">+966 56 061 8527</text>
+  <text x="210" y="760" text-anchor="middle" class="orange small" font-weight="700">+966 56 162 5021</text>
+  <text x="930" y="715" text-anchor="middle" direction="rtl" class="orange small" font-weight="700">رقم التسجيل التجاري</text>
+  <text x="930" y="760" text-anchor="middle" class="orange small" font-weight="700">702 - 898 - 9452</text>
+</svg>
