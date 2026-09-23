@@ -10,21 +10,21 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <meta name="asas-ui-release" content="10-9-2-full-logo-palette">
+  <meta name="asas-ui-release" content="10-9-3-full-login-identity">
   <script>
     (function () {
-      var baseRelease = '10-9-2-full-logo-palette';
+      var baseRelease = '10-9-3-full-login-identity';
       var requested = new URLSearchParams(location.search).get('release') || '';
       var safe = /^[A-Za-z0-9._-]{1,80}$/.test(requested) ? requested : baseRelease;
       window.ASAS_UI_RELEASE = safe;
       document.documentElement.setAttribute('data-release', safe);
     })();
   </script>
-  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-9-2-full-logo-palette">
+  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-9-3-full-login-identity">
   <script>
     (function () {
       var link = document.getElementById('asasMainStyle');
-      var release = window.ASAS_UI_RELEASE || '10-9-2-full-logo-palette';
+      var release = window.ASAS_UI_RELEASE || '10-9-3-full-login-identity';
       if (link) link.href = 'style.css?v=' + encodeURIComponent(release);
     })();
   </script>
@@ -32,21 +32,16 @@
 <body>
   <section id="login" class="login-screen">
     <div class="login-stage">
-      <section class="login-showcase" aria-label="هوية مختبر أساس">
+      <section class="login-showcase login-showcase-full-identity" aria-label="هوية مختبر أساس">
         <div class="login-showcase-top"><strong>Asas LIMS</strong><span>نحو جودة أكثر لمستقبل أكثر أماناً</span></div>
-        <div class="login-showcase-copy">
-          <span class="login-showcase-kicker">الدقة تبدأ من</span>
-          <h2>أساس</h2>
-          <p>إدارة مختبرات أكثر كفاءة<br>لجودة أعلى في مشاريع الغد</p>
-        </div>
-        <div class="login-feature-row" aria-hidden="true">
-          <span>الجودة والامتثال</span><span>إدارة ذكية للمختبرات</span><span>نتائج موثوقة</span><span>شراكة في بناء المستقبل</span>
+        <div class="login-full-identity-wrap">
+          <img src="login-full-identity.svg" class="login-full-identity" alt="الهوية الكاملة لشركة مختبر أساس">
         </div>
         <div class="login-showcase-foot"><strong>معاً ..</strong><span>نبني على أساس أكثر صلابة</span></div>
       </section>
       <div class="login-card">
         <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-        <span class="login-edition">ASAS LIMS · V10.9.2</span>
+        <span class="login-edition">ASAS LIMS · V10.9.3</span>
         <h1>تسجيل الدخول</h1>
         <p class="login-welcome">مرحباً بك في نظام إدارة المختبرات</p>
         <form id="loginForm" class="form-stack">
