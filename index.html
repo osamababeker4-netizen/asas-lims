@@ -10,21 +10,21 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <meta name="asas-ui-release" content="10-9-7-reference-locked">
+  <meta name="asas-ui-release" content="10-10-0-internal-unified">
   <script>
     (function () {
-      var baseRelease = '10-9-7-reference-locked';
+      var baseRelease = '10-10-0-internal-unified';
       var requested = new URLSearchParams(location.search).get('release') || '';
       var safe = /^[A-Za-z0-9._-]{1,80}$/.test(requested) ? requested : baseRelease;
       window.ASAS_UI_RELEASE = safe;
       document.documentElement.setAttribute('data-release', safe);
     })();
   </script>
-  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-9-7-reference-locked">
+  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-10-0-internal-unified">
   <script>
     (function () {
       var link = document.getElementById('asasMainStyle');
-      var release = window.ASAS_UI_RELEASE || '10-9-7-reference-locked';
+      var release = window.ASAS_UI_RELEASE || '10-10-0-internal-unified';
       if (link) link.href = 'style.css?v=' + encodeURIComponent(release);
     })();
   </script>
@@ -54,7 +54,7 @@
       </section>
       <div class="login-card">
         <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-        <span class="login-edition">ASAS LIMS · V10.9.7</span>
+        <span class="login-edition">ASAS LIMS · V10.10.0</span>
         <h1>تسجيل الدخول</h1>
         <p class="login-welcome">مرحباً بك في نظام إدارة المختبرات</p>
         <form id="loginForm" class="form-stack">
@@ -84,7 +84,7 @@
         <img src="logo.png" alt="شعار شركة مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.9.7 · Reference UI</small>
+        <small class="release-chip">V10.10.0 · Unified Internal UI</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
