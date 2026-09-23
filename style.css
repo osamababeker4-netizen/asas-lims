@@ -3835,3 +3835,101 @@ input:focus,select:focus,textarea:focus{
     margin-top:8px!important;
   }
 }
+
+
+/* V10.9.4 — portrait mobile login layout guard */
+/* Some mobile browsers report a desktop-like CSS width. Force the login
+   into a true portrait layout by orientation as well as viewport width. */
+@media (orientation:portrait) and (max-width:1200px){
+  #login:not(.hidden){
+    position:fixed!important;
+    inset:0!important;
+    overflow:auto!important;
+    background:
+      radial-gradient(circle at 82% 8%,rgba(239,127,26,.18),transparent 18rem),
+      radial-gradient(circle at 12% 92%,rgba(47,102,132,.09),transparent 20rem),
+      linear-gradient(160deg,#fff8ef 0%,#fffdf9 64%,#f3f7f9 100%)!important;
+  }
+
+  .login-stage{
+    width:100%!important;
+    min-height:100svh!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    gap:14px!important;
+    padding:14px 10px 24px!important;
+  }
+
+  .login-card{
+    order:1!important;
+    width:min(620px,calc(100% - 8px))!important;
+    max-width:620px!important;
+    margin:0 auto!important;
+    padding:22px 18px 20px!important;
+    border-radius:20px!important;
+  }
+
+  .login-logo{
+    width:min(260px,78%)!important;
+    height:auto!important;
+    max-height:86px!important;
+  }
+
+  .login-showcase-full-identity{
+    order:2!important;
+    width:min(760px,calc(100% - 8px))!important;
+    max-width:760px!important;
+    min-height:0!important;
+    padding:10px!important;
+    margin:0 auto!important;
+    border-radius:18px!important;
+    background:transparent!important;
+  }
+
+  .login-showcase-full-identity .login-showcase-top,
+  .login-showcase-full-identity .login-showcase-foot{
+    width:100%!important;
+    padding-inline:4px!important;
+  }
+
+  .login-full-identity-wrap{
+    width:100%!important;
+    min-height:0!important;
+    padding:6px 0!important;
+  }
+
+  .login-full-identity{
+    width:100%!important;
+    max-width:100%!important;
+    height:auto!important;
+    max-height:none!important;
+    object-fit:contain!important;
+    object-position:center!important;
+    border-radius:14px!important;
+  }
+}
+
+/* Narrow phones: reduce ornamental copy rather than shrinking the identity artwork. */
+@media (orientation:portrait) and (max-width:600px){
+  .login-stage{padding:8px 6px 18px!important;gap:10px!important}
+  .login-card{
+    width:100%!important;
+    padding:18px 14px 16px!important;
+    border-radius:17px!important;
+  }
+  .login-card h1{font-size:1.45rem!important}
+  .login-card input,.login-card .btn.primary{min-height:48px!important}
+  .login-showcase-full-identity{
+    width:100%!important;
+    padding:4px!important;
+  }
+  .login-showcase-full-identity .login-showcase-top{
+    display:none!important;
+  }
+  .login-showcase-full-identity .login-showcase-foot{
+    display:none!important;
+  }
+  .login-full-identity{border-radius:12px!important}
+}
