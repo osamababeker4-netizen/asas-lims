@@ -10,21 +10,21 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <meta name="asas-ui-release" content="10-9-3-full-login-identity">
+  <meta name="asas-ui-release" content="10-9-4-portrait-login">
   <script>
     (function () {
-      var baseRelease = '10-9-3-full-login-identity';
+      var baseRelease = '10-9-4-portrait-login';
       var requested = new URLSearchParams(location.search).get('release') || '';
       var safe = /^[A-Za-z0-9._-]{1,80}$/.test(requested) ? requested : baseRelease;
       window.ASAS_UI_RELEASE = safe;
       document.documentElement.setAttribute('data-release', safe);
     })();
   </script>
-  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-9-3-full-login-identity">
+  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-9-4-portrait-login">
   <script>
     (function () {
       var link = document.getElementById('asasMainStyle');
-      var release = window.ASAS_UI_RELEASE || '10-9-3-full-login-identity';
+      var release = window.ASAS_UI_RELEASE || '10-9-4-portrait-login';
       if (link) link.href = 'style.css?v=' + encodeURIComponent(release);
     })();
   </script>
@@ -41,7 +41,7 @@
       </section>
       <div class="login-card">
         <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-        <span class="login-edition">ASAS LIMS · V10.9.3</span>
+        <span class="login-edition">ASAS LIMS · V10.9.4</span>
         <h1>تسجيل الدخول</h1>
         <p class="login-welcome">مرحباً بك في نظام إدارة المختبرات</p>
         <form id="loginForm" class="form-stack">
