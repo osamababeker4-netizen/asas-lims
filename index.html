@@ -4,27 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
-  <meta name="theme-color" content="#0a3348">
+  <meta name="theme-color" content="#ef7f1a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="logo.png">
   <title>أساس LIMS | إدارة المختبر والمشاريع</title>
-  <meta name="asas-ui-release" content="10-9-1-login-responsive">
+  <meta name="asas-ui-release" content="10-9-2-full-logo-palette">
   <script>
     (function () {
-      var baseRelease = '10-9-1-login-responsive';
+      var baseRelease = '10-9-2-full-logo-palette';
       var requested = new URLSearchParams(location.search).get('release') || '';
       var safe = /^[A-Za-z0-9._-]{1,80}$/.test(requested) ? requested : baseRelease;
       window.ASAS_UI_RELEASE = safe;
       document.documentElement.setAttribute('data-release', safe);
     })();
   </script>
-  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-8-7-full-logo-palette">
+  <link id="asasMainStyle" rel="stylesheet" href="style.css?v=10-9-2-full-logo-palette">
   <script>
     (function () {
       var link = document.getElementById('asasMainStyle');
-      var release = window.ASAS_UI_RELEASE || '10-9-1-login-responsive';
+      var release = window.ASAS_UI_RELEASE || '10-9-2-full-logo-palette';
       if (link) link.href = 'style.css?v=' + encodeURIComponent(release);
     })();
   </script>
@@ -46,7 +46,7 @@
       </section>
       <div class="login-card">
         <img src="logo.png" class="login-logo" alt="شعار شركة مختبر أساس">
-        <span class="login-edition">ASAS LIMS · V10.9.1</span>
+        <span class="login-edition">ASAS LIMS · V10.9.2</span>
         <h1>تسجيل الدخول</h1>
         <p class="login-welcome">مرحباً بك في نظام إدارة المختبرات</p>
         <form id="loginForm" class="form-stack">
@@ -76,7 +76,7 @@
         <img src="logo.png" alt="شعار شركة مختبر أساس">
         <strong>مختبر أساس</strong>
         <span>LIMS · Field + Laboratory</span>
-        <small class="release-chip">V10.9.1 · Full System Review</small>
+        <small class="release-chip">V10.9.2 · Full Logo Palette</small>
       </div>
       <nav aria-label="التنقل الرئيسي">
         <button class="nav-link active" data-page="dashboard">الرئيسية</button>
