@@ -1,0 +1,76 @@
+name: TECHNO Production Smoke
+
+on:
+  push:
+    branches:
+      - techno-lims-v10.8.1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: techno-production-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify live production release
+        env:
+          BASE_URL: https://techno-lims-api.onrender.com
+          EXPECTED_RELEASE: 10-9-2-notification-layer
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys, time
+          from urllib.request import Request, urlopen
+
+          base = os.environ["BASE_URL"].rstrip("/")
+          expected = os.environ["EXPECTED_RELEASE"]
+
+          def fetch(path, timeout=20):
+              req = Request(base + path, headers={"User-Agent":"TECHNO-LIMS-Production-Smoke/1.0"})
+              with urlopen(req, timeout=timeout) as response:
+                  body = response.read().decode("utf-8", "replace")
+                  return response.status, body
+
+          last_error = None
+          for attempt in range(36):
+              try:
+                  hs, health_body = fetch("/api/health")
+                  health = json.loads(health_body)
+                  rs, root = fetch("/?release=" + expected)
+                  if hs == 200 and rs == 200 and health.get("database") == "ready" and expected in root:
+                      break
+                  last_error = f"health={hs}/{health!r}, root={rs}, release_found={expected in root}"
+              except Exception as exc:
+                  last_error = repr(exc)
+              time.sleep(10)
+          else:
+              raise SystemExit("Production did not become ready: " + str(last_error))
+
+          ss, css = fetch("/style.css?v=" + expected)
+          js_status, js = fetch("/app-password.js?v=" + expected)
+          checks = {
+              "health_http_200": hs == 200,
+              "database_ready": health.get("database") == "ready",
+              "root_http_200": rs == 200,
+              "release_marker": expected in root,
+              "css_http_200": ss == 200,
+              "notification_layer_css": "TECHNO V10.9.2" in css and ".notification-panel" in css and "z-index:90!important" in css,
+              "js_http_200": js_status == 200,
+              "notification_js": "function toggleNotificationPanel" in js and "function openNotificationItem" in js,
+              "login_form": 'id="loginForm"' in root,
+              "navigation_pages": all(('data-page="' + p + '"') in root for p in [
+                  "dashboard","projects","workOrders","field","attendance","clients","samples",
+                  "tests","catalog","reports","equipment","communications","quality","company",
+                  "audit","trash","users","settings"
+              ]),
+          }
+          print(json.dumps(checks, ensure_ascii=False, indent=2))
+          failed = [k for k,v in checks.items() if not v]
+          if failed:
+              raise SystemExit("Production smoke failed: " + ", ".join(failed))
+          PY
