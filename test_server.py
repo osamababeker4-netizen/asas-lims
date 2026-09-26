@@ -1660,5 +1660,26 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertIn("}, 3000);", app)
         self.assertIn("lastRealtimeEventAt=Date.now()", app)
 
+    def test_v1093_init_reconciles_legacy_queued_sync_items(self):
+        self.server.init()
+        connection = self.server.db()
+        connection.execute(
+            "insert into sync_queue(entity,entity_id,operation,payload_json,status,attempts,last_error) values(?,?,?,?,?,?,?)",
+            ('project', 99, 'update', '{}', 'queued', 0, 'legacy error')
+        )
+        connection.commit()
+        connection.close()
+
+        self.server.init()
+        connection = self.server.db()
+        row = connection.execute(
+            "select status,attempts,last_error,sent_at from sync_queue where entity='project' and entity_id=99"
+        ).fetchone()
+        connection.close()
+        self.assertEqual(row['status'], 'synced')
+        self.assertGreaterEqual(row['attempts'], 1)
+        self.assertIsNone(row['last_error'])
+        self.assertIsNotNone(row['sent_at'])
+
 if __name__ == '__main__':
     unittest.main()
