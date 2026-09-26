@@ -4,17 +4,18 @@ import os
 import time
 import urllib.request
 
-API='https://asas-lims-api.onrender.com'
-PAGES='https://osamababeker4-netizen.github.io/asas-lims/'
+API='https://techno-lims-api.onrender.com'
+PAGES='https://osamababeker4-netizen.github.io/techno-lims/'
 ORIGIN='https://osamababeker4-netizen.github.io'
-EXPECTED_VERSION='10.9.0-system-review'
+EXPECTED_VERSION='10.9.4-techno-data-sync'
+EXPECTED_RELEASE='10-9-4-techno-data-sync'
 STRICT_PRODUCTION=os.environ.get('GITHUB_REF') == 'refs/heads/main'
 
 def once(req):
     with urllib.request.urlopen(req, timeout=30) as response:
         return response.status, dict(response.headers), response.read()
 
-def retry(check, attempts=8, delay=8):
+def retry(check, attempts=12, delay=10):
     last=None
     for i in range(attempts):
         try:
@@ -30,9 +31,12 @@ def retry(check, attempts=8, delay=8):
     raise AssertionError('production acceptance timed out')
 
 def health_check():
-    status, headers, body=once(urllib.request.Request(API+'/api/health', headers={'User-Agent':'ASAS-LIMS-Acceptance/10.4.0'}))
+    status, headers, body=once(urllib.request.Request(
+        API+'/api/health',
+        headers={'User-Agent':'TECHNO-LIMS-Acceptance/10.9.4'}
+    ))
     payload=json.loads(body.decode('utf-8'))
-    if status != 200 or payload.get('status') != 'ok' or payload.get('database') != 'ready' or payload.get('service') != 'asas-lims':
+    if status != 200 or payload.get('status') != 'ok' or payload.get('database') != 'ready' or payload.get('service') != 'techno-lims':
         return None
     if STRICT_PRODUCTION and payload.get('version') != EXPECTED_VERSION:
         return None
@@ -47,7 +51,7 @@ preflight=urllib.request.Request(
         'Origin': ORIGIN,
         'Access-Control-Request-Method':'POST',
         'Access-Control-Request-Headers':'content-type,authorization',
-        'User-Agent':'ASAS-LIMS-Acceptance/10.4.0'
+        'User-Agent':'TECHNO-LIMS-Acceptance/10.9.4'
     }
 )
 status, headers, body=once(preflight)
@@ -58,9 +62,12 @@ assert cors_headers.get('access-control-allow-origin') == ORIGIN, headers
 pages_state='not-required-on-pr'
 if STRICT_PRODUCTION:
     def pages_check():
-        status, headers, body=once(urllib.request.Request(PAGES, headers={'Cache-Control':'no-cache','User-Agent':'ASAS-LIMS-Acceptance/10.4.0'}))
+        status, headers, body=once(urllib.request.Request(
+            PAGES,
+            headers={'Cache-Control':'no-cache','User-Agent':'TECHNO-LIMS-Acceptance/10.9.4'}
+        ))
         text=body.decode('utf-8','replace')
-        if status == 200 and 'مساحة العمل التنفيذية' in text and '10-8-1-internal-file-editing-release' in text:
+        if status == 200 and 'TECHNO LIMS' in text and EXPECTED_RELEASE in text:
             return 'current'
         return None
     pages_state=retry(pages_check)
@@ -69,6 +76,7 @@ print(json.dumps({
     'production_api':'pass',
     'database':'ready',
     'cors':'pass',
+    'service':payload.get('service'),
     'version':payload.get('version'),
     'pages':pages_state,
     'strict_production':STRICT_PRODUCTION

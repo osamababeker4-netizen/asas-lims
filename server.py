@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.9.3-production-hardening'
+APP_VERSION = '10.9.4-techno-data-sync'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -217,7 +217,7 @@ def ensure_field_manual_cache():
     request = urllib.request.Request(
         FIELD_MANUAL_SOURCE_URL,
         headers={
-            'User-Agent': 'Mozilla/5.0 (compatible; TECHNO-LIMS/10.8.1)',
+            'User-Agent': 'Mozilla/5.0 (compatible; TECHNO-LIMS/10.9.4)',
             'Accept': 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
             'Accept-Language': 'ar,en;q=0.8'
         }
@@ -252,7 +252,7 @@ def fetch_balady_permit(license_no):
         raise RuntimeError('تكامل بلدي غير مهيأ: أضف عنوان API الرسمي ورمز التفويض في إعدادات الخادم')
     encoded = urlencode({'license': license_no})
     url = BALADY_API_BASE_URL.replace('{license}', urlencode({'v': license_no})[2:]) if '{license}' in BALADY_API_BASE_URL else BALADY_API_BASE_URL + ('&' if '?' in BALADY_API_BASE_URL else '?') + encoded
-    headers = {'Accept': 'application/json', 'User-Agent': 'TECHNO-LIMS/10.8.1'}
+    headers = {'Accept': 'application/json', 'User-Agent': 'TECHNO-LIMS/10.9.4'}
     if BALADY_API_TOKEN:
         headers['Authorization'] = 'Bearer ' + BALADY_API_TOKEN
     if BALADY_API_KEY:

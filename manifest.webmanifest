@@ -4,7 +4,7 @@
   "description": "منصة تيكنو سويل لاب لإدارة المختبر والمشاريع والجودة والحضور والعمليات الميدانية.",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "./?release=10-9-3-production-hardening",
+  "start_url": "./?release=10-9-4-techno-data-sync",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f1f7fb",
