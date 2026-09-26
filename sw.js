@@ -1,14 +1,14 @@
 'use strict';
-const CACHE_NAME = 'asas-lims-pwa-v10-9-1-login-responsive';
+const CACHE_NAME = 'asas-lims-pwa-v10-10-1-published';
 const APP_SHELL = [
   './',
   './index.html',
-  './style.css?v=10-9-1-login-responsive',
-  './app-password.js?v=10-9-1-login-responsive',
-  './quality-management.js?v=10-9-1-login-responsive',
-  './branch-map.js?v=10-9-1-login-responsive',
-  './i18n.js?v=10-9-1-login-responsive',
-  './runtime-config.js?v=10-9-1-login-responsive',
+  './style.css?v=10-10-1-published',
+  './app-password.js?v=10-10-1-published',
+  './quality-management.js?v=10-10-1-published',
+  './branch-map.js?v=10-10-1-published',
+  './i18n.js?v=10-10-1-published',
+  './runtime-config.js?v=10-10-1-published',
   './field-test-guide.html',
   './manifest.webmanifest',
   './logo.png',

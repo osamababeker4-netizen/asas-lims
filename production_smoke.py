@@ -7,7 +7,7 @@ import urllib.request
 API='https://asas-lims-api.onrender.com'
 PAGES='https://osamababeker4-netizen.github.io/asas-lims/'
 ORIGIN='https://osamababeker4-netizen.github.io'
-EXPECTED_VERSION='10.9.0-system-review'
+EXPECTED_VERSION='10.10.1'
 STRICT_PRODUCTION=os.environ.get('GITHUB_REF') == 'refs/heads/main'
 
 def once(req):
@@ -30,7 +30,7 @@ def retry(check, attempts=8, delay=8):
     raise AssertionError('production acceptance timed out')
 
 def health_check():
-    status, headers, body=once(urllib.request.Request(API+'/api/health', headers={'User-Agent':'ASAS-LIMS-Acceptance/10.4.0'}))
+    status, headers, body=once(urllib.request.Request(API+'/api/health', headers={'User-Agent':'ASAS-LIMS-Acceptance/10.10.1'}))
     payload=json.loads(body.decode('utf-8'))
     if status != 200 or payload.get('status') != 'ok' or payload.get('database') != 'ready' or payload.get('service') != 'asas-lims':
         return None
@@ -47,7 +47,7 @@ preflight=urllib.request.Request(
         'Origin': ORIGIN,
         'Access-Control-Request-Method':'POST',
         'Access-Control-Request-Headers':'content-type,authorization',
-        'User-Agent':'ASAS-LIMS-Acceptance/10.4.0'
+        'User-Agent':'ASAS-LIMS-Acceptance/10.10.1'
     }
 )
 status, headers, body=once(preflight)
@@ -58,9 +58,9 @@ assert cors_headers.get('access-control-allow-origin') == ORIGIN, headers
 pages_state='not-required-on-pr'
 if STRICT_PRODUCTION:
     def pages_check():
-        status, headers, body=once(urllib.request.Request(PAGES, headers={'Cache-Control':'no-cache','User-Agent':'ASAS-LIMS-Acceptance/10.4.0'}))
+        status, headers, body=once(urllib.request.Request(PAGES, headers={'Cache-Control':'no-cache','User-Agent':'ASAS-LIMS-Acceptance/10.10.1'}))
         text=body.decode('utf-8','replace')
-        if status == 200 and 'مساحة العمل التنفيذية' in text and '10-9-1-login-responsive' in text:
+        if status == 200 and 'مساحة العمل التنفيذية' in text and '10-10-1-published' in text:
             return 'current'
         return None
     pages_state=retry(pages_check)

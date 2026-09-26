@@ -1,9 +1,10 @@
-# ASAS LIMS — V10.9.0
+# ASAS LIMS — V10.10.1
 
 Production repository for **مختبر أساس للاستشارات الفنية والمختبرات الهندسية**.
 
 - Frontend: https://osamababeker4-netizen.github.io/asas-lims
 - Production API: https://asas-lims-api.onrender.com
-- Current release: `10.9.0-system-review`
+- Current release: `10.10.1`
+- UI cache marker: `10-10-1-published`
 
-The `main` branch represents the current operational release. Old release bundles and the temporary TECHNO embedding were removed from the main file list. A pre-cleanup archive branch preserves the previous repository state.
+The `main` branch is the authoritative operational release. Historical bundles remain preserved outside the active production file set.

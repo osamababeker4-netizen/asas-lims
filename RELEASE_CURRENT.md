@@ -1,7 +1,8 @@
 # Current Release
 
-**ASAS LIMS V10.9.0 — Full System Review**
+**ASAS LIMS V10.10.1 — Unified Production Release**
 
-Release marker: `10.9.0-system-review`
+Release marker: `10.10.1`
+UI/cache marker: `10-10-1-published`
 
-This file replaces the historical V8/V9/V10.1 release notes on `main`. Historical files remain preserved in the archive branch created before cleanup.
+This is the authoritative release on `main` for the GitHub Pages frontend and the ASAS production API. Historical releases remain preserved in archive/history.
