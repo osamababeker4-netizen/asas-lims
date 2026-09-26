@@ -21,7 +21,7 @@ jobs:
       - name: Verify live production release
         env:
           BASE_URL: https://techno-lims-api.onrender.com
-          EXPECTED_RELEASE: 10-9-2-notification-layer
+          EXPECTED_RELEASE: 10-9-3-production-hardening
         run: |
           python3 - <<'PY'
           import json, os, re, sys, time
@@ -56,10 +56,13 @@ jobs:
           checks = {
               "health_http_200": hs == 200,
               "database_ready": health.get("database") == "ready",
+              "realtime_ready": health.get("realtime") == "ready",
+              "central_sync_mode": health.get("sync_mode") == "central",
+              "server_version": health.get("version") == "10.9.3-production-hardening",
               "root_http_200": rs == 200,
               "release_marker": expected in root,
               "css_http_200": ss == 200,
-              "notification_layer_css": "TECHNO V10.9.2" in css and ".notification-panel" in css and "z-index:90!important" in css,
+              "notification_layer_css": ".notification-panel" in css and "z-index:90!important" in css,
               "js_http_200": js_status == 200,
               "notification_js": "function toggleNotificationPanel" in js and "function openNotificationItem" in js,
               "login_form": 'id="loginForm"' in root,
