@@ -716,6 +716,18 @@ def init():
         )
         print('تم إنشاء حساب admin الأول باستخدام كلمة المرور المحلية التي وفرتها.')
     connection.commit()
+    if CENTRAL_SYNC_MODE:
+        # Reconcile historical queue rows left by older builds. In the central
+        # architecture the database commit is the synchronization boundary.
+        connection.execute(
+            """update sync_queue
+               set status='synced',
+                   attempts=case when attempts < 1 then 1 else attempts end,
+                   last_error=null,
+                   sent_at=coalesce(sent_at,CURRENT_TIMESTAMP)
+               where status='queued'"""
+        )
+        connection.commit()
     production_reset_requested = (
         os.environ.get('LIMS_RELEASE_OPERATIONAL_RESET', '').strip() == 'V10.8.5'
         or DB.startswith('/opt/render/project/src/storage/')
