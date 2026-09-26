@@ -10,21 +10,21 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="techno-logo.svg">
   <title>TECHNO LIMS | إدارة المختبر والمشاريع</title>
-  <meta name="techno-ui-release" content="10-9-0-system-review">
+  <meta name="techno-ui-release" content="10-9-2-notification-layer">
   <script>
     (function () {
-      var baseRelease = '10-9-0-system-review';
+      var baseRelease = '10-9-2-notification-layer';
       var requested = new URLSearchParams(location.search).get('release') || '';
       var safe = /^[A-Za-z0-9._-]{1,80}$/.test(requested) ? requested : baseRelease;
       window.TECHNO_UI_RELEASE = safe;
       document.documentElement.setAttribute('data-release', safe);
     })();
   </script>
-  <link id="technoMainStyle" rel="stylesheet" href="style.css?v=10-9-0-system-review">
+  <link id="technoMainStyle" rel="stylesheet" href="style.css?v=10-9-2-notification-layer">
   <script>
     (function () {
       var link = document.getElementById('technoMainStyle');
-      var release = window.TECHNO_UI_RELEASE || '10-9-0-system-review';
+      var release = window.TECHNO_UI_RELEASE || '10-9-2-notification-layer';
       if (link) link.href = 'style.css?v=' + encodeURIComponent(release);
     })();
   </script>
@@ -693,14 +693,14 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="runtime-config.js?v=10-9-0-system-review"></script>
-  <script src="i18n.js?v=10-9-0-system-review"></script>
-  <script src="app-password.js?v=10-9-0-system-review"></script>
-  <script src="quality-management.js?v=10-9-0-system-review"></script>
-  <script src="branch-map.js?v=10-9-0-system-review"></script>
+  <script src="runtime-config.js?v=10-9-2-notification-layer"></script>
+  <script src="i18n.js?v=10-9-2-notification-layer"></script>
+  <script src="app-password.js?v=10-9-2-notification-layer"></script>
+  <script src="quality-management.js?v=10-9-2-notification-layer"></script>
+  <script src="branch-map.js?v=10-9-2-notification-layer"></script>
 <script>
     (function () {
-      var release = window.TECHNO_UI_RELEASE || '10-9-0-system-review';
+      var release = window.TECHNO_UI_RELEASE || '10-9-2-notification-layer';
       var releaseKey = 'techno_lims_last_ui_release';
       var previousRelease = '';
       try { previousRelease = localStorage.getItem(releaseKey) || ''; } catch (_error) {}
