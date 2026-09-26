@@ -38,7 +38,7 @@ class SchemaMigrationTests(unittest.TestCase):
         admin = connection.execute("select password_hash from users where username='admin'").fetchone()
         connection.close()
 
-        self.assertTrue({'projects', 'work_orders', 'sync_queue', 'field_visits', 'audit_log', 'quality_documents', 'proficiency_tests', 'quality_staff', 'upload_receipts'}.issubset(tables))
+        self.assertTrue({'projects', 'work_orders', 'sync_queue', 'user_sessions', 'field_visits', 'audit_log', 'quality_documents', 'proficiency_tests', 'quality_staff', 'upload_receipts'}.issubset(tables))
         self.assertTrue({'priority', 'description', 'start_date', 'due_date', 'progress', 'reviewed_by', 'approved_by'}.issubset(project_columns))
         self.assertIsNotNone(admin)
         self.assertIn(':', admin['password_hash'])
@@ -824,7 +824,7 @@ class SchemaMigrationTests(unittest.TestCase):
         connection.close()
 
         self.assertEqual(audit_count, 1)
-        self.assertEqual((sync['entity'], sync['entity_id'], sync['operation'], sync['status']), ('project', 7, 'create', 'queued'))
+        self.assertEqual((sync['entity'], sync['entity_id'], sync['operation'], sync['status']), ('project', 7, 'create', 'synced'))
 
     def test_admin_can_delete_audit_entry_without_leaving_a_delete_marker(self):
         self.server.init()
@@ -906,7 +906,8 @@ class SchemaMigrationTests(unittest.TestCase):
             status, board, _ = request('GET', '/api/dashboard', token=token)
             self.assertEqual(status, 200)
             self.assertEqual(board['projects'][0]['work_orders_count'], 1)
-            self.assertGreaterEqual(board['counts']['sync_queue'], 2)
+            self.assertEqual(board['counts']['sync_queue'], 0)
+            self.assertGreaterEqual(board['counts']['sync_history'], 2)
             self.assertNotIn('whatsapp_drafts', board['counts'])
             self.assertNotIn('whatsapp_drafts', board)
             with sqlite3.connect(self.db_path) as connection:
@@ -1138,7 +1139,7 @@ class SchemaMigrationTests(unittest.TestCase):
         css = (root / 'style.css').read_text(encoding='utf-8')
         sw = (root / 'sw.js').read_text(encoding='utf-8')
 
-        self.assertIn("APP_VERSION = '10.9.0-system-review'", server)
+        self.assertIn("APP_VERSION = '10.9.3-production-hardening'", server)
         self.assertIn("MAX_SMART_FILE_BYTES", server)
         self.assertIn("MAX_ZIP_EXPANDED_BYTES", server)
         self.assertIn("self.send_cors_headers()", server)
@@ -1157,7 +1158,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(html.count('id="qualityStaffTable"'), 1)
         self.assertIn('الملف الرئيسي الموحد', html)
         self.assertIn('.internal-window-card', css)
-        self.assertIn('v10-9-0-system-review', sw)
+        self.assertIn('v10-9-3-production-hardening', sw)
 
     def test_init_creates_all_production_storage_directories(self):
         backup = Path(self.temp.name) / 'backups'
@@ -1613,6 +1614,51 @@ class SchemaMigrationTests(unittest.TestCase):
         ):
             self.assertIn(contract, app)
 
+
+    def test_v1093_central_sync_is_committed_not_left_pending(self):
+        self.server.init()
+        connection = self.server.db()
+        self.server.queue_sync(connection, 'sample', 42, 'update', {'sample_no':'S-42'})
+        connection.commit()
+        row = connection.execute('select status,attempts,sent_at from sync_queue order by id desc limit 1').fetchone()
+        connection.close()
+        self.assertEqual(row['status'], 'synced')
+        self.assertEqual(row['attempts'], 1)
+        self.assertIsNotNone(row['sent_at'])
+
+    def test_v1093_database_signature_detects_committed_changes(self):
+        self.server.init()
+        before = self.server.database_change_signature()
+        connection = self.server.db()
+        connection.execute("insert or replace into settings(key,value) values('realtime_probe','1')")
+        connection.commit()
+        connection.close()
+        after = self.server.database_change_signature()
+        self.assertNotEqual(before, after)
+
+    def test_v1093_session_survives_memory_cache_clear(self):
+        self.server.init()
+        connection = self.server.db()
+        user = dict(connection.execute("select * from users where username='admin'").fetchone())
+        connection.close()
+        token = self.server.create_session(user)
+        self.server.SESSIONS.clear()
+
+        class Handler:
+            headers = {'Authorization':'Bearer ' + token}
+
+        restored = self.server.user_from(Handler())
+        self.assertIsNotNone(restored)
+        self.assertEqual(restored['id'], user['id'])
+        self.server.delete_session(token)
+
+    def test_v1093_frontend_has_live_sync_fallback_and_state(self):
+        root = Path(__file__).parent
+        app = (root / 'app-password.js').read_text(encoding='utf-8')
+        self.assertIn("updateLiveSyncIndicator('connected')", app)
+        self.assertIn("updateLiveSyncIndicator('offline')", app)
+        self.assertIn("}, 3000);", app)
+        self.assertIn("lastRealtimeEventAt=Date.now()", app)
 
 if __name__ == '__main__':
     unittest.main()
