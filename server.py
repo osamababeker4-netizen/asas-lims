@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = '10.9.0-system-review'
+APP_VERSION = '10.9.3-production-hardening'
 DB = os.environ.get('LIMS_DB_PATH', os.path.join(BASE, 'lims.db'))
 OFFICIAL_CATALOG = os.path.join(BASE, 'official_test_catalog.json')
 QUALITY_UPLOADS = os.environ.get('LIMS_QUALITY_UPLOADS', os.path.join(BASE, 'uploads', 'quality'))
@@ -47,6 +47,8 @@ LOGIN_WINDOW_SECONDS = int(os.environ.get('LIMS_LOGIN_WINDOW_SECONDS', '900'))
 LOGIN_MAX_ATTEMPTS = int(os.environ.get('LIMS_LOGIN_MAX_ATTEMPTS', '5'))
 LOGIN_ATTEMPTS = {}
 LOGIN_ATTEMPTS_LOCK = threading.Lock()
+CENTRAL_SYNC_MODE = os.environ.get('LIMS_CENTRAL_SYNC_MODE', 'true').strip().lower() not in {'0', 'false', 'no', 'off'}
+REALTIME_DB_POLL_SECONDS = max(0.5, float(os.environ.get('LIMS_REALTIME_DB_POLL_SECONDS', '2')))
 
 BACKUP_DIR = os.environ.get('LIMS_BACKUP_DIR', os.path.join(BASE, 'backups'))
 
@@ -731,10 +733,24 @@ def audit(connection, user_id, action, entity, entity_id, details):
 
 
 def queue_sync(connection, entity, entity_id, operation, payload):
-    connection.execute(
-        'insert into sync_queue(entity,entity_id,operation,payload_json) values(?,?,?,?)',
-        (entity, entity_id, operation, json.dumps(payload, ensure_ascii=False))
-    )
+    """Record a change in the central outbox without creating false pending work.
+
+    In production all devices write to the same central SQLite database, so the
+    transaction is already synchronized when it commits.  The outbox is kept as
+    operational history, while only non-central deployments retain queued items.
+    """
+    encoded = json.dumps(payload, ensure_ascii=False)
+    if CENTRAL_SYNC_MODE:
+        connection.execute(
+            """insert into sync_queue(entity,entity_id,operation,payload_json,status,attempts,sent_at)
+               values(?,?,?,?,'synced',1,CURRENT_TIMESTAMP)""",
+            (entity, entity_id, operation, encoded)
+        )
+    else:
+        connection.execute(
+            'insert into sync_queue(entity,entity_id,operation,payload_json) values(?,?,?,?)',
+            (entity, entity_id, operation, encoded)
+        )
 
 
 def rows_for_json(connection, sql, params=()):
@@ -887,6 +903,23 @@ def restore_deleted_record(connection, payload):
                 connection.execute('insert into catalog_resources(test_catalog_id,' + column + ') values(?,?) on conflict(test_catalog_id) do update set ' + column + '=case when ' + column + ' is null then excluded.' + column + ' else ' + column + ' end,updated_at=CURRENT_TIMESTAMP', (catalog_id, attachment_id))
 
 
+def session_token_hash(token):
+    return hashlib.sha256(str(token or '').encode('utf-8')).hexdigest()
+
+
+def delete_session(token):
+    if not token:
+        return
+    SESSIONS.pop(token, None)
+    try:
+        connection = db()
+        connection.execute('delete from user_sessions where token_hash=?', (session_token_hash(token),))
+        connection.commit()
+        connection.close()
+    except sqlite3.Error:
+        pass
+
+
 def user_from(handler):
     token = None
     authorization = handler.headers.get('Authorization', '')
@@ -898,20 +931,55 @@ def user_from(handler):
             if item.startswith('LIMS_SESSION='):
                 token = item.split('=', 1)[1]
                 break
-    session = SESSIONS.get(token) if token else None
-    if not session:
+    if not token:
         return None
-    if 'expires_at' not in session:  # Compatibility for sessions created before this release.
-        return session
-    if session['expires_at'] <= time.time():
-        SESSIONS.pop(token, None)
+
+    now = time.time()
+    session = SESSIONS.get(token)
+    if session:
+        if 'expires_at' not in session:  # Compatibility for tests and old in-memory sessions.
+            return session
+        if session['expires_at'] > now:
+            return session['user']
+        delete_session(token)
         return None
-    return session['user']
+
+    # Durable sessions survive a Render restart/redeploy. Only a SHA-256 token
+    # digest is stored on disk; the bearer token itself is never persisted.
+    try:
+        connection = db()
+        row = connection.execute(
+            '''select u.*,s.expires_at session_expires_at
+               from user_sessions s join users u on u.id=s.user_id
+               where s.token_hash=? and s.expires_at>? and u.active=1''',
+            (session_token_hash(token), now)
+        ).fetchone()
+        connection.execute('delete from user_sessions where expires_at<=?', (now,))
+        connection.commit()
+        connection.close()
+    except sqlite3.Error:
+        row = None
+    if not row:
+        return None
+    user = dict(row)
+    expires_at = float(user.pop('session_expires_at'))
+    SESSIONS[token] = {'user': user, 'expires_at': expires_at}
+    return user
 
 
 def create_session(user):
     token = secrets.token_urlsafe(32)
-    SESSIONS[token] = {'user': dict(user), 'expires_at': time.time() + SESSION_TTL_SECONDS}
+    expires_at = time.time() + SESSION_TTL_SECONDS
+    SESSIONS[token] = {'user': dict(user), 'expires_at': expires_at}
+    connection = db()
+    try:
+        connection.execute(
+            'insert or replace into user_sessions(token_hash,user_id,expires_at) values(?,?,?)',
+            (session_token_hash(token), user['id'], expires_at)
+        )
+        connection.commit()
+    finally:
+        connection.close()
     return token
 
 
@@ -1333,6 +1401,17 @@ def create_whatsapp_draft(connection, created_by, related_entity, related_id, me
     return None
 
 
+def database_change_signature():
+    signature = []
+    for path in (DB, DB + '-wal'):
+        try:
+            stat = os.stat(path)
+            signature.append((path, stat.st_mtime_ns, stat.st_size))
+        except OSError:
+            signature.append((path, 0, 0))
+    return tuple(signature)
+
+
 def publish_event(entity, operation, entity_id):
     """Notify connected same-origin sessions without transmitting record data."""
     event = {'entity': entity, 'operation': operation, 'id': entity_id}
@@ -1458,29 +1537,53 @@ class H(BaseHTTPRequestHandler):
         return True
 
     def stream_events(self):
-        subscriber = queue.Queue(maxsize=20)
+        subscriber = queue.Queue(maxsize=50)
         with EVENT_SUBSCRIBERS_LOCK:
             EVENT_SUBSCRIBERS.add(subscriber)
+        last_signature = database_change_signature()
+        last_keepalive = time.monotonic()
         try:
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
-            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Cache-Control', 'no-cache, no-transform')
             self.send_header('Connection', 'keep-alive')
             self.send_header('X-Accel-Buffering', 'no')
             self.send_cors_headers()
             self.end_headers()
-            self.wfile.write(b'retry: 5000\n\n')
+            self.wfile.write(b'retry: 2000\n\n')
             self.wfile.flush()
-            # Reconnect after a bounded interval to avoid holding a worker forever.
-            for _ in range(3):
+
+            # Keep the channel bounded but long-lived. Explicit publish_event()
+            # messages are immediate; the database signature is a safety net that
+            # catches any committed write even if a route forgot to publish.
+            for _ in range(150):
+                event = None
                 try:
-                    event = subscriber.get(timeout=20)
-                    message = 'data: ' + json.dumps(event, ensure_ascii=False) + '\n\n'
+                    event = subscriber.get(timeout=REALTIME_DB_POLL_SECONDS)
                 except queue.Empty:
+                    pass
+
+                current_signature = database_change_signature()
+                if event is not None:
+                    message = 'data: ' + json.dumps(event, ensure_ascii=False) + '\n\n'
+                    last_signature = current_signature
+                    last_keepalive = time.monotonic()
+                elif current_signature != last_signature:
+                    last_signature = current_signature
+                    message = 'data: ' + json.dumps(
+                        {'entity': 'database', 'operation': 'change', 'id': 0},
+                        ensure_ascii=False
+                    ) + '\n\n'
+                    last_keepalive = time.monotonic()
+                elif time.monotonic() - last_keepalive >= 10:
                     message = ': keepalive\n\n'
+                    last_keepalive = time.monotonic()
+                else:
+                    continue
+
                 self.wfile.write(message.encode('utf-8'))
                 self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
             pass
         finally:
             with EVENT_SUBSCRIBERS_LOCK:
@@ -1515,10 +1618,11 @@ class H(BaseHTTPRequestHandler):
             for key, table in (
                 ('projects', 'projects'), ('work_orders', 'work_orders'), ('samples', 'samples'),
                 ('tests', 'tests'), ('reports', 'reports'), ('equipment', 'equipment'),
-                ('field_visits', 'field_visits'), ('sync_queue', 'sync_queue'),
-                ('operational_tasks', 'operational_tasks')
+                ('field_visits', 'field_visits'), ('operational_tasks', 'operational_tasks')
             )
         }
+        counts['sync_queue'] = connection.execute("select count(*) from sync_queue where status='queued'").fetchone()[0]
+        counts['sync_history'] = connection.execute("select count(*) from sync_queue").fetchone()[0]
         alerts = {
             'blocked_projects': q("select id,code,name,priority,due_date from projects where status='موقوف' order by priority desc,id desc"),
             'overdue_work_orders': q("select w.id,w.order_no,w.title,w.due_date,p.code project_code from work_orders w join projects p on p.id=w.project_id where w.due_date is not null and w.due_date < date('now') and w.status != 'مكتمل' order by w.due_date"),
@@ -1616,7 +1720,14 @@ class H(BaseHTTPRequestHandler):
                 connection = db()
                 connection.execute('select 1').fetchone()
                 connection.close()
-                return self.send_json({'status': 'ok', 'database': 'ready', 'service': 'techno-lims', 'version': APP_VERSION})
+                return self.send_json({
+                    'status': 'ok',
+                    'database': 'ready',
+                    'service': 'techno-lims',
+                    'version': APP_VERSION,
+                    'realtime': 'ready',
+                    'sync_mode': 'central' if CENTRAL_SYNC_MODE else 'queued'
+                })
             except sqlite3.Error:
                 return self.send_json({'status': 'degraded', 'database': 'unavailable', 'service': 'techno-lims', 'version': APP_VERSION}, 503)
 
@@ -1642,7 +1753,10 @@ class H(BaseHTTPRequestHandler):
                     'database_integrity': integrity,
                     'database_size_bytes': os.path.getsize(DB) if os.path.exists(DB) else 0,
                     'queued_sync_items': queued,
-                    'active_sessions': len(SESSIONS),
+                    'sync_history_items': connection.execute('select count(*) from sync_queue').fetchone()[0],
+                    'sync_mode': 'central' if CENTRAL_SYNC_MODE else 'queued',
+                    'realtime_subscribers': len(EVENT_SUBSCRIBERS),
+                    'active_sessions': connection.execute('select count(*) from user_sessions where expires_at>?', (time.time(),)).fetchone()[0],
                     'session_ttl_seconds': SESSION_TTL_SECONDS
                 })
 
@@ -2125,12 +2239,15 @@ class H(BaseHTTPRequestHandler):
         if path == '/api/logout':
             authorization = self.headers.get('Authorization', '')
             if authorization.startswith('Bearer '):
-                SESSIONS.pop(authorization[7:], None)
+                delete_session(authorization[7:])
             for item in self.headers.get('Cookie', '').split(';'):
                 item = item.strip()
                 if item.startswith('LIMS_SESSION='):
-                    SESSIONS.pop(item.split('=', 1)[1], None)
-            return self.send_json({'ok': True})
+                    delete_session(item.split('=', 1)[1])
+            return self.send_json(
+                {'ok': True},
+                extra_headers={'Set-Cookie': 'LIMS_SESSION=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'}
+            )
 
         user = user_from(self)
         if not user:
@@ -2404,7 +2521,7 @@ class H(BaseHTTPRequestHandler):
                     return self.send_json({'error': 'telegram_provider_error'}, 502)
                 audit(connection, user['id'], 'إرسال مسودة تليجرام', 'telegram_draft', sent.get('message_id'), '{} · صور {}'.format(text[:420], len(photo_ids)))
                 connection.commit()
-                publish_event('telegram_draft', sent.get('message_id'), 'sent')
+                publish_event('telegram_draft', 'sent', sent.get('message_id'))
                 return self.send_json({'ok': True, 'message_id': sent.get('message_id'), 'photos_sent': len(photo_ids), 'sender_name': sender_name, 'layout': 'album_then_text' if photos else 'text_only'})
 
             if path == '/api/audit/delete':
