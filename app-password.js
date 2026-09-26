@@ -120,6 +120,9 @@ let pageHistory = [];
 let navigatingBack = false;
 let refreshInFlight = null;
 let realtimeTimer = null;
+let liveSyncRetryTimer = null;
+let liveSyncState = 'connecting';
+let lastRealtimeEventAt = 0;
 let userUpdatesChannel = null;
 let eventStream = null;
 let eventAbortController = null;
@@ -808,6 +811,22 @@ async function refresh() {
   try { return await refreshInFlight; } finally { refreshInFlight = null; }
 }
 
+function updateLiveSyncIndicator(state) {
+  liveSyncState = state || liveSyncState || 'connecting';
+  const indicator = $('syncIndicator');
+  if (!indicator) return;
+  const labels = {
+    connected:'المزامنة اللحظية: متصلة',
+    reconnecting:'المزامنة اللحظية: إعادة الاتصال…',
+    fallback:'المزامنة اللحظية: حماية دورية',
+    offline:'المزامنة اللحظية: غير متصلة',
+    connecting:'المزامنة اللحظية: جارٍ الاتصال…'
+  };
+  const pending = dashboard && dashboard.counts ? Number(dashboard.counts.sync_queue || 0) : 0;
+  setText(indicator, (labels[liveSyncState] || labels.connecting) + (pending ? ' · ' + pending + ' معلّقة' : ''));
+  indicator.dataset.state = liveSyncState;
+}
+
 function publishLiveUpdate(entity) {
   if (userUpdatesChannel) userUpdatesChannel.postMessage({entity:entity,at:Date.now()});
 }
@@ -815,6 +834,8 @@ function publishLiveUpdate(entity) {
 function stopLiveUpdates() {
   if (realtimeTimer) clearInterval(realtimeTimer);
   realtimeTimer = null;
+  if (liveSyncRetryTimer) clearTimeout(liveSyncRetryTimer);
+  liveSyncRetryTimer = null;
   if (eventStream) eventStream.close();
   eventStream = null;
   if (eventAbortController) eventAbortController.abort();
@@ -825,41 +846,75 @@ function stopLiveUpdates() {
 
 async function startAuthorizedEventStream() {
   if (!API_BASE_URL || !centralAccessToken || !currentUser) return;
+  if (eventAbortController) eventAbortController.abort();
   eventAbortController = new AbortController();
   const controller = eventAbortController;
+  updateLiveSyncIndicator(navigator.onLine ? 'connecting' : 'offline');
   try {
-    const response = await fetch(API_BASE_URL + '/api/events',{headers:{Authorization:'Bearer '+centralAccessToken},credentials:'include',signal:controller.signal});
-    if(!response.ok||!response.body)throw new Error('تعذر فتح قناة المزامنة');
+    const response = await fetch(API_BASE_URL + '/api/events',{
+      headers:{Authorization:'Bearer '+centralAccessToken},
+      credentials:'include',
+      cache:'no-store',
+      signal:controller.signal
+    });
+    if(!response.ok||!response.body) throw new Error('تعذر فتح قناة المزامنة');
+    updateLiveSyncIndicator('connected');
     const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
-    while(currentUser&&!controller.signal.aborted){const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop()||'';if(lines.some(function(line){return line.indexOf('data: ')===0;}))refresh().catch(function(){});}
-  } catch(error) { /* يعاد الاتصال أدناه ما لم يسجل المستخدم الخروج. */ }
-  if (!controller.signal.aborted && currentUser) setTimeout(startAuthorizedEventStream,1000);
+    while(currentUser&&!controller.signal.aborted){
+      const part=await reader.read();
+      if(part.done)break;
+      buffer+=decoder.decode(part.value,{stream:true});
+      const lines=buffer.split('\n');buffer=lines.pop()||'';
+      if(lines.some(function(line){return line.indexOf('data: ')===0;})){
+        lastRealtimeEventAt=Date.now();
+        updateLiveSyncIndicator('connected');
+        refresh().catch(function(){});
+      }
+    }
+  } catch(error) {
+    if (!controller.signal.aborted && currentUser) updateLiveSyncIndicator(navigator.onLine ? 'reconnecting' : 'offline');
+  }
+  if (!controller.signal.aborted && currentUser) {
+    liveSyncRetryTimer=setTimeout(startAuthorizedEventStream,1500);
+  }
 }
 
 function startLiveUpdates() {
   stopLiveUpdates();
   if (STATIC_MODE) return;
+  updateLiveSyncIndicator(navigator.onLine ? 'connecting' : 'offline');
   if ('BroadcastChannel' in window) {
     userUpdatesChannel = new BroadcastChannel('techno-lims-central-updates');
     userUpdatesChannel.onmessage = function() {
-      if (currentUser) refresh().catch(function() {});
+      if (currentUser) {
+        lastRealtimeEventAt=Date.now();
+        refresh().catch(function() {});
+      }
     };
   }
-  // EventSource is enabled only for the same Render origin. It uses the
-  // HttpOnly session cookie, never exposes an access token in a URL, and
-  // causes every connected device to refresh immediately after user changes.
   if (!API_BASE_URL || new URL(API_BASE_URL || location.origin, location.origin).origin === location.origin) {
     eventStream = new EventSource((API_BASE_URL || '') + '/api/events');
+    eventStream.onopen = function() { updateLiveSyncIndicator('connected'); };
     eventStream.onmessage = function() {
+      lastRealtimeEventAt=Date.now();
+      updateLiveSyncIndicator('connected');
       if (currentUser) refresh().catch(function() {});
     };
-    eventStream.onerror = function() { /* EventSource reconnects automatically. */ };
+    eventStream.onerror = function() {
+      if (currentUser) updateLiveSyncIndicator(navigator.onLine ? 'reconnecting' : 'offline');
+    };
   } else startAuthorizedEventStream();
-  // Same-browser updates are immediate. The short visible-page refresh keeps
-  // separate devices aligned with the central service without sending secrets.
+
+  // SSE is primary and immediate; this three-second refresh is a safety net.
   realtimeTimer = setInterval(function() {
-    if (currentUser && !document.hidden) refresh().catch(function() {});
-  }, 5000);
+    if (!currentUser || document.hidden) return;
+    if (!navigator.onLine) {
+      updateLiveSyncIndicator('offline');
+      return;
+    }
+    if (liveSyncState !== 'connected') updateLiveSyncIndicator('fallback');
+    refresh().catch(function() { updateLiveSyncIndicator('reconnecting'); });
+  }, 3000);
 }
 
 async function syncNow(showMessage) { const button=$('syncNow');if(button){button.disabled=true;setText(button,'جارٍ المزامنة…');}try{await loadCatalog();await refresh();if(showMessage!==false)showToast('اكتملت المزامنة الآن');}finally{if(button){button.disabled=false;setText(button,'مزامنة الآن');}} }
@@ -1021,9 +1076,7 @@ function renderDashboard() {
       return '<tr><td><strong>'+esc(s.sample_no||'—')+'</strong></td><td>'+esc(s.project_name||s.project_code||'—')+'</td><td>'+escUI(s.material||s.sample_type||'—')+'</td><td>'+statusChip(s.status||'—')+'</td><td>'+esc(saudiDisplay(s.received_at||s.created_at||''))+'</td></tr>';
     }).join('')||'<tr><td colspan="5" class="empty">لا توجد عينات مسجلة بعد.</td></tr>');
   }
-  const pending = dashboard.counts.sync_queue || 0;
-  setText($('syncIndicator'), 'المزامنة المباشرة: متصلة' +
-    (pending ? ' · ' + pending + ' عملية مسجلة' : ''));
+  updateLiveSyncIndicator(liveSyncState);
   const priorities = [];
   (dashboard.alerts.overdue_work_orders || []).forEach(function(item) { priorities.push('<div class="priority-item overdue"><strong>أمر متأخر: ' + esc(item.order_no) + ' — ' + esc(item.title) + '</strong><small>' + esc(item.project_code) + ' · استحقاق ' + esc(item.due_date) + '</small></div>'); });
   (dashboard.alerts.blocked_projects || []).forEach(function(item) { priorities.push('<div class="priority-item blocked"><strong>مشروع متوقف: ' + esc(item.code) + ' — ' + esc(item.name) + '</strong><small>الأولوية ' + escUI(item.priority) + (item.due_date ? ' · الاستحقاق ' + esc(item.due_date) : '') + '</small></div>'); });
@@ -3086,7 +3139,14 @@ function init() {
     if (!document.hidden && currentUser) refresh().catch(function() {});
   });
   window.addEventListener('online', function() {
-    if (currentUser) refresh().catch(function() {});
+    if (currentUser) {
+      updateLiveSyncIndicator('connecting');
+      refresh().catch(function() {});
+      startLiveUpdates();
+    }
+  });
+  window.addEventListener('offline', function() {
+    if (currentUser) updateLiveSyncIndicator('offline');
   });
   if (STATIC_MODE && !localDB().users.length && new URLSearchParams(location.search).get('setup') === '1') $('staticSetup').classList.remove('hidden');
 }
